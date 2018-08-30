@@ -51,6 +51,8 @@
 #include <rfm69_commprot.h>
 #include <rfm69_xc.h>
 
+#include "_rfm69_commprot.h"
+
 #include "_Aquarium_rfm69_client.h"
 
 #define DEBUG_PRINT_RFM69 1
@@ -109,6 +111,7 @@ void RFM69_client (
 
     uint8_t device_type;
     bool    doListenToAll = false; // Set to 'true' to sniff all packets on the same network
+    bool    receiveDone;
 
     packet_t            PACKET;
     #define RX_PACKET_U PACKET
@@ -296,21 +299,28 @@ void RFM69_client (
                     debug_print ("%s", LEADING_SPACE_STR);
                 #endif
 
+                receiveDone = i_radio.receiveDone(); // For any interruptAndParsingResult (30Aug2018 TODO works?)
 
                 switch (interruptAndParsingResult) {
 
                     #if (IS_MYTARGET_SLAVE == 1)
                     case messageReceivedOk_IRQ: {
-                        if (i_radio.receiveDone()) {
+                        // if (i_radio.receiveDone()) {
+                        if (receiveDone) {
+
+                            payload_t RX_radio_payload; // Copy it out and use rather than typecast
+                            int degC_dp1;
+                            int degC_Unary_Part;
+                            int degC_Decimal_Part;
 
                             int32_t numLost; // May be negative if sender restarts
 
                             if (first_debug_print_received_done) {
-                                debug_print ("RSSI %d, P %u, ",
+                                debug_print ("\nRSSI %d, P %u, ",
                                         nowRSSI,
                                         RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
                             } else {
-                                debug_print ("SENDERID %d, RSSI %d, P %u, ",
+                                debug_print ("\nSENDERID %d, RSSI %d, P %u, ",
                                        RX_some_rfm69_internals.SENDERID,
                                        nowRSSI,
                                        RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
@@ -346,6 +356,37 @@ void RFM69_client (
                             }
 
                             lastReceivedAppSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt;
+
+                            for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+                                // padding_xx inits not necessarry since PACKET_INIT_VAL32 setting (above) will have overlapped
+                                RX_radio_payload.u.payload_u1_uint8_arr[index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index];
+                            }
+
+                            debug_print ("%04u.%02u.%02u %02u:%02u:%02u\n",
+                                    RX_radio_payload.u.payload_u0.year,
+                                    RX_radio_payload.u.payload_u0.month,
+                                    RX_radio_payload.u.payload_u0.day,
+                                    RX_radio_payload.u.payload_u0.hour,
+                                    RX_radio_payload.u.payload_u0.minute,
+                                    RX_radio_payload.u.payload_u0.second);
+
+                            degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
+                            degC_Unary_Part   = degC_dp1/10;
+                            degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+                            //
+                            debug_print ("Water  %u.%u degC\n", degC_Unary_Part, degC_Decimal_Part);
+
+                            degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC;
+                            degC_Unary_Part   = degC_dp1/10;
+                            degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+                            //
+                            debug_print ("Heater %u.%u degC\n", degC_Unary_Part, degC_Decimal_Part);
+                            debug_print ("Light %u/3 %u/3 %u/3\n",
+                                    RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
+                                    RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
+                                    RX_radio_payload.u.payload_u0.light_intensity_thirds_back);
+
+                            debug_print ("Up %u days\n", RX_radio_payload.u.payload_u0.num_days_since_start);
 
                             first_debug_print_received_done = true;
 
@@ -403,6 +444,10 @@ void RFM69_client (
 
                         debug_print ("RSSI %d, fail IRQ %u, num_radioCRC16errs %u, num_appCRC32errs %u with PACKETLEN %u\n",
                                 nowRSSI, interruptAndParsingResult, num_radioCRC16errs, num_appCRC32errs, RX_some_rfm69_internals.PACKETLEN);
+
+                        // 30Aug2018 hang after this:
+                        // RSSI -48, fail IRQ 7, num_radioCRC16errs 0, num_appCRC32errs 0 with PACKETLEN 1
+                        //                    7 messagePacketLenErr_IRQ
                     } break;
                 #elif (IS_MYTARGET_MASTER == 1)
                     case messageRadioCRC16AppCRC32Errs_IRQ:
