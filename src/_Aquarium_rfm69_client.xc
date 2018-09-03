@@ -362,10 +362,8 @@ void RFM69_client (
                                 RX_radio_payload.u.payload_u1_uint8_arr[index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index];
                             }
 
-                            debug_print ("%04u.%02u.%02u %02u:%02u:%02u\n",
-                                    RX_radio_payload.u.payload_u0.year,
-                                    RX_radio_payload.u.payload_u0.month,
-                                    RX_radio_payload.u.payload_u0.day,
+                            debug_print ("Up day %u at %02u:%02u:%02u\n",
+                                    RX_radio_payload.u.payload_u0.num_days_since_start,
                                     RX_radio_payload.u.payload_u0.hour,
                                     RX_radio_payload.u.payload_u0.minute,
                                     RX_radio_payload.u.payload_u0.second);
@@ -385,8 +383,6 @@ void RFM69_client (
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_back);
-
-                            debug_print ("Up %u days\n", RX_radio_payload.u.payload_u0.num_days_since_start);
 
                             first_debug_print_received_done = true;
 
