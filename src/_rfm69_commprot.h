@@ -19,7 +19,7 @@ typedef uint8_t  heater_on_percent_r;
 typedef uint8_t  heater_on_watt_r;
 typedef uint8_t  light_control_scheme_r;
 typedef uint16_t year_r;
-typedef uint16_t error_bits_now_r;
+typedef uint16_t error_bits_r;
 typedef int16_t  onetenthDegC_r;
 typedef uint16_t voltage_onetenthV_r;
 typedef uint16_t application_version_num_r;
@@ -34,22 +34,21 @@ typedef struct { // Size must be modulo 4                                   // W
     second_r                  second;                                       // 05
     heater_on_percent_r       heater_on_percent;                            //    06
     heater_on_watt_r          heater_on_watt;                               //       07
-    light_control_scheme_r    light_control_scheme;                         //          08
-    error_bits_now_r          error_bits_now;                               // 09-10
-    onetenthDegC_r            i2c_temp_heater_onetenthDegC;                 //       11-12
-    onetenthDegC_r            i2c_temp_ambient_onetenthDegC;                // 13-14
-    onetenthDegC_r            i2c_temp_water_onetenthDegC;                  //       15-16
-    onetenthDegC_r            i2c_temp_heater_mean_last_cycle_onetenthDegC; // 17-18
-    onetenthDegC_r            internal_box_temp_onetenthDegC;               //       19-20
-    voltage_onetenthV_r       rr_24V_heat_onetenthV;                        // 21-22
-    voltage_onetenthV_r       rr_12V_LEDlight_onetenthV;                    //       23-24
-    application_version_num_r application_version_num;                      // 25-26
-    light_intensity_thirds_r  light_intensity_thirds_front;                 //       27
-    light_intensity_thirds_r  light_intensity_thirds_center;                //          28
-    light_intensity_thirds_r  light_intensity_thirds_back;                  // 29
-    light_composition_r       light_composition;                            //    30
-    uint8_t                   padding_31;                                   //       31
-    uint8_t                   padding_32;                                   //          32
+    light_control_scheme_r    light_control_scheme;                         //          08 num_minutes_left.. (two counters) not exported
+    error_bits_r              error_bits_now;                               // 09-10       (Intermediate errors will disappeear)
+    error_bits_r              error_bits_history;                           //       11-12 (bitor'ed from above but both cleared with right button 10 seconds)
+    onetenthDegC_r            i2c_temp_heater_onetenthDegC;                 // 13-14
+    onetenthDegC_r            i2c_temp_ambient_onetenthDegC;                //       15-16
+    onetenthDegC_r            i2c_temp_water_onetenthDegC;                  // 17-18
+    onetenthDegC_r            temp_heater_mean_last_cycle_onetenthDegC;     //       19-20
+    onetenthDegC_r            internal_box_temp_onetenthDegC;               // 21-22
+    voltage_onetenthV_r       rr_24V_heat_onetenthV;                        //       23-24
+    voltage_onetenthV_r       rr_12V_LEDlight_onetenthV;                    // 25-26
+    application_version_num_r application_version_num;                      //       27-28
+    light_intensity_thirds_r  light_intensity_thirds_front;                 // 29
+    light_intensity_thirds_r  light_intensity_thirds_center;                //    30
+    light_intensity_thirds_r  light_intensity_thirds_back;                  //       31
+    light_composition_r       light_composition;                            //          32
     //                                                                                  ##
     // _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08                                         32 -> SET IN makefile -> Must be modulo 4
     // _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08 is checked by System_Task               ##

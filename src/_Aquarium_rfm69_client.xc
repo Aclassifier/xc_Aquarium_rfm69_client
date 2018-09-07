@@ -312,6 +312,9 @@ void RFM69_client (
                             int degC_dp1;
                             int degC_Unary_Part;
                             int degC_Decimal_Part;
+                            int Volt_dp1;
+                            int Volt_Unary_Part;
+                            int Volt_Decimal_Part;
 
                             int32_t numLost; // May be negative if sender restarts
 
@@ -362,27 +365,69 @@ void RFM69_client (
                                 RX_radio_payload.u.payload_u1_uint8_arr[index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index];
                             }
 
-                            debug_print ("Up day %u at %02u:%02u:%02u\n",
+                            debug_print ("Up #%u at %02u:%02u:%02u\n",
                                     RX_radio_payload.u.payload_u0.num_days_since_start,
                                     RX_radio_payload.u.payload_u0.hour,
                                     RX_radio_payload.u.payload_u0.minute,
                                     RX_radio_payload.u.payload_u0.second);
 
+                            debug_print ("Errorbits 0x%04x (0x%04x)\n",
+                                    RX_radio_payload.u.payload_u0.error_bits_now,
+                                    RX_radio_payload.u.payload_u0.error_bits_history);
+
                             degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
                             degC_Unary_Part   = degC_dp1/10;
                             degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
                             //
-                            debug_print ("Water  %u.%u degC\n", degC_Unary_Part, degC_Decimal_Part);
+                            debug_print ("Water  %u.%udegC\n", degC_Unary_Part, degC_Decimal_Part);
 
                             degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC;
                             degC_Unary_Part   = degC_dp1/10;
                             degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
                             //
-                            debug_print ("Heater %u.%u degC\n", degC_Unary_Part, degC_Decimal_Part);
-                            debug_print ("Light %u/3 %u/3 %u/3\n",
+                            debug_print ("Heater %u.%udegC, ", degC_Unary_Part, degC_Decimal_Part);
+
+                            degC_dp1          = RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC;
+                            degC_Unary_Part   = degC_dp1/10;
+                            degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+                            debug_print ("mean %u.%udegC on %u%% %uW\n", degC_Unary_Part, degC_Decimal_Part,
+                                    RX_radio_payload.u.payload_u0.heater_on_percent,
+                                    RX_radio_payload.u.payload_u0.heater_on_watt);
+
+                            debug_print ("Light scheme %u. Composition %u gives FCB %u/3 %u/3 %u/3\n",
+                                    RX_radio_payload.u.payload_u0.light_control_scheme,
+                                    RX_radio_payload.u.payload_u0.light_composition,
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_back);
+
+                            Volt_dp1          = RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV;
+                            Volt_Unary_Part   = Volt_dp1/10;
+                            Volt_Decimal_Part = Volt_dp1 - (Volt_Unary_Part*10);
+                            debug_print ("Voltage at heater %02u.%uV, ", Volt_Unary_Part, Volt_Decimal_Part);
+
+                            Volt_dp1          = RX_radio_payload.u.payload_u0.rr_12V_LEDlight_onetenthV;
+                            Volt_Unary_Part   = Volt_dp1/10;
+                            Volt_Decimal_Part = Volt_dp1 - (Volt_Unary_Part*10);
+                            debug_print ("light %02u.%uV\n", Volt_Unary_Part, Volt_Decimal_Part);
+
+                            degC_dp1          = RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC;
+                            degC_Unary_Part   = degC_dp1/10;
+                            degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+                            debug_print ("Box %02u.%udegC\n", degC_Unary_Part, degC_Decimal_Part);
+
+                            unsigned rest;
+                            unsigned thousands;
+                            unsigned hundreds;
+                            unsigned tens;
+
+                            rest      = RX_radio_payload.u.payload_u0.application_version_num;
+                            thousands = rest / 1000;
+                            rest      = rest - (thousands * 1000);
+                            hundreds  = rest / 100;
+                            rest      = rest - (hundreds * 100);
+                            tens      = rest;
+                            debug_print ("Version %01u.%01u.%02u\n", thousands, hundreds, tens); // 1110 -> 1.1.10
 
                             first_debug_print_received_done = true;
 
