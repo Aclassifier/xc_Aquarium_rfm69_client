@@ -113,6 +113,8 @@ void RFM69_client (
     bool    doListenToAll = false; // Set to 'true' to sniff all packets on the same network
     bool    receiveDone;
 
+    light_control_scheme_r light_control_scheme = 0;
+
     packet_t            PACKET;
     #define RX_PACKET_U PACKET
     #define TX_PACKET_U PACKET
@@ -365,7 +367,7 @@ void RFM69_client (
                                 RX_radio_payload.u.payload_u1_uint8_arr[index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index];
                             }
 
-                            debug_print ("Up #%u at %02u:%02u:%02u\n",
+                            debug_print ("Up day #%u at %02u:%02u:%02u\n",
                                     RX_radio_payload.u.payload_u0.num_days_since_start,
                                     RX_radio_payload.u.payload_u0.hour,
                                     RX_radio_payload.u.payload_u0.minute,
@@ -385,7 +387,7 @@ void RFM69_client (
                             degC_Unary_Part   = degC_dp1/10;
                             degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
                             //
-                            debug_print ("Heater %u.%udegC, ", degC_Unary_Part, degC_Decimal_Part);
+                            debug_print ("Heater %u reg %u.%udegC, ", RX_radio_payload.u.payload_u0.now_regulating_at, degC_Unary_Part, degC_Decimal_Part);
 
                             degC_dp1          = RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC;
                             degC_Unary_Part   = degC_dp1/10;
@@ -394,12 +396,14 @@ void RFM69_client (
                                     RX_radio_payload.u.payload_u0.heater_on_percent,
                                     RX_radio_payload.u.payload_u0.heater_on_watt);
 
-                            debug_print ("Light scheme %u. Composition %u gives FCB %u/3 %u/3 %u/3\n",
+                            debug_print ("Light scheme %s %u. Composition %u gives FCB %u/3 %u/3 %u/3\n",
+                                    (RX_radio_payload.u.payload_u0.light_control_scheme == light_control_scheme) ? "stable" : "changed",
                                     RX_radio_payload.u.payload_u0.light_control_scheme,
                                     RX_radio_payload.u.payload_u0.light_composition,
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_back);
+                            light_control_scheme = RX_radio_payload.u.payload_u0.light_control_scheme;
 
                             Volt_dp1          = RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV;
                             Volt_Unary_Part   = Volt_dp1/10;

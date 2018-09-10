@@ -26,6 +26,7 @@ typedef uint16_t application_version_num_r;
 typedef uint8_t  light_intensity_thirds_r;
 typedef uint8_t  light_composition_r;
 typedef uint16_t num_days_since_start_r;
+typedef uint8_t  now_regulating_at_r;
 
 typedef struct { // Size must be modulo 4                                   // WORD ALIGN
     num_days_since_start_r    num_days_since_start;                         // 01,02       Saving 4 bytes for year, month and day (start date is seen in SCREEN_6_KONSTANTER)
@@ -49,8 +50,12 @@ typedef struct { // Size must be modulo 4                                   // W
     light_intensity_thirds_r  light_intensity_thirds_center;                //    30
     light_intensity_thirds_r  light_intensity_thirds_back;                  //       31
     light_composition_r       light_composition;                            //          32
+    now_regulating_at_r       now_regulating_at;                            // 33
+    uint8_t                   padding_34;                                   //    34
+    uint8_t                   padding_35;                                   //       35
+    uint8_t                   padding_36;                                   //          36
     //                                                                                  ##
-    // _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08                                         32 -> SET IN makefile -> Must be modulo 4
+    // _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08                                         36 -> SET IN makefile -> Must be modulo 4. Add "uint8_t padding_nn" if needed
     // _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08 is checked by System_Task               ##
     //                            and may cause low code size if it fails               ##
     // If PACKET_LEN08 of packet_t in /lib_rfm69_xc/rfm69_commmprot.h is 20 a           ##
