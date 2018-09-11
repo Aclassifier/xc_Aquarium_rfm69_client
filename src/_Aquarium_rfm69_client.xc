@@ -113,7 +113,10 @@ void RFM69_client (
     bool    doListenToAll = false; // Set to 'true' to sniff all packets on the same network
     bool    receiveDone;
 
-    light_control_scheme_r light_control_scheme = 0;
+    payload_t RX_radio_payload_prev;
+
+    const char char_eq_str[]     = "=";
+    const char char_change_str[] = "#";
 
     packet_t            PACKET;
     #define RX_PACKET_U PACKET
@@ -259,6 +262,10 @@ void RFM69_client (
         debug_print ("RFM69 err1 new %u code %04X\n", is_new_error, RX_some_rfm69_internals.error_bits);
     } else {}
 
+    for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+        RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
+    }
+
     tmr :> time_ticks; // First sending now
 
     while (1) {
@@ -363,18 +370,21 @@ void RFM69_client (
                             lastReceivedAppSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt;
 
                             for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
-                                // padding_xx inits not necessarry since PACKET_INIT_VAL32 setting (above) will have overlapped
-                                RX_radio_payload.u.payload_u1_uint8_arr[index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index];
+                                RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = RX_radio_payload.u.payload_u1_uint8_arr[index];
+                                RX_radio_payload.u.payload_u1_uint8_arr     [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index];
                             }
 
-                            debug_print ("Up day #%u at %02u:%02u:%02u\n",
+                            debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
+                                    (RX_radio_payload.u.payload_u0.num_days_since_start == RX_radio_payload_prev.u.payload_u0.num_days_since_start) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.num_days_since_start,
                                     RX_radio_payload.u.payload_u0.hour,
                                     RX_radio_payload.u.payload_u0.minute,
                                     RX_radio_payload.u.payload_u0.second);
 
-                            debug_print ("Errorbits 0x%04x (0x%04x)\n",
+                            debug_print ("error_bits_now%s0x%04x (error_bits_history%s0x%04x)\n",
+                                    (RX_radio_payload.u.payload_u0.error_bits_now == RX_radio_payload_prev.u.payload_u0.error_bits_now) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.error_bits_now,
+                                    (RX_radio_payload.u.payload_u0.error_bits_history == RX_radio_payload_prev.u.payload_u0.error_bits_history) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.error_bits_history);
 
                             degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
@@ -396,14 +406,14 @@ void RFM69_client (
                                     RX_radio_payload.u.payload_u0.heater_on_percent,
                                     RX_radio_payload.u.payload_u0.heater_on_watt);
 
-                            debug_print ("Light scheme %s %u. Composition %u gives FCB %u/3 %u/3 %u/3\n",
-                                    (RX_radio_payload.u.payload_u0.light_control_scheme == light_control_scheme) ? "stable" : "changed",
+                            debug_print ("light_control_scheme%s%01u with light_composition%s%02u gives FCB %u/3 %u/3 %u/3\n",
+                                    (RX_radio_payload.u.payload_u0.light_control_scheme == RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.light_control_scheme,
+                                    (RX_radio_payload.u.payload_u0.light_composition == RX_radio_payload_prev.u.payload_u0.light_composition) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.light_composition,
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_back);
-                            light_control_scheme = RX_radio_payload.u.payload_u0.light_control_scheme;
 
                             Volt_dp1          = RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV;
                             Volt_Unary_Part   = Volt_dp1/10;

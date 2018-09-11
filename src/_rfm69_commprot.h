@@ -28,6 +28,10 @@ typedef uint8_t  light_composition_r;
 typedef uint16_t num_days_since_start_r;
 typedef uint8_t  now_regulating_at_r;
 
+#ifndef PACKET_INIT_VAL08
+    #define PACKET_INIT_VAL08 0x00
+#endif
+
 typedef struct { // Size must be modulo 4                                   // WORD ALIGN
     num_days_since_start_r    num_days_since_start;                         // 01,02       Saving 4 bytes for year, month and day (start date is seen in SCREEN_6_KONSTANTER)
     hour_r                    hour;                                         //       03
@@ -67,7 +71,7 @@ typedef struct { // Size must be modulo 4                                   // W
 typedef struct {  // Size must be modulo 4
     union {
         payload_u0_t payload_u0;
-        uint8_t      payload_u1_uint8_arr[_USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08];
+        uint8_t      payload_u1_uint8_arr[_USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08]; // Init to PACKET_INIT_VAL08
     } u;
 } payload_t;
 
