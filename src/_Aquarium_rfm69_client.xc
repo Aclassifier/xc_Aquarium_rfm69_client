@@ -397,7 +397,11 @@ void RFM69_client (
                             degC_Unary_Part   = degC_dp1/10;
                             degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
                             //
-                            debug_print ("Heater %u reg %u.%udegC, ", RX_radio_payload.u.payload_u0.now_regulating_at, degC_Unary_Part, degC_Decimal_Part);
+                            debug_print ("Heater now_regulating_at%s%u reg %u.%udegC, ",
+                                    (RX_radio_payload.u.payload_u0.now_regulating_at == RX_radio_payload_prev.u.payload_u0.now_regulating_at) ? char_eq_str : char_change_str,
+                                    RX_radio_payload.u.payload_u0.now_regulating_at,
+                                    degC_Unary_Part,
+                                    degC_Decimal_Part);
 
                             degC_dp1          = RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC;
                             degC_Unary_Part   = degC_dp1/10;
