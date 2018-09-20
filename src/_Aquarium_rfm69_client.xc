@@ -105,13 +105,15 @@
 void RFM69_client (
         server irq_if_t   i_irq,
         client radio_if_t i_radio,
-        const  bool       semantics_do_rssi_in_irq_detect_task)
+        const  bool       semantics_do_rssi_in_irq_detect_task,
+        out port          p_explorer_leds)
 {
     #define LEADING_SPACE_STR "       "
 
-    uint8_t device_type;
-    bool    doListenToAll = false; // Set to 'true' to sniff all packets on the same network
-    bool    receiveDone;
+    uint8_t  device_type;
+    bool     doListenToAll = false; // Set to 'true' to sniff all packets on the same network
+    bool     receiveDone;
+    unsigned p_explorer_led_bits = 0;
 
     payload_t RX_radio_payload_prev;
 
@@ -271,6 +273,10 @@ void RFM69_client (
     while (1) {
         select {
             case i_irq.pin_rising (const int16_t value) : { // PROTOCOL: int16_t chan_value
+
+                p_explorer_led_bits or_eq XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK;
+                p_explorer_leds <: p_explorer_led_bits;
+
                 int16_t nowRSSI;
                 if (semantics_do_rssi_in_irq_detect_task) {
                     nowRSSI = value;
@@ -308,7 +314,7 @@ void RFM69_client (
                     debug_print ("%s", LEADING_SPACE_STR);
                 #endif
 
-                receiveDone = i_radio.receiveDone(); // For any interruptAndParsingResult (30Aug2018 TODO works?)
+                receiveDone = i_radio.receiveDone(); // For any interruptAndParsingResult (30Aug2018, 12Sept2018 TODO works?)
 
                 switch (interruptAndParsingResult) {
 
@@ -324,6 +330,9 @@ void RFM69_client (
                             int Volt_dp1;
                             int Volt_Unary_Part;
                             int Volt_Decimal_Part;
+
+                            p_explorer_led_bits or_eq XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK;
+                            p_explorer_leds <: p_explorer_led_bits;
 
                             int32_t numLost; // May be negative if sender restarts
 
@@ -397,7 +406,7 @@ void RFM69_client (
                             degC_Unary_Part   = degC_dp1/10;
                             degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
                             //
-                            debug_print ("Heater now_regulating_at%s%u reg %u.%udegC, ",
+                            debug_print ("Heater now_regulating_at%s%u temp %u.%udegC, ",
                                     (RX_radio_payload.u.payload_u0.now_regulating_at == RX_radio_payload_prev.u.payload_u0.now_regulating_at) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.now_regulating_at,
                                     degC_Unary_Part,
@@ -406,11 +415,13 @@ void RFM69_client (
                             degC_dp1          = RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC;
                             degC_Unary_Part   = degC_dp1/10;
                             degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-                            debug_print ("mean %u.%udegC on %u%% %uW\n", degC_Unary_Part, degC_Decimal_Part,
+                            debug_print ("mean %u.%udegC heater_on_percent%s%u%% heater_on_watt%s%uW\n", degC_Unary_Part, degC_Decimal_Part,
+                                    (RX_radio_payload.u.payload_u0.heater_on_percent == RX_radio_payload_prev.u.payload_u0.heater_on_percent) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.heater_on_percent,
+                                    (RX_radio_payload.u.payload_u0.heater_on_watt == RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.heater_on_watt);
 
-                            debug_print ("light_control_scheme%s%01u with light_composition%s%02u gives FCB %u/3 %u/3 %u/3\n",
+                            debug_print ("Light light_control_scheme%s%01u with light_composition%s%02u gives FCB %u/3 %u/3 %u/3\n",
                                     (RX_radio_payload.u.payload_u0.light_control_scheme == RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.light_control_scheme,
                                     (RX_radio_payload.u.payload_u0.light_composition == RX_radio_payload_prev.u.payload_u0.light_composition) ? char_eq_str : char_change_str,
@@ -450,6 +461,9 @@ void RFM69_client (
                             first_debug_print_received_done = true;
 
                             // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
+
+                            p_explorer_led_bits and_eq (compl XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK);
+                            p_explorer_leds <: p_explorer_led_bits;
 
                         } else {
                             debug_print ("%s\n", "IRQ but not receiveDone!");
@@ -504,9 +518,12 @@ void RFM69_client (
                         debug_print ("RSSI %d, fail IRQ %u, num_radioCRC16errs %u, num_appCRC32errs %u with PACKETLEN %u\n",
                                 nowRSSI, interruptAndParsingResult, num_radioCRC16errs, num_appCRC32errs, RX_some_rfm69_internals.PACKETLEN);
 
+                        // TODO
                         // 30Aug2018 hang after this:
                         // RSSI -48, fail IRQ 7, num_radioCRC16errs 0, num_appCRC32errs 0 with PACKETLEN 1
                         //                    7 messagePacketLenErr_IRQ
+                        // 12Sept2018 same hanging, see file "2018 09 12 A fail IRQ 7 still not solved.txt"
+                        // RSSI -44, fail IRQ 7, num_radioCRC16errs 0, num_appCRC32errs 0 with PACKETLEN 1
                     } break;
                 #elif (IS_MYTARGET_MASTER == 1)
                     case messageRadioCRC16AppCRC32Errs_IRQ:
@@ -534,10 +551,18 @@ void RFM69_client (
                 } else {}
 
                 i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, low); // For scope
+
+                p_explorer_led_bits and_eq (compl XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK);
+                p_explorer_leds <: p_explorer_led_bits;
             } break;
 
 
             case tmr when timerafter (time_ticks) :> time32_t startTime_ticks: {
+
+                p_explorer_led_bits xor_eq XCORE_200_EXPLORER_LED_GREEN_BIT_MASK;
+                p_explorer_leds <: p_explorer_led_bits;
+                //debug_print ("%s", "Hi!\n");
+
                 #if (DEBUG_PRINT_TIME_USED == 1)
                     debug_print ("..After %08X is time %08X ticks\n", time_ticks, startTime_ticks);
                 #endif
@@ -658,10 +683,11 @@ void RFM69_client (
                 #if (TEST_CAR_KEY == 1)
                     time_ticks += ONE_SECOND_TICKS/5; // Every 200 ms will destroy for car's requirement of seein the pulse train for 500 ms
                 #else
-                    time_ticks += ONE_SECOND_TICKS*10; // FUTURE TIMEOUT
+                    time_ticks += ONE_SECOND_TICKS*1; // FUTURE TIMEOUT
                 #endif
 
                 // If diffTime_ms is larger than ONE_SEC_TICS the select will be timed out immediately N times until it's AFTER again
+
             } break;
         }
     }

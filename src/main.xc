@@ -42,20 +42,20 @@
 #define CAT3(a,b,c) a##b##c
 #define XS1_PORT(WIDTH,LETTER) CAT3(XS1_PORT_,WIDTH,LETTER) // XS1_PORT_ is a string here, not some #define from the woods!
 
-                               //                StartKIT                 eXplorerKIT - BUT NOT AS PREDEFINED SPI in their Portmaps
-                               //                                         as WiFi sliceCARD My breakpot board
-#define SPI_MOSI  XS1_PORT(1,K) // XS1_PORT_1K   X0D34 P1K       PCIe-B10 GPIO-PIN19
-#define SPI_CLK   XS1_PORT(1,J) // XS1_PORT_1J   X0D25 P1J       PCIe-A8  GPIO-PIN21
-#define SPI_MISO  XS1_PORT(1,I) // XS1_PORT_1I   X0D24 P1I       PCIe-B15 GPIO-PIN23
-#define SPI_CS_EN XS1_PORT(4,C) // XS1_PORT_4C   X0D14 P4C0      PCIe-B6  GPIO-PIN47  MASKOF_SPI_SLAVE0_CS          CS/SS Chip select is port BIT0 low
-                                // XS1_PORT_4C   X0D15 P4C1      PCIe-B7  GPIO-PIN45  MASKOF_SPI_SLAVE0_EN          nPWR_EN SPI_EN Power enable is port BIT1 high
-                                // XS1_PORT_4C   X0D20 P4C2      PCIe-A6  GPIO-PIN43  MASKOF_SPI_SLAVE0_PROBE1_INNER
-                                // XS1_PORT_4C   X0D21 P4C3      PCIe-A7  GPIO-PIN42  MASKOF_SPI_SLAVE0_PROBE2_OUTER
-#define SPI_AUX   XS1_PORT(4,D) // XS1_PORT_4D   X0D16 P4D0      PCIe-B9  GPIO-PIN31  MASKOF_SPI_AUX0_RST           RST Restart is port BIT0
-                                // XS1_PORT_4D   X0D17 P4D1      PCIe-B11 GPIO-PIN29  MASKOF_SPI_AUX0_PROBE3_IRQ
-#define SPI_IRQ   XS1_PORT(1,L) // XS1_PORT_1L   X0D35 P1L       PCIe-A15 GPIO-PIN17  IRQ, "GPIO 0", DIO0
-#define PROBE4    XS1_PORT(1,F) // XS1_PORT_1F   X0D13 P1F  J7.1 PCIe-B2  GPIO-PIN37  "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
-#define PROBE5    XS1_PORT(1,D) // XS1_PORT_1D   X0D11 P1D  J3.21 LED-D2   SPI-MOSI   "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
+                               //                StartKIT                  eXplorerKIT - BUT NOT AS PREDEFINED SPI in their Portmaps
+                               //                                          as WiFi sliceCARD My breakpot board
+#define SPI_MOSI  XS1_PORT(1,K) // XS1_PORT_1K   X0D34 P1K        PCIe-B10 GPIO-PIN19
+#define SPI_CLK   XS1_PORT(1,J) // XS1_PORT_1J   X0D25 P1J        PCIe-A8  GPIO-PIN21
+#define SPI_MISO  XS1_PORT(1,I) // XS1_PORT_1I   X0D24 P1I        PCIe-B15 GPIO-PIN23
+#define SPI_CS_EN XS1_PORT(4,C) // XS1_PORT_4C   X0D14 P4C0       PCIe-B6  GPIO-PIN47  MASKOF_SPI_SLAVE0_CS          CS/SS Chip select is port BIT0 low
+                                // XS1_PORT_4C   X0D15 P4C1       PCIe-B7  GPIO-PIN45  MASKOF_SPI_SLAVE0_EN          nPWR_EN SPI_EN Power enable is port BIT1 high
+                                // XS1_PORT_4C   X0D20 P4C2       PCIe-A6  GPIO-PIN43  MASKOF_SPI_SLAVE0_PROBE1_INNER
+                                // XS1_PORT_4C   X0D21 P4C3       PCIe-A7  GPIO-PIN42  MASKOF_SPI_SLAVE0_PROBE2_OUTER
+#define SPI_AUX   XS1_PORT(4,D) // XS1_PORT_4D   X0D16 P4D0       PCIe-B9  GPIO-PIN31  MASKOF_SPI_AUX0_RST           RST Restart is port BIT0
+                                // XS1_PORT_4D   X0D17 P4D1       PCIe-B11 GPIO-PIN29  MASKOF_SPI_AUX0_PROBE3_IRQ
+#define SPI_IRQ   XS1_PORT(1,L) // XS1_PORT_1L   X0D35 P1L        PCIe-A15 GPIO-PIN17  IRQ, "GPIO 0", DIO0
+#define PROBE4    XS1_PORT(1,F) // XS1_PORT_1F   X0D13 P1F  J7.1  PCIe-B2  GPIO-PIN37  "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
+#define PROBE5    XS1_PORT(1,D) // XS1_PORT_1D   X0D11 P1D  J3.21 LED-D2   SPI-MOSI    "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
 
 // From spi_lib spi.pdf
 //                            32 bits over 1 bit:        // New as above | As spi_master_interface in main.xc in _app_tiwisl_simple_webserver
@@ -170,9 +170,10 @@ maskof_spi_and_probe_pins_t maskof_spi_and_probe_pins [NUM_SPI_CS_SETS] = // (*)
 // Observe that I have no control of the ports during xTIMEcomposer downloading
 // I have observed a 700-800 ms low on signal pins before my code starts
 
-out port p_spi_cs_en = on tile[0]:SPI_CS_EN;
-out port p_spi_aux   = on tile[0]:SPI_AUX;
-in  port p_spi_irq   = on tile[0]:SPI_IRQ;
+out port p_spi_cs_en     = on tile[0]:SPI_CS_EN;
+out port p_spi_aux       = on tile[0]:SPI_AUX;
+in  port p_spi_irq       = on tile[0]:SPI_IRQ;
+out port p_explorer_leds = on tile[0]:XCORE_200_EXPLORER_LEDS;
 
 // Another way of doing it. Used as nullable parameter, so may be dropped
 probe_pins_t probe_config = {
@@ -212,7 +213,7 @@ int main() {
         par {
             spi_master_2 (i_spi, NUM_SPI_CLIENT_USERS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
             RFM69_driver (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combineable]]
-            RFM69_client (i_irq, i_radio, SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK);
+            RFM69_client (i_irq, i_radio, SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK, p_explorer_leds);
 
             #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
                 // Does not work, see XMOS ticket 31286
