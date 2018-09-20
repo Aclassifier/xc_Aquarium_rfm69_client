@@ -45,6 +45,7 @@
 
 #include "_version.h"
 #include "_globals.h"
+#include "beep_blink.h"
 
 #include <rfm69_globals.h>
 #include <rfm69_crc.h>
@@ -103,17 +104,16 @@
 
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
-        server irq_if_t   i_irq,
-        client radio_if_t i_radio,
-        const  bool       semantics_do_rssi_in_irq_detect_task,
-        out port          p_explorer_leds)
+         server irq_if_t        i_irq,
+         client radio_if_t      i_radio,
+         client beep_blink_if_t i_beep_blink,
+         const  bool            semantics_do_rssi_in_irq_detect_task)
 {
     #define LEADING_SPACE_STR "       "
 
     uint8_t  device_type;
     bool     doListenToAll = false; // Set to 'true' to sniff all packets on the same network
     bool     receiveDone;
-    unsigned p_explorer_led_bits = 0;
 
     payload_t RX_radio_payload_prev;
 
@@ -274,8 +274,7 @@ void RFM69_client (
         select {
             case i_irq.pin_rising (const int16_t value) : { // PROTOCOL: int16_t chan_value
 
-                p_explorer_led_bits or_eq XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK;
-                p_explorer_leds <: p_explorer_led_bits;
+                i_beep_blink.blink_pulse (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, XS1_TIMER_KHZ*50);
 
                 int16_t nowRSSI;
                 if (semantics_do_rssi_in_irq_detect_task) {
@@ -330,9 +329,6 @@ void RFM69_client (
                             int Volt_dp1;
                             int Volt_Unary_Part;
                             int Volt_Decimal_Part;
-
-                            p_explorer_led_bits or_eq XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK;
-                            p_explorer_leds <: p_explorer_led_bits;
 
                             int32_t numLost; // May be negative if sender restarts
 
@@ -462,8 +458,7 @@ void RFM69_client (
 
                             // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
 
-                            p_explorer_led_bits and_eq (compl XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK);
-                            p_explorer_leds <: p_explorer_led_bits;
+                            i_beep_blink.blink_pulse (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, XS1_TIMER_KHZ*50);
 
                         } else {
                             debug_print ("%s\n", "IRQ but not receiveDone!");
@@ -551,17 +546,12 @@ void RFM69_client (
                 } else {}
 
                 i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, low); // For scope
-
-                p_explorer_led_bits and_eq (compl XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK);
-                p_explorer_leds <: p_explorer_led_bits;
             } break;
 
 
             case tmr when timerafter (time_ticks) :> time32_t startTime_ticks: {
 
-                p_explorer_led_bits xor_eq XCORE_200_EXPLORER_LED_GREEN_BIT_MASK;
-                p_explorer_leds <: p_explorer_led_bits;
-                //debug_print ("%s", "Hi!\n");
+                i_beep_blink.blink_pulse (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, XS1_TIMER_KHZ*50);
 
                 #if (DEBUG_PRINT_TIME_USED == 1)
                     debug_print ("..After %08X is time %08X ticks\n", time_ticks, startTime_ticks);

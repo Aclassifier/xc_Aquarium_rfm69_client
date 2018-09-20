@@ -18,6 +18,7 @@
 
 #include "_version.h"
 #include "_globals.h"
+#include "beep_blink.h"
 
 #include <rfm69_globals.h>
 #include <rfm69_crc.h>
@@ -56,6 +57,8 @@
 #define SPI_IRQ   XS1_PORT(1,L) // XS1_PORT_1L   X0D35 P1L        PCIe-A15 GPIO-PIN17  IRQ, "GPIO 0", DIO0
 #define PROBE4    XS1_PORT(1,F) // XS1_PORT_1F   X0D13 P1F  J7.1  PCIe-B2  GPIO-PIN37  "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
 #define PROBE5    XS1_PORT(1,D) // XS1_PORT_1D   X0D11 P1D  J3.21 LED-D2   SPI-MOSI    "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
+
+#define XCORE_200_EXPLORER_LEDS XS1_PORT(4,F) // XS1_PORT_4F
 
 // From spi_lib spi.pdf
 //                            32 bits over 1 bit:        // New as above | As spi_master_interface in main.xc in _app_tiwisl_simple_webserver
@@ -182,135 +185,24 @@ probe_pins_t probe_config = {
 
 int main() {
 
-    spi_master_if i_spi[NUM_SPI_CLIENT_USERS];
-    radio_if_t    i_radio;
-    irq_if_t      i_irq;
+    spi_master_if   i_spi[NUM_SPI_CLIENT_USERS];
+    radio_if_t      i_radio;
+    irq_if_t        i_irq;
+    beep_blink_if_t i_beep_blink[BEEP_BLINK_TASK_NUM_CLIENTS];
 
-    #if (DO_PLACED == 0) // [[combinable] RFM69_driver
-        par {
-            on tile[0].core[0]: spi_master_2 (i_spi, NUM_SPI_CLIENT_USERS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
-            on tile[0].core[0]: RFM69_driver (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combineable]]
-            on tile[0].core[0]: RFM69_client (i_irq, i_radio);
+    //[[combine]]
+    par {
+        on tile[0].core[0]: spi_master_2    (i_spi, NUM_SPI_CLIENT_USERS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
+        on tile[0].core[0]: RFM69_driver    (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combineable]]
+        on tile[0].core[0]: RFM69_client    (i_irq, i_radio, i_beep_blink[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK);
+        on tile[0].core[1]: beep_blink_task (i_beep_blink, p_explorer_leds);
 
-            #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
-                // Does not work, see XMOS ticket 31286
-                on tile[0].core[0]: IRQ_detect_task (i_irq, p_spi_irq, probe_config, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
-            #else
-                on tile[0].core[0]: IRQ_detect_task (i_irq, p_spi_irq, probe_config, null, SPI_CLIENT_VOID);
-            #endif
-        }
-        /*
-        Constraint check for tile[0]:
-          Cores available:            8,   used:          1 .  OKAY
-          Timers available:          10,   used:          1 .  OKAY
-          Chanends available:        32,   used:          0 .  OKAY
-          Memory available:       65536,   used:      12532 .  OKAY
-            (Stack: 1112, Code: 10518, Data: 902)
-        Constraints checks PASSED.
-        */
-    #elif (DO_PLACED == 1)
-        [[combine]]
-        par {
-            spi_master_2 (i_spi, NUM_SPI_CLIENT_USERS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
-            RFM69_driver (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combineable]]
-            RFM69_client (i_irq, i_radio, SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK, p_explorer_leds);
-
-            #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
-                // Does not work, see XMOS ticket 31286
-                IRQ_detect_task (i_irq, p_spi_irq, probe_config, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
-            #else
-                IRQ_detect_task (i_irq, p_spi_irq, probe_config, null, SPI_CLIENT_VOID);
-            #endif
-        }
-        /* // [[combinable] RFM69_driver
-        Constraint check for tile[0]:
-          Cores available:            8,   used:          1 .  OKAY
-          Timers available:          10,   used:          1 .  OKAY
-          Chanends available:        32,   used:          0 .  OKAY
-          Memory available:       65536,   used:      12456 .  OKAY
-            (Stack: 1108, Code: 10452, Data: 896)
-        Constraints checks PASSED.
-        */
-
-        /* // [[distributable] RFM69_driver
-        Constraint check for tile[0]:
-          Cores available:            8,   used:          1 .  OKAY
-          Timers available:          10,   used:          1 .  OKAY
-          Chanends available:        32,   used:          0 .  OKAY
-          Memory available:       65536,   used:      12508 .  OKAY
-            (Stack: 1116, Code: 10496, Data: 896)
-        Constraints checks PASSED
-        */
-
-    #elif (DO_PLACED == 2) // [[distributable]] RFM69_driver. No way to do that except edit there (see Issue 31429)
-        [[combine]]
-        par {
-            spi_master_2 (i_spi, NUM_SPI_CLIENT_USERS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
-            RFM69_driver (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[distributable]]
-            RFM69_client (i_irq, i_radio);
-
-            #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
-                // Does not work, see XMOS ticket 31286
-                IRQ_detect_task (i_irq, p_spi_irq, probe_config, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
-            #else
-                IRQ_detect_task (i_irq, p_spi_irq, probe_config, null, SPI_CLIENT_VOID);
-            #endif
-        }
-        /*
-        Constraint check for tile[0]:
-          Cores available:            8,   used:          1 .  OKAY
-          Timers available:          10,   used:          1 .  OKAY
-          Chanends available:        32,   used:          0 .  OKAY
-          Memory available:       65536,   used:      12508 .  OKAY
-            (Stack: 1116, Code: 10496, Data: 896)
-        Constraints checks PASSED.
-        */
-    #elif (DO_PLACED == 3) // [[distributable]] RFM69_driver. No way to do that except edit there (see Issue 31429)
-        par {
-            spi_master_2 (i_spi, NUM_SPI_CLIENT_USERS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
-            RFM69_driver (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0);
-            RFM69_client (i_irq, i_radio);
-
-            #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
-                // Does not work, see XMOS ticket 31286
-                IRQ_detect_task (i_irq, p_spi_irq, probe_config, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
-            #else
-                IRQ_detect_task (i_irq, p_spi_irq, probe_config, null, SPI_CLIENT_VOID);
-            #endif
-        }
-        /*
-        Constraint check for tile[0]:
-          Cores available:            8,   used:          2 .  OKAY
-          Timers available:          10,   used:          2 .  OKAY
-          Chanends available:        32,   used:          2 .  OKAY
-          Memory available:       65536,   used:      11684 .  OKAY
-            (Stack: 1476, Code: 9332, Data: 876)
-        Constraints checks PASSED.
-        */
-    #elif (DO_PLACED == 4) // [[distributable]] RFM69_driver. No way to do that except edit there (see Issue 31429)
-        par {
-            [[combine]]
-            par {
-                RFM69_client (i_irq, i_radio);
-
-                #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
-                    // Does not work, see XMOS ticket 31286
-                    IRQ_detect_task (i_irq, p_spi_irq, probe_config, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
-                #else
-                    IRQ_detect_task (i_irq, p_spi_irq, probe_config, null, SPI_CLIENT_VOID);
-                #endif
-            }
-            [[distribute]]
-            par {
-                // ^ *** error: distributed statement must be a call to a distributable function. WRONG ERROR MESSAGE
-                spi_master_2 (i_spi, NUM_SPI_CLIENT_USERS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
-                RFM69_driver (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0);
-            }
-        }
-
-        /*
-
-        */
-    #endif
+        #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
+            // Does not work, see XMOS ticket 31286
+            IRQ_detect_task (i_irq, p_spi_irq, probe_config, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
+        #else
+            on tile[0].core[0]: IRQ_detect_task (i_irq, p_spi_irq, probe_config, null, SPI_CLIENT_VOID);
+        #endif
+    }
     return 0;
 }
