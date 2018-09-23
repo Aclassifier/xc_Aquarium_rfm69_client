@@ -45,7 +45,7 @@
 
 #include "_version.h"
 #include "_globals.h"
-#include "beep_blink.h"
+#include "blink_and_watchdog.h"
 
 #include <rfm69_globals.h>
 #include <rfm69_crc.h>
@@ -268,13 +268,15 @@ void RFM69_client (
         RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
     }
 
+    i_beep_blink.enable_watchdog_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, 8000, 200);
+
     tmr :> time_ticks; // First sending now
 
     while (1) {
         select {
             case i_irq.pin_rising (const int16_t value) : { // PROTOCOL: int16_t chan_value
 
-                i_beep_blink.blink_pulse (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, XS1_TIMER_KHZ*50);
+                i_beep_blink.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 50);
 
                 int16_t nowRSSI;
                 if (semantics_do_rssi_in_irq_detect_task) {
@@ -458,7 +460,7 @@ void RFM69_client (
 
                             // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
 
-                            i_beep_blink.blink_pulse (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, XS1_TIMER_KHZ*50);
+                            i_beep_blink.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 50);
 
                         } else {
                             debug_print ("%s\n", "IRQ but not receiveDone!");
@@ -551,7 +553,10 @@ void RFM69_client (
 
             case tmr when timerafter (time_ticks) :> time32_t startTime_ticks: {
 
-                i_beep_blink.blink_pulse (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, XS1_TIMER_KHZ*50);
+                //i_beep_blink.blink_pulse_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, 50);
+                if (i_beep_blink.is_watchdog_blinking()) {
+                    debug_print ("%s\n", "WATCHDOG BLINKING"); // Tested to work
+                } else {}
 
                 #if (DEBUG_PRINT_TIME_USED == 1)
                     debug_print ("..After %08X is time %08X ticks\n", time_ticks, startTime_ticks);
