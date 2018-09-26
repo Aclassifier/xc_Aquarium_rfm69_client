@@ -104,10 +104,10 @@
 
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
-         server irq_if_t        i_irq,
-         client radio_if_t      i_radio,
-         client beep_blink_if_t i_beep_blink,
-         const  bool            semantics_do_rssi_in_irq_detect_task)
+         server irq_if_t                i_irq,
+         client radio_if_t              i_radio,
+         client blink_and_watchdog_if_t i_blink_and_watchdog,
+         const  bool                    semantics_do_rssi_in_irq_detect_task)
 {
     #define LEADING_SPACE_STR "       "
 
@@ -268,7 +268,7 @@ void RFM69_client (
         RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
     }
 
-    i_beep_blink.enable_watchdog_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, 8000, 200);
+    i_blink_and_watchdog.enable_watchdog_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK bitor XCORE_200_EXPLORER_LED_RGB_GREEN_BIT_MASK, 3000, 200);
 
     tmr :> time_ticks; // First sending now
 
@@ -276,7 +276,7 @@ void RFM69_client (
         select {
             case i_irq.pin_rising (const int16_t value) : { // PROTOCOL: int16_t chan_value
 
-                i_beep_blink.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 50);
+                i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 50);
 
                 int16_t nowRSSI;
                 if (semantics_do_rssi_in_irq_detect_task) {
@@ -460,7 +460,7 @@ void RFM69_client (
 
                             // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
 
-                            i_beep_blink.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 50);
+                            i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 50);
 
                         } else {
                             debug_print ("%s\n", "IRQ but not receiveDone!");
@@ -553,8 +553,9 @@ void RFM69_client (
 
             case tmr when timerafter (time_ticks) :> time32_t startTime_ticks: {
 
-                //i_beep_blink.blink_pulse_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, 50);
-                if (i_beep_blink.is_watchdog_blinking()) {
+                i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, 50);
+
+                if (i_blink_and_watchdog.is_watchdog_blinking()) {
                     debug_print ("%s\n", "WATCHDOG BLINKING"); // Tested to work
                 } else {}
 

@@ -12,7 +12,7 @@
 void RFM69_client (
         server irq_if_t        i_irq,
         client radio_if_t      i_radio,
-        client beep_blink_if_t i_beep_blink,
+        client blink_and_watchdog_if_t i_beep_blink,
         const  bool            semantics_do_rssi_in_irq_detect_task);
 
 #endif /* AQUARIUM_RFM69_CLIENT_H_ */

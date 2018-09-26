@@ -188,7 +188,7 @@ int main() {
     spi_master_if   i_spi[NUM_SPI_CLIENT_USERS];
     radio_if_t      i_radio;
     irq_if_t        i_irq;
-    beep_blink_if_t i_beep_blink[BEEP_BLINK_TASK_NUM_CLIENTS];
+    blink_and_watchdog_if_t i_blink_and_watchdog[BEEP_BLINK_TASK_NUM_CLIENTS];
 
     // Observe http://www.teigfam.net/oyvind/home/technology/098-my-xmos-notes/#xtag-3_debug_log_hanging!
 
@@ -196,8 +196,8 @@ int main() {
     par {
         on tile[0].core[0]: spi_master_2            (i_spi, NUM_SPI_CLIENT_USERS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
         on tile[0].core[0]: RFM69_driver            (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combineable]]
-        on tile[0].core[0]: RFM69_client            (i_irq, i_radio, i_beep_blink[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK);
-        on tile[0].core[1]: blink_and_watchdog_task (i_beep_blink, p_explorer_leds);
+        on tile[0].core[0]: RFM69_client            (i_irq, i_radio, i_blink_and_watchdog[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK);
+        on tile[0].core[1]: blink_and_watchdog_task (i_blink_and_watchdog, p_explorer_leds);
 
         #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
             // Does not work, see XMOS ticket 31286

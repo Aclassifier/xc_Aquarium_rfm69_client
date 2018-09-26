@@ -16,7 +16,7 @@
 
 typedef unsigned port_pins_mask_t; // Zero (no change), one or any number of bits. A high bit is light on
 
-typedef interface beep_blink_if_t {
+typedef interface blink_and_watchdog_if_t {
 
     // Each pin or group of pins may be set individually. The only protection that's done here is during blink_pulse,
     // even if it may be called with different pin-(groups). There is no guarantee of the visibility of any blink.
@@ -24,22 +24,26 @@ typedef interface beep_blink_if_t {
     // Remember that blocking may not even be possible since blocking per pin is not possible!
     // So I guess it's client usage that defines how this would look
 
-    [[guarded]] bool blink_pulse_ok  ( // returns success if watchdog not timed out
-                                      const port_pins_mask_t port_pins_mask, // [[guarded]] cost 344 bytes
-                                      const unsigned         blink_ms);      // Assumed to be shorter than until next call
-                bool blink_on_ok     ( // returns success if watchdog not timed out
-                                      const port_pins_mask_t port_pins_mask);
-                bool blink_off_ok    ( // returns success if watchdog not timed out
-                                      const port_pins_mask_t port_pins_mask);
+    // I have included watchdog functionality. I could have made this a separate task, but in order to minimise the number
+    // of timers and having to do any sort of communication when the watchdog times out to do blinking (checking blocking printf calls),
+    // see http://www.teigfam.net/oyvind/home/technology/098-my-xmos-notes/#xtag-3_debug_log_hanging
+
+    [[guarded]] bool blink_pulse_ok ( // returns success if watchdog not timed out, false is_watchdog_blinking
+                                     const port_pins_mask_t port_pins_mask, // [[guarded]] cost 344 bytes
+                                     const unsigned         blink_on_ms);   // Max about 21 seconds. Assumed to be shorter than until next call
+                bool blink_on_ok    ( // returns success if watchdog not timed out, false is_watchdog_blinking
+                                     const port_pins_mask_t port_pins_mask);
+                bool blink_off_ok   ( // returns success if watchdog not timed out, false is_watchdog_blinking
+                                     const port_pins_mask_t port_pins_mask);
 
                 // If none of the above not called within silent_for_ms then port_pins_mask will continuously blink off and on
                 bool enable_watchdog_ok ( // returns success if called fir the first time (can only be called once)
                                          const port_pins_mask_t port_pins_mask, // May overlap pins above
-                                         const unsigned         silent_for_ms,  // Max about 42 seconds
-                                         const unsigned         blink_on_ms);   // off is same time
+                                         const unsigned         silent_for_ms,  // Max about 21 seconds
+                                         const unsigned         blink_on_ms);   // Max about 21 seconds, off is same time
 
-                bool is_watchdog_blinking (void);
-} beep_blink_if_t;
+                bool is_watchdog_blinking (void); // Or test returns on the blink_.. functions
+} blink_and_watchdog_if_t;
 
 #define BEEP_BLINK_TASK_NUM_CLIENTS 1 // Making it multi-client cost 120 bytes
 
@@ -51,7 +55,7 @@ typedef interface beep_blink_if_t {
 
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void blink_and_watchdog_task (
-        server beep_blink_if_t i_beep_blink [BEEP_BLINK_TASK_NUM_CLIENTS],
+        server blink_and_watchdog_if_t i_beep_blink [BEEP_BLINK_TASK_NUM_CLIENTS],
         out port               p_explorer_leds);
 
 #endif /* BLINK_AND_WATCHDOG_H_ */
