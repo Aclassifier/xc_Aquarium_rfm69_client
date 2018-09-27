@@ -406,9 +406,9 @@ void RFM69_client (
                             //
                             debug_print ("Heater now_regulating_at%s%u temp %u.%udegC, ",
                                     (RX_radio_payload.u.payload_u0.now_regulating_at == RX_radio_payload_prev.u.payload_u0.now_regulating_at) ? char_eq_str : char_change_str,
-                                    RX_radio_payload.u.payload_u0.now_regulating_at,
-                                    degC_Unary_Part,
-                                    degC_Decimal_Part);
+                                     RX_radio_payload.u.payload_u0.now_regulating_at,
+                                     degC_Unary_Part,
+                                     degC_Decimal_Part);
 
                             degC_dp1          = RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC;
                             degC_Unary_Part   = degC_dp1/10;
@@ -419,14 +419,16 @@ void RFM69_client (
                                     (RX_radio_payload.u.payload_u0.heater_on_watt == RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.heater_on_watt);
 
-                            debug_print ("Light light_control_scheme%s%01u with light_composition%s%02u gives FCB %u/3 %u/3 %u/3\n",
+                            debug_print ("Light light_control_scheme%s%01u with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3\n",
                                     (RX_radio_payload.u.payload_u0.light_control_scheme == RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? char_eq_str : char_change_str,
-                                    RX_radio_payload.u.payload_u0.light_control_scheme,
+                                     RX_radio_payload.u.payload_u0.light_control_scheme,
                                     (RX_radio_payload.u.payload_u0.light_composition == RX_radio_payload_prev.u.payload_u0.light_composition) ? char_eq_str : char_change_str,
-                                    RX_radio_payload.u.payload_u0.light_composition,
-                                    RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
-                                    RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
-                                    RX_radio_payload.u.payload_u0.light_intensity_thirds_back);
+                                     RX_radio_payload.u.payload_u0.light_composition,
+                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
+                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
+                                     RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
+                                    (RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds == RX_radio_payload_prev.u.payload_u0.light_amount_full_or_two_thirds) ? char_eq_str : char_change_str,
+                                     RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET);
 
                             Volt_dp1          = RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV;
                             Volt_Unary_Part   = Volt_dp1/10;
