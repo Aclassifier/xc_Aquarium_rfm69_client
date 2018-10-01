@@ -160,6 +160,7 @@ void RFM69_client (
     time32_t   prev_mean_diffTime_ms = 0;
     bool       changed_mean_diffTime_ms = false;
     unsigned   num_diffTime_ms = 0;
+    unsigned   seconds_since_last_received = 0;
     is_error_e is_new_error;
 
     const rfm69_params_t radio_init = {
@@ -316,6 +317,7 @@ void RFM69_client (
                 #endif
 
                 receiveDone = i_radio.receiveDone(); // For any interruptAndParsingResult (30Aug2018, 12Sept2018 TODO works?)
+                seconds_since_last_received = 0;
 
                 switch (interruptAndParsingResult) {
 
@@ -555,11 +557,19 @@ void RFM69_client (
 
             case tmr when timerafter (time_ticks) :> time32_t startTime_ticks: {
 
+                seconds_since_last_received++; // about, anyhow, since we don't reset time_ticks in pin_rising
+                if (seconds_since_last_received > 10) { // 2.5 times 4 seconds
+                    i_radio.receiveDone();
+                    seconds_since_last_received = 0;
+                } else {}
+
                 i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, 50);
 
                 if (i_blink_and_watchdog.is_watchdog_blinking()) {
-                    debug_print ("%s\n", "WATCHDOG BLINKING"); // Tested to work
-                } else {}
+                    debug_print ("WATCHDOG BLINKING T %u\n", seconds_since_last_received); // Tested to work
+                } else {
+                    debug_print ("T %u\n", seconds_since_last_received); // Tested to work
+                }
 
                 #if (DEBUG_PRINT_TIME_USED == 1)
                     debug_print ("..After %08X is time %08X ticks\n", time_ticks, startTime_ticks);
@@ -681,7 +691,7 @@ void RFM69_client (
                 #if (TEST_CAR_KEY == 1)
                     time_ticks += ONE_SECOND_TICKS/5; // Every 200 ms will destroy for car's requirement of seein the pulse train for 500 ms
                 #else
-                    time_ticks += ONE_SECOND_TICKS*1; // FUTURE TIMEOUT
+                    time_ticks += ONE_SECOND_TICKS; // FUTURE TIMEOUT
                 #endif
 
                 // If diffTime_ms is larger than ONE_SEC_TICS the select will be timed out immediately N times until it's AFTER again
