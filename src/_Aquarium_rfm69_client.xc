@@ -334,7 +334,7 @@ void RFM69_client (
                             int Volt_Unary_Part;
                             int Volt_Decimal_Part;
 
-                            int32_t numLost; // May be negative if sender restarts
+                            int32_t num_messages_lost_since_last_success; // May be negative if sender restarts
 
                             if (first_debug_print_received_done) {
                                 debug_print ("\nRSSI %d, P %u, ",
@@ -351,22 +351,22 @@ void RFM69_client (
                                 debug_print ("to %d, ", RX_some_rfm69_internals.TARGETID);
                             } else {}
 
-                            numLost = RX_PACKET_U.u.packet_u3.appSeqCnt - lastReceivedAppSeqCnt - 1;
+                            num_messages_lost_since_last_success = RX_PACKET_U.u.packet_u3.appSeqCnt - lastReceivedAppSeqCnt - 1;
 
                             if (first_debug_print_received_done) {
 
                                 debug_print ("RXappSeqCnt %u ", RX_PACKET_U.u.packet_u3.appSeqCnt);
-                                if (numLost < 0) {
+                                if (num_messages_lost_since_last_success < 0) {
                                     if (numLostTotal != 0) {
                                         debug_print ("Sender restarted? (numLostTotal %u kept)\n", numLostTotal);
                                     } else {
                                         debug_print ("%s", "\n");
                                     }
-                                } else if (numLost == 0) {
+                                } else if (num_messages_lost_since_last_success == 0) {
                                     debug_print ("%s", "\n");
-                                } else { // numLost > 0
-                                    numLostTotal += numLost;
-                                    debug_print ("numLost %d, numLostTotal %u\n", numLost, numLostTotal);
+                                } else { // num_messages_lost_since_last_success > 0
+                                    numLostTotal += num_messages_lost_since_last_success;
+                                    debug_print ("num_messages_lost_since_last_success %d, numLostTotal %u\n", num_messages_lost_since_last_success, numLostTotal);
                                     // 03Apr2018: one lost in 140, then in 141 (of tenths of thousands!), one in 263
                                 }
                             } else {
@@ -378,9 +378,18 @@ void RFM69_client (
 
                             lastReceivedAppSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt;
 
-                            for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
-                                RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = RX_radio_payload.u.payload_u1_uint8_arr[index];
-                                RX_radio_payload.u.payload_u1_uint8_arr     [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index];
+                            if (num_messages_lost_since_last_success == 0) {
+                                for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+                                    // Take a copy of last received int "previous"
+                                    RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = RX_radio_payload.u.payload_u1_uint8_arr     [index]; // Received last
+                                    RX_radio_payload.u.payload_u1_uint8_arr     [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
+                                }
+                            } else {
+                                for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+                                    // Clear "previous" by setting it equal to present so that there will be no diffs:
+                                    RX_radio_payload.u.payload_u1_uint8_arr     [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
+                                    RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = RX_radio_payload.u.payload_u1_uint8_arr     [index]; // Also received now
+                                }
                             }
 
                             debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
@@ -417,11 +426,11 @@ void RFM69_client (
                             degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
                             debug_print ("mean %u.%udegC heater_on_percent%s%u%% heater_on_watt%s%uW\n", degC_Unary_Part, degC_Decimal_Part,
                                     (RX_radio_payload.u.payload_u0.heater_on_percent == RX_radio_payload_prev.u.payload_u0.heater_on_percent) ? char_eq_str : char_change_str,
-                                    RX_radio_payload.u.payload_u0.heater_on_percent,
+                                     RX_radio_payload.u.payload_u0.heater_on_percent,
                                     (RX_radio_payload.u.payload_u0.heater_on_watt == RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? char_eq_str : char_change_str,
-                                    RX_radio_payload.u.payload_u0.heater_on_watt);
+                                     RX_radio_payload.u.payload_u0.heater_on_watt);
 
-                            debug_print ("Light light_control_scheme%s%01u with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 for %02uh\n",
+                            debug_print ("Light light_control_scheme%s%01u with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
                                     (RX_radio_payload.u.payload_u0.light_control_scheme == RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? char_eq_str : char_change_str,
                                      RX_radio_payload.u.payload_u0.light_control_scheme,
                                     (RX_radio_payload.u.payload_u0.light_composition == RX_radio_payload_prev.u.payload_u0.light_composition) ? char_eq_str : char_change_str,
@@ -431,7 +440,10 @@ void RFM69_client (
                                      RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
                                     (RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds == RX_radio_payload_prev.u.payload_u0.light_amount_full_or_two_thirds) ? char_eq_str : char_change_str,
                                      RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET,
-                                     RX_radio_payload.u.payload_u0.light_daytime_hours);
+                                    (RX_radio_payload.u.payload_u0.light_daytime_hours == RX_radio_payload_prev.u.payload_u0.light_daytime_hours) ? char_eq_str : char_change_str,
+                                     RX_radio_payload.u.payload_u0.light_daytime_hours,
+                                     RX_radio_payload.u.payload_u0.day_start_light_hour,
+                                     RX_radio_payload.u.payload_u0.night_start_dark_hour);
 
                             Volt_dp1          = RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV;
                             Volt_Unary_Part   = Volt_dp1/10;
@@ -460,6 +472,10 @@ void RFM69_client (
                             rest      = rest - (hundreds * 100);
                             tens      = rest;
                             debug_print ("Version %01u.%01u.%02u\n", thousands, hundreds, tens); // 1110 -> 1.1.10
+
+                            debug_print ("Debug%s%02X\n",
+                                    (RX_radio_payload.u.payload_u0.debug == RX_radio_payload_prev.u.payload_u0.debug) ? char_eq_str : char_change_str,
+                                    RX_radio_payload.u.payload_u0.debug);
 
                             first_debug_print_received_done = true;
 
