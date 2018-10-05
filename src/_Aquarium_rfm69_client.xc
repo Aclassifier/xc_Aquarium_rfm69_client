@@ -382,10 +382,9 @@ void RFM69_client (
                                 RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
                             }
 
-                            debug_print ("num_days_since_start%s%04u(%04u) at %02u:%02u:%02u\n",
+                            debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
                                     (RX_radio_payload.u.payload_u0.num_days_since_start == RX_radio_payload_prev.u.payload_u0.num_days_since_start) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.num_days_since_start,
-                                    RX_radio_payload_prev.u.payload_u0.num_days_since_start,
                                     RX_radio_payload.u.payload_u0.hour,
                                     RX_radio_payload.u.payload_u0.minute,
                                     RX_radio_payload.u.payload_u0.second);
@@ -421,10 +420,9 @@ void RFM69_client (
                                     (RX_radio_payload.u.payload_u0.heater_on_watt == RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? char_eq_str : char_change_str,
                                      RX_radio_payload.u.payload_u0.heater_on_watt);
 
-                            debug_print ("Light light_control_scheme%s%01u(%01u) with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
+                            debug_print ("Light light_control_scheme%s%01u with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
                                     (RX_radio_payload.u.payload_u0.light_control_scheme == RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? char_eq_str : char_change_str,
                                      RX_radio_payload.u.payload_u0.light_control_scheme,
-                                     RX_radio_payload_prev.u.payload_u0.light_control_scheme,
                                     (RX_radio_payload.u.payload_u0.light_composition == RX_radio_payload_prev.u.payload_u0.light_composition) ? char_eq_str : char_change_str,
                                      RX_radio_payload.u.payload_u0.light_composition,
                                      RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
