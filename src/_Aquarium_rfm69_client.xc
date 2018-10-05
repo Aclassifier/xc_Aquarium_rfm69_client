@@ -378,23 +378,14 @@ void RFM69_client (
 
                             lastReceivedAppSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt;
 
-                            if (num_messages_lost_since_last_success == 0) {
-                                for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
-                                    // Take a copy of last received int "previous"
-                                    RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = RX_radio_payload.u.payload_u1_uint8_arr     [index]; // Received last
-                                    RX_radio_payload.u.payload_u1_uint8_arr     [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
-                                }
-                            } else {
-                                for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
-                                    // Clear "previous" by setting it equal to present so that there will be no diffs:
-                                    RX_radio_payload.u.payload_u1_uint8_arr     [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
-                                    RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = RX_radio_payload.u.payload_u1_uint8_arr     [index]; // Also received now
-                                }
+                            for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+                                RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
                             }
 
-                            debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
+                            debug_print ("num_days_since_start%s%04u(%04u) at %02u:%02u:%02u\n",
                                     (RX_radio_payload.u.payload_u0.num_days_since_start == RX_radio_payload_prev.u.payload_u0.num_days_since_start) ? char_eq_str : char_change_str,
                                     RX_radio_payload.u.payload_u0.num_days_since_start,
+                                    RX_radio_payload_prev.u.payload_u0.num_days_since_start,
                                     RX_radio_payload.u.payload_u0.hour,
                                     RX_radio_payload.u.payload_u0.minute,
                                     RX_radio_payload.u.payload_u0.second);
@@ -430,9 +421,10 @@ void RFM69_client (
                                     (RX_radio_payload.u.payload_u0.heater_on_watt == RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? char_eq_str : char_change_str,
                                      RX_radio_payload.u.payload_u0.heater_on_watt);
 
-                            debug_print ("Light light_control_scheme%s%01u with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
+                            debug_print ("Light light_control_scheme%s%01u(%01u) with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
                                     (RX_radio_payload.u.payload_u0.light_control_scheme == RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? char_eq_str : char_change_str,
                                      RX_radio_payload.u.payload_u0.light_control_scheme,
+                                     RX_radio_payload_prev.u.payload_u0.light_control_scheme,
                                     (RX_radio_payload.u.payload_u0.light_composition == RX_radio_payload_prev.u.payload_u0.light_composition) ? char_eq_str : char_change_str,
                                      RX_radio_payload.u.payload_u0.light_composition,
                                      RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
@@ -482,6 +474,19 @@ void RFM69_client (
                             // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
 
                             i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 50);
+
+                            if (num_messages_lost_since_last_success == 0) {
+                                // BOTH 40 5Oct2018: debug_print ("sizeof %u, LEN %u\n", sizeof RX_radio_payload.u.payload_u1_uint8_arr, _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08);
+                                for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+                                    // Take a copy of last received into "previous"
+                                    RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = RX_radio_payload.u.payload_u1_uint8_arr [index]; // Received last
+                                }
+                            } else {
+                                debug_print ("%s\n", "=# history reset");
+                                for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+                                    RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
+                                }
+                            }
 
                         } else {
                             debug_print ("%s\n", "IRQ but not receiveDone!");
