@@ -37,7 +37,6 @@
 // FOR ONE-ONE connection MASTER/SLAVE
 //                ### MUST BE UNIQUE
 #define MASTER_ID  99
-#define SHARED_ID  98 // SENDTO_ADDRESS == RECEIVER_ADDRESS
 
 #define IS_MYTARGET_VOID               0
 #define IS_MYTARGET_STARTKIT           1

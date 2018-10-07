@@ -307,8 +307,8 @@ void RFM69_client (
                     for (unsigned index = 0; index < PACKET_LEN32; index++) {
                         unsigned value = RX_PACKET_U.u.packet_u2_uint32_arr[index];
                         debug_print ("%s[%u]: %08X\n",
-                                (interruptAndParsingResult == messageReceivedOk_IRQ) ? "RX" :
-                                (interruptAndParsingResult == messagePacketSentOk_IRQ)     ? "TX" : "?X",
+                                (interruptAndParsingResult == messageReceivedOk_IRQ)   ? "RX" :
+                                (interruptAndParsingResult == messagePacketSentOk_IRQ) ? "TX" : "?X",
                                 index,
                                 value);
                     }
@@ -374,12 +374,32 @@ void RFM69_client (
                                        RX_some_rfm69_internals.PACKETLEN,
                                        RX_PACKET_U.u.packet_u3.appNODEID,
                                        RX_PACKET_U.u.packet_u3.appSeqCnt);
+
                             }
 
                             lastReceivedAppSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt;
 
                             for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
                                 RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
+                            }
+
+                            {
+                                unsigned rest;
+                                unsigned thousands;
+                                unsigned hundreds;
+                                unsigned tens;
+
+                                rest      = RX_radio_payload.u.payload_u0.application_version_num;
+                                thousands = rest / 1000;
+                                rest      = rest - (thousands * 1000);
+                                hundreds  = rest / 100;
+                                rest      = rest - (hundreds * 100);
+                                tens      = rest;
+                                debug_print ("Version %01u.%01u.%02u\n", thousands, hundreds, tens); // 1110 -> 1.1.10
+
+                                debug_print ("version_of_full_payload %u, num_of_this_app_payload %u\n",
+                                        RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload,
+                                        RX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload);
                             }
 
                             debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
@@ -399,7 +419,13 @@ void RFM69_client (
                             degC_Unary_Part   = degC_dp1/10;
                             degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
                             //
-                            debug_print ("Water  %u.%udegC\n", degC_Unary_Part, degC_Decimal_Part);
+                            debug_print ("Water %u.%udegC - ", degC_Unary_Part, degC_Decimal_Part);
+
+                            degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC;
+                            degC_Unary_Part   = degC_dp1/10;
+                            degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+                            //
+                            debug_print ("ambient %u.%udegC\n", degC_Unary_Part, degC_Decimal_Part);
 
                             degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC;
                             degC_Unary_Part   = degC_dp1/10;
@@ -449,19 +475,6 @@ void RFM69_client (
                             degC_Unary_Part   = degC_dp1/10;
                             degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
                             debug_print ("Box %02u.%udegC\n", degC_Unary_Part, degC_Decimal_Part);
-
-                            unsigned rest;
-                            unsigned thousands;
-                            unsigned hundreds;
-                            unsigned tens;
-
-                            rest      = RX_radio_payload.u.payload_u0.application_version_num;
-                            thousands = rest / 1000;
-                            rest      = rest - (thousands * 1000);
-                            hundreds  = rest / 100;
-                            rest      = rest - (hundreds * 100);
-                            tens      = rest;
-                            debug_print ("Version %01u.%01u.%02u\n", thousands, hundreds, tens); // 1110 -> 1.1.10
 
                             debug_print ("Debug%s%02X\n",
                                     (RX_radio_payload.u.payload_u0.debug == RX_radio_payload_prev.u.payload_u0.debug) ? char_eq_str : char_change_str,
@@ -648,9 +661,9 @@ void RFM69_client (
                              TX_PACKET_U.u.packet_u2_uint32_arr[index] = PACKET_INIT_VAL32;
                         }
 
-                        TX_PACKET_U.u.packet_u3.appHeading.numbytes_of_full_payload_10 = PACKET_LEN08;
-                        TX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload_11  = VERSION_OF_APP_PAYLOAD_01;
-                        TX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload_NN  = NUM_OF_THIS_APP_PAYLOAD_01;
+                        TX_PACKET_U.u.packet_u3.appHeading.numbytes_of_full_payload = PACKET_LEN08;
+                        TX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_01;
+                        TX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload  = NUM_OF_THIS_APP_PAYLOAD_01;
 
                         TX_PACKET_U.u.packet_u3.appNODEID = NODEID;
                         TX_PACKET_U.u.packet_u3.appPowerLevel_dBm = TX_appPowerLevel_dBm;

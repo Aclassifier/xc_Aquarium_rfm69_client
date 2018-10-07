@@ -13,6 +13,7 @@
 #if (USE_AQUARIUM__RFM69_COMMPROT==1)
     #undef _RFM69_COMMPROT_H_ // Since it's also used by this:
     #include "../../_Aquarium_1_x/src/_rfm69_commprot.h"
+    // Also defines SHARED_ID // SENDTO_ADDRESS == RECEIVER_ADDRESS
 #else
     // Same contents as in the above inlcuded file here, but now I have removed it
 #endif
