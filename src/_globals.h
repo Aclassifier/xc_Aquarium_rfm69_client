@@ -10,6 +10,9 @@
 
 #ifdef GLOBALS_H_ // To show that the below may also be defined in library space
 
+    #define min(a,b) (((a)<(b))?(a):(b))
+    #define max(a,b) (((a)>(b))?(a):(b))
+
     typedef signed int time32_t; // signed int (=signed) or unsigned int (=unsigned) both ok, as long as they are monotoneously increasing
                                  // XC/XMOS 100 MHz increment every 10 ns for max 2exp32 = 4294967296,
                                  // ie. divide by 100 mill = 42.9.. seconds
