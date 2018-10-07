@@ -528,7 +528,7 @@ void RFM69_client (
                                 }
                             } else {} // Don't restore or set to PACKET_INIT_VAL08, I get to many char_change_str ('#')
 
-                            debug_print ("MAX: On:%u%% @ Watt:%u - Heater:%d Ambient:%d Water:%d m%d Box:%d\n",
+                            debug_print ("MAX: On:%u%% @ Watt:%u - Heater:%d Ambient:%d Water:%d Mean:%d Box:%d\n",
                                 RX_radio_payload_max.u.payload_u0.heater_on_percent,
                                 RX_radio_payload_max.u.payload_u0.heater_on_watt,
                                 RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,
@@ -536,7 +536,7 @@ void RFM69_client (
                                 RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,
                                 RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
                                 RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC);
-                            debug_print ("MIN:On:%u%% @ Watt:%u - Heater:%d Ambient:%d Water:%d m%d Box:%d\n",
+                            debug_print ("MIN: On:%u%% @ Watt:%u - Heater:%d Ambient:%d Water:%d Mean:%d Box:%d\n",
                                 RX_radio_payload_min.u.payload_u0.heater_on_percent,
                                 RX_radio_payload_min.u.payload_u0.heater_on_watt,
                                 RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,
