@@ -5,6 +5,8 @@
  *      Author: teig
  */
 
+#define INCLUDES
+#ifdef INCLUDES
 #include <xs1.h>
 #include <platform.h> // slice
 #include <timer.h>    // delay_milliseconds(200), XS1_TIMER_HZ etc
@@ -19,6 +21,7 @@
 #include "_version.h"
 #include "_globals.h"
 #include "blink_and_watchdog.h"
+#endif
 
 #define DEBUG_PRINT_BLINK_AND_WATCHDOG_RFM69 0 // DON'T SET 1 HERE IF TESTING HOW printf AND XTAG-3 BLOCKS THE CALL!
                                                // See http://www.teigfam.net/oyvind/home/technology/098-my-xmos-notes/#xtag-3_debug_log_hanging

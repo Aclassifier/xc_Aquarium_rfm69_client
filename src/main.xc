@@ -5,6 +5,8 @@
  *      Author: teig
  */
 
+#define INCLUDES
+#ifdef INCLUDES
 #include <xs1.h>
 #include <platform.h> // slice
 #include <timer.h>    // delay_milliseconds(200), XS1_TIMER_HZ etc
@@ -24,8 +26,10 @@
 #include <rfm69_crc.h>
 #include <rfm69_commprot.h>
 #include <rfm69_xc.h>
+#include "button_press.h"
 
 #include "_Aquarium_rfm69_client.h"
+#endif
 
 #define DEBUG_PRINT_RFM69 1
 #define debug_print(fmt, ...) do { if(DEBUG_PRINT_RFM69 and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
@@ -43,20 +47,23 @@
 #define CAT3(a,b,c) a##b##c
 #define XS1_PORT(WIDTH,LETTER) CAT3(XS1_PORT_,WIDTH,LETTER) // XS1_PORT_ is a string here, not some #define from the woods!
 
-                               //                StartKIT                  eXplorerKIT - BUT NOT AS PREDEFINED SPI in their Portmaps
-                               //                                          as WiFi sliceCARD My breakpot board
-#define SPI_MOSI  XS1_PORT(1,K) // XS1_PORT_1K   X0D34 P1K        PCIe-B10 GPIO-PIN19
-#define SPI_CLK   XS1_PORT(1,J) // XS1_PORT_1J   X0D25 P1J        PCIe-A8  GPIO-PIN21
-#define SPI_MISO  XS1_PORT(1,I) // XS1_PORT_1I   X0D24 P1I        PCIe-B15 GPIO-PIN23
-#define SPI_CS_EN XS1_PORT(4,C) // XS1_PORT_4C   X0D14 P4C0       PCIe-B6  GPIO-PIN47  MASKOF_SPI_SLAVE0_CS          CS/SS Chip select is port BIT0 low
-                                // XS1_PORT_4C   X0D15 P4C1       PCIe-B7  GPIO-PIN45  MASKOF_SPI_SLAVE0_EN          nPWR_EN SPI_EN Power enable is port BIT1 high
-                                // XS1_PORT_4C   X0D20 P4C2       PCIe-A6  GPIO-PIN43  MASKOF_SPI_SLAVE0_PROBE1_INNER
-                                // XS1_PORT_4C   X0D21 P4C3       PCIe-A7  GPIO-PIN42  MASKOF_SPI_SLAVE0_PROBE2_OUTER
-#define SPI_AUX   XS1_PORT(4,D) // XS1_PORT_4D   X0D16 P4D0       PCIe-B9  GPIO-PIN31  MASKOF_SPI_AUX0_RST           RST Restart is port BIT0
-                                // XS1_PORT_4D   X0D17 P4D1       PCIe-B11 GPIO-PIN29  MASKOF_SPI_AUX0_PROBE3_IRQ
-#define SPI_IRQ   XS1_PORT(1,L) // XS1_PORT_1L   X0D35 P1L        PCIe-A15 GPIO-PIN17  IRQ, "GPIO 0", DIO0
-#define PROBE4    XS1_PORT(1,F) // XS1_PORT_1F   X0D13 P1F  J7.1  PCIe-B2  GPIO-PIN37  "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
-#define PROBE5    XS1_PORT(1,D) // XS1_PORT_1D   X0D11 P1D  J3.21 LED-D2   SPI-MOSI    "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
+                                    //                StartKIT                  eXplorerKIT - BUT NOT AS PREDEFINED SPI in their Portmaps
+                                    //                                          as WiFi sliceCARD My breakpot board
+#define SPI_MOSI      XS1_PORT(1,K) // XS1_PORT_1K   X0D34 P1K        PCIe-B10 GPIO-PIN19
+#define SPI_CLK       XS1_PORT(1,J) // XS1_PORT_1J   X0D25 P1J        PCIe-A8  GPIO-PIN21
+#define SPI_MISO      XS1_PORT(1,I) // XS1_PORT_1I   X0D24 P1I        PCIe-B15 GPIO-PIN23
+#define SPI_CS_EN     XS1_PORT(4,C) // XS1_PORT_4C   X0D14 P4C0       PCIe-B6  GPIO-PIN47  MASKOF_SPI_SLAVE0_CS          CS/SS Chip select is port BIT0 low
+                                    // XS1_PORT_4C   X0D15 P4C1       PCIe-B7  GPIO-PIN45  MASKOF_SPI_SLAVE0_EN          nPWR_EN SPI_EN Power enable is port BIT1 high
+                                    // XS1_PORT_4C   X0D20 P4C2       PCIe-A6  GPIO-PIN43  MASKOF_SPI_SLAVE0_PROBE1_INNER
+                                    // XS1_PORT_4C   X0D21 P4C3       PCIe-A7  GPIO-PIN42  MASKOF_SPI_SLAVE0_PROBE2_OUTER
+#define SPI_AUX       XS1_PORT(4,D) // XS1_PORT_4D   X0D16 P4D0       PCIe-B9  GPIO-PIN31  MASKOF_SPI_AUX0_RST           RST Restart is port BIT0
+                                    // XS1_PORT_4D   X0D17 P4D1       PCIe-B11 GPIO-PIN29  MASKOF_SPI_AUX0_PROBE3_IRQ
+#define SPI_IRQ       XS1_PORT(1,L) // XS1_PORT_1L   X0D35 P1L        PCIe-A15 GPIO-PIN17  IRQ, "GPIO 0", DIO0
+#define PROBE4        XS1_PORT(1,F) // XS1_PORT_1F   X0D13 P1F  J7.1  PCIe-B2  GPIO-PIN37  "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
+#define PROBE5        XS1_PORT(1,D) // XS1_PORT_1D   X0D11 P1D  J3.21 LED-D2   SPI-MOSI    "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
+#define BUTTON_LEFT   XS1_PORT(1,N) // XS1_PORT_1N                             GPIO-PIN61 With pull-up of 9.1k
+#define BUTTON_CENTER XS1_PORT(1,O) // XS1_PORT_1O                             GPIO-PIN59 With pull-up of 9.1k
+#define BUTTON_RIGHT  XS1_PORT(1,P) // XS1_PORT_1P                             GPIO-PIN57 With pull-up of 9.1k
 
 #define XCORE_200_EXPLORER_LEDS XS1_PORT(4,F) // XS1_PORT_4F
 
@@ -178,6 +185,10 @@ out port p_spi_aux       = on tile[0]:SPI_AUX;
 in  port p_spi_irq       = on tile[0]:SPI_IRQ;
 out port p_explorer_leds = on tile[0]:XCORE_200_EXPLORER_LEDS;
 
+port inP_button_left   = on tile[0]: XS1_PORT_1N; // P1N0, X0D37 B_Left
+port inP_button_center = on tile[0]: XS1_PORT_1O; // P1O0, X0D38 B_Center
+port inP_button_right  = on tile[0]: XS1_PORT_1P; // P11P, X0D39 B_Right
+
 // Another way of doing it. Used as nullable parameter, so may be dropped
 probe_pins_t probe_config = {
     on tile[0]:PROBE4
@@ -185,6 +196,7 @@ probe_pins_t probe_config = {
 
 int main() {
 
+    button_if       i_buttons[BUTTONS_NUM_CLIENTS];
     spi_master_if   i_spi[NUM_SPI_CLIENT_USERS];
     radio_if_t      i_radio;
     irq_if_t        i_irq;
@@ -192,11 +204,10 @@ int main() {
 
     // Observe http://www.teigfam.net/oyvind/home/technology/098-my-xmos-notes/#xtag-3_debug_log_hanging!
 
-    //[[combine]]
     par {
         on tile[0].core[0]: spi_master_2            (i_spi, NUM_SPI_CLIENT_USERS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
         on tile[0].core[0]: RFM69_driver            (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combineable]]
-        on tile[0].core[0]: RFM69_client            (i_irq, i_radio, i_blink_and_watchdog[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK);
+        on tile[0].core[0]: RFM69_client            (i_irq, i_radio, i_blink_and_watchdog[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK, i_buttons);
         on tile[0].core[1]: blink_and_watchdog_task (i_blink_and_watchdog, p_explorer_leds);
 
         #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
@@ -205,6 +216,11 @@ int main() {
         #else
             on tile[0].core[0]: IRQ_detect_task (i_irq, p_spi_irq, probe_config, null, SPI_CLIENT_VOID);
         #endif
+
+        on tile[0].core[2]: Button_Task (IOF_BUTTON_LEFT,   inP_button_left,   i_buttons[IOF_BUTTON_LEFT]);   // [[combinable]]
+        on tile[0].core[2]: Button_Task (IOF_BUTTON_CENTER, inP_button_center, i_buttons[IOF_BUTTON_CENTER]); // [[combinable]]
+        on tile[0].core[2]: Button_Task (IOF_BUTTON_RIGHT,  inP_button_right,  i_buttons[IOF_BUTTON_RIGHT]);  // [[combinable]]
     }
+
     return 0;
 }

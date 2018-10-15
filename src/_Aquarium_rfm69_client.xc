@@ -32,6 +32,8 @@
     // **********************************************************************************
 #endif
 
+#define INCLUDES
+#ifdef INCLUDES
 #include <xs1.h>
 #include <platform.h> // slice
 #include <timer.h>    // delay_milliseconds(200), XS1_TIMER_HZ etc
@@ -54,8 +56,10 @@
 #include <rfm69_xc.h>
 
 #include "_rfm69_commprot.h"
+#include "button_press.h"
 
 #include "_Aquarium_rfm69_client.h"
+#endif
 
 #define DEBUG_PRINT_RFM69 1
 #define debug_print(fmt, ...) do { if(DEBUG_PRINT_RFM69 and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
@@ -105,10 +109,11 @@
 
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
-         server irq_if_t                i_irq,
-         client radio_if_t              i_radio,
-         client blink_and_watchdog_if_t i_blink_and_watchdog,
-         const  bool                    semantics_do_rssi_in_irq_detect_task)
+         server  irq_if_t                i_irq,
+         client  radio_if_t              i_radio,
+         client  blink_and_watchdog_if_t i_blink_and_watchdog,
+         const   bool                    semantics_do_rssi_in_irq_detect_task,
+         server  button_if               i_button_in[BUTTONS_NUM_CLIENTS])
 {
     #define LEADING_SPACE_STR "       "
 
@@ -272,21 +277,21 @@ void RFM69_client (
         RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
     }
 
-    RX_radio_payload_max.u.payload_u0.heater_on_percent                        = CHAR_MIN;
-    RX_radio_payload_max.u.payload_u0.heater_on_watt                           = CHAR_MIN;
-    RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = SHRT_MIN;
-    RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = SHRT_MIN;
-    RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = SHRT_MIN;
-    RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = SHRT_MIN;
-    RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = SHRT_MIN;
+    RX_radio_payload_max.u.payload_u0.heater_on_percent                        = HEATER_ON_PERCENT_R_MIN;
+    RX_radio_payload_max.u.payload_u0.heater_on_watt                           = HEATER_ON_WATT_R_MIN;
+    RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = ONETENTHDEGC_R_MIN;
+    RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = ONETENTHDEGC_R_MIN;
+    RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = ONETENTHDEGC_R_MIN;
+    RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = ONETENTHDEGC_R_MIN;
+    RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = ONETENTHDEGC_R_MIN;
 
-    RX_radio_payload_min.u.payload_u0.heater_on_percent                        = UCHAR_MAX;
-    RX_radio_payload_min.u.payload_u0.heater_on_watt                           = UCHAR_MAX;
-    RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = SHRT_MAX;
-    RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = SHRT_MAX;
-    RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = SHRT_MAX;
-    RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = SHRT_MAX;
-    RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = SHRT_MAX;
+    RX_radio_payload_min.u.payload_u0.heater_on_percent                        = HEATER_ON_PERCENT_R_MAX;
+    RX_radio_payload_min.u.payload_u0.heater_on_watt                           = HEATER_ON_WATT_R_MAX;
+    RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = ONETENTHDEGC_R_MAX;
+    RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = ONETENTHDEGC_R_MAX;
+    RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = ONETENTHDEGC_R_MAX;
+    RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = ONETENTHDEGC_R_MAX;
+    RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = ONETENTHDEGC_R_MAX;
 
     i_blink_and_watchdog.enable_watchdog_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK bitor XCORE_200_EXPLORER_LED_RGB_GREEN_BIT_MASK, 3000, 200);
 
@@ -393,6 +398,7 @@ void RFM69_client (
                                        RX_some_rfm69_internals.PACKETLEN,
                                        RX_PACKET_U.u.packet_u3.appNODEID,
                                        RX_PACKET_U.u.packet_u3.appSeqCnt);
+                                num_messages_lost_since_last_success = 0; // Testing on it for diff. To avoid diff both on first and second after start.
                             }
 
                             lastReceivedAppSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt;
@@ -480,9 +486,10 @@ void RFM69_client (
                                     (RX_radio_payload.u.payload_u0.heater_on_watt == RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? char_eq_str : char_change_str,
                                      RX_radio_payload.u.payload_u0.heater_on_watt);
 
-                            debug_print ("Light light_control_scheme%s%01u with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
+                            const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_TEXT_TOTLEN] = LIGHT_CONTROL_SCHEME_STRINGS;
+                            debug_print ("Light light_control_scheme%s%s with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
                                     (RX_radio_payload.u.payload_u0.light_control_scheme == RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? char_eq_str : char_change_str,
-                                     RX_radio_payload.u.payload_u0.light_control_scheme,
+                                     light_control_scheme_strings[RX_radio_payload.u.payload_u0.light_control_scheme],
                                     (RX_radio_payload.u.payload_u0.light_composition == RX_radio_payload_prev.u.payload_u0.light_composition) ? char_eq_str : char_change_str,
                                      RX_radio_payload.u.payload_u0.light_composition,
                                      RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
@@ -528,7 +535,15 @@ void RFM69_client (
                                 }
                             } else {} // Don't restore or set to PACKET_INIT_VAL08, I get to many char_change_str ('#')
 
-                            debug_print ("MAX: On:%u%% @ Watt:%u - Heater:%d Ambient:%d Water:%d Mean:%d Box:%d\n",
+                            debug_print ("NOW: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
+                                RX_radio_payload.u.payload_u0.heater_on_percent,
+                                RX_radio_payload.u.payload_u0.heater_on_watt,
+                                RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC,
+                                RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC,
+                                RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC,
+                                RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
+                                RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+                            debug_print ("MAX: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
                                 RX_radio_payload_max.u.payload_u0.heater_on_percent,
                                 RX_radio_payload_max.u.payload_u0.heater_on_watt,
                                 RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,
@@ -536,7 +551,7 @@ void RFM69_client (
                                 RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,
                                 RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
                                 RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC);
-                            debug_print ("MIN: On:%u%% @ Watt:%u - Heater:%d Ambient:%d Water:%d Mean:%d Box:%d\n",
+                            debug_print ("MIN: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
                                 RX_radio_payload_min.u.payload_u0.heater_on_percent,
                                 RX_radio_payload_min.u.payload_u0.heater_on_watt,
                                 RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,
@@ -773,6 +788,10 @@ void RFM69_client (
                 #endif
 
                 // If diffTime_ms is larger than ONE_SEC_TICS the select will be timed out immediately N times until it's AFTER again
+
+            } break;
+
+            case i_button_in[int iof_button].button (const button_action_t button_action) : {
 
             } break;
         }

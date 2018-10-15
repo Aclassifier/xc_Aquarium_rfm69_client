@@ -10,8 +10,16 @@
 
 #ifdef GLOBALS_H_ // To show that the below may also be defined in library space
 
+    // BOOLEAN #include <stdbool.h> if C99
+    // See http://www.teigfam.net/oyvind/home/technology/165-xc-code-examples/#bool
+    typedef enum {false,true} bool; // 0,1 This typedef matches any integer-type type like long, int, unsigned, char, bool
+
     #define min(a,b) (((a)<(b))?(a):(b))
     #define max(a,b) (((a)>(b))?(a):(b))
+
+    #define t_swap(type,a,b) {type t = a; a = b; b = t;}
+
+    #define NUM_ELEMENTS(array) (sizeof(array) / sizeof(array[0])) // Kernighan & Pike p22
 
     typedef signed int time32_t; // signed int (=signed) or unsigned int (=unsigned) both ok, as long as they are monotoneously increasing
                                  // XC/XMOS 100 MHz increment every 10 ns for max 2exp32 = 4294967296,
@@ -31,12 +39,6 @@
     //     If the delay between the two input values fits in 31 bits, timerafter is guaranteed to behave correctly,
     //     otherwise it may behave incorrectly due to overlow or underflow. This means that a timer can be used to
     //     measure up to a total of 2exp31 / (100 mill) = 21s.
-
-    #ifdef __XC__
-        // BOOLEAN #include <stdbool.h> if C99
-        // See http://www.teigfam.net/oyvind/home/technology/165-xc-code-examples/#bool
-        typedef enum {false,true} bool; // 0,1 This typedef matches any integer-type type like long, int, unsigned, char, bool
-    #endif
 
 #endif
 

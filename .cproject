@@ -190,6 +190,16 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_spi}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_xassert}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_xassert/api}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/doc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/doc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/doc/pdf}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/api}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/api}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/doc/pdf}&quot;"/>
 								</option>
 								<inputType id="com.xmos.cdt.xc.compiler.input.718293228" name="XC" superClass="com.xmos.cdt.xc.compiler.input"/>
 							</tool>
@@ -506,6 +516,16 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_spi}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_xassert}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_xassert/api}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/doc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/doc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/doc/pdf}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/api}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/api}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/doc/pdf}&quot;"/>
 								</option>
 								<inputType id="com.xmos.cdt.c.compiler.input.c.437085220" name="C" superClass="com.xmos.cdt.c.compiler.input.c"/>
 							</tool>
@@ -827,6 +847,16 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_spi}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_xassert}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_xassert/api}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/doc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/doc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/doc/pdf}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c/api}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/api}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/doc/pdf}&quot;"/>
 								</option>
 								<inputType id="com.xmos.cdt.cxx.compiler.input.cpp.308055035" name="C++" superClass="com.xmos.cdt.cxx.compiler.input.cpp"/>
 							</tool>
