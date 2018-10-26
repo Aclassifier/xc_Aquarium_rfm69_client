@@ -34,40 +34,5 @@
     // "0.5.0"  26Feb2018 testing some changes that Maxim initiated
     //          RFM69=000 First testing with two boards
 
-// FOR ONE-ONE connection MASTER/SLAVE
-//                ### MUST BE UNIQUE
-#define MASTER_ID  99
-
-#define IS_MYTARGET_VOID               0
-#define IS_MYTARGET_STARTKIT           1
-#define IS_MYTARGET_XCORE_200_EXPLORER 2
-
-#if (MYTARGET==STARTKIT)
-    #define IS_MYTARGET IS_MYTARGET_STARTKIT
-#elif (MYTARGET==XCORE-200-EXPLORER)
-    #define IS_MYTARGET IS_MYTARGET_XCORE_200_EXPLORER
-#else
-    #error NO TARGET DEFINED
-#endif
-
-#if (ISMASTER==1) // Doesn't seem like words like SLAVE or MASTER or _SLAVE or _MASTER work. Using 0 or 1 instead
-    #define IS_MYTARGET_MASTER 1
-    #define IS_MYTARGET_SLAVE  0
-
-    #define NODEID    MASTER_ID
-    #define GATEWAYID SHARED_ID // Since MASTER it knows this SENDTO_ADDRESS
-#elif (ISMASTER==0)
-    #define IS_MYTARGET_SLAVE  1
-    #define IS_MYTARGET_MASTER 0
-
-    // It is the SLAVE that has to get its RETURNTO/SENDTO address from an established connection
-    // The MASTER/SLAVE role rationale is also to avoid application level deadlock or oscillation,
-    // we would not want both parts to spontaneously send
-    #define NODEID SHARED_ID // RECEIVER_ADDRESS is MASTER'S SENDTO_ADDRESS
-    // ANY SENDTO/RETURNTO address picked out of message
-#else
-    #error NO ROLE DEFINED
-#endif
-
 #endif /* VERSION_H_ */
 

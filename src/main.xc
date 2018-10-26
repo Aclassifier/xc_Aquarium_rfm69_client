@@ -49,7 +49,7 @@
 
                                     //                StartKIT                  eXplorerKIT - BUT NOT AS PREDEFINED SPI in their Portmaps
                                     //                                          as WiFi sliceCARD My breakpot board
-#define SPI_MOSI      XS1_PORT(1,K) // XS1_PORT_1K   X0D34 P1K        PCIe-B10 GPIO-PIN19
+#define SPI_MOSI      XS1_PORT(1,K) // XS1_PORT_1K   X0D34 P1K        PCIe-B10 GPIO-PIN19                                (also on J12 servo connector)
 #define SPI_CLK       XS1_PORT(1,J) // XS1_PORT_1J   X0D25 P1J        PCIe-A8  GPIO-PIN21
 #define SPI_MISO      XS1_PORT(1,I) // XS1_PORT_1I   X0D24 P1I        PCIe-B15 GPIO-PIN23
 #define SPI_CS_EN     XS1_PORT(4,C) // XS1_PORT_4C   X0D14 P4C0       PCIe-B6  GPIO-PIN47  MASKOF_SPI_SLAVE0_CS          CS/SS Chip select is port BIT0 low
@@ -58,10 +58,10 @@
                                     // XS1_PORT_4C   X0D21 P4C3       PCIe-A7  GPIO-PIN42  MASKOF_SPI_SLAVE0_PROBE2_OUTER
 #define SPI_AUX       XS1_PORT(4,D) // XS1_PORT_4D   X0D16 P4D0       PCIe-B9  GPIO-PIN31  MASKOF_SPI_AUX0_RST           RST Restart is port BIT0
                                     // XS1_PORT_4D   X0D17 P4D1       PCIe-B11 GPIO-PIN29  MASKOF_SPI_AUX0_PROBE3_IRQ
-#define SPI_IRQ       XS1_PORT(1,L) // XS1_PORT_1L   X0D35 P1L        PCIe-A15 GPIO-PIN17  IRQ, "GPIO 0", DIO0
+#define SPI_IRQ       XS1_PORT(1,L) // XS1_PORT_1L   X0D35 P1L        PCIe-A15 GPIO-PIN17  IRQ, "G0", "GPIO 0", DIO0     (also on J10 servo connector)
 #define PROBE4        XS1_PORT(1,F) // XS1_PORT_1F   X0D13 P1F  J7.1  PCIe-B2  GPIO-PIN37  "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
 #define PROBE5        XS1_PORT(1,D) // XS1_PORT_1D   X0D11 P1D  J3.21 LED-D2   SPI-MOSI    "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
-#define BUTTON_LEFT   XS1_PORT(1,N) // XS1_PORT_1N                             GPIO-PIN61 With pull-up of 9.1k
+#define BUTTON_LEFT   XS1_PORT(1,N) // XS1_PORT_1N                             GPIO-PIN61 With pull-up of 9.1k           (also on J9 servo connector)
 #define BUTTON_CENTER XS1_PORT(1,O) // XS1_PORT_1O                             GPIO-PIN59 With pull-up of 9.1k
 #define BUTTON_RIGHT  XS1_PORT(1,P) // XS1_PORT_1P                             GPIO-PIN57 With pull-up of 9.1k
 
