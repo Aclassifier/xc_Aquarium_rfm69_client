@@ -342,7 +342,10 @@ void RFM69_client (
         RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = ONETENTHDEGC_R_MAX;
     #endif
 
-    i_blink_and_watchdog.enable_watchdog_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK bitor XCORE_200_EXPLORER_LED_RGB_GREEN_BIT_MASK, 3000, 200);
+    i_blink_and_watchdog.enable_watchdog_ok (
+            XCORE_200_EXPLORER_LED_GREEN_BIT_MASK bitor XCORE_200_EXPLORER_LED_RGB_GREEN_BIT_MASK,
+            AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 3 * 1000,
+            200);
 
     tmr :> time_ticks; // First sending now
 
@@ -574,6 +577,12 @@ void RFM69_client (
                                 RX_context.first_debug_print_received_done = true;
 
                                 // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
+                                // Reinserted RFM69=001
+                                #if (SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE == 1)
+                                   if (i_radio.receiveDone()) {                         // This is needed even if..
+                                       debug_print ("%s\n", "receiveDone in polling!");  // ..it never gets here! (TODO?)
+                                   } else {}
+                                #endif
 
                                 i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 50); // Looks orange
 
