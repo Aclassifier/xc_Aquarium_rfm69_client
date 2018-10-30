@@ -34,7 +34,7 @@
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void blink_and_watchdog_task (
         server blink_and_watchdog_if_t i_beep_blink [BEEP_BLINK_TASK_NUM_CLIENTS],
-        out port               p_port)
+        out port                       p_port)
 {
     unsigned         port_pins = 0;
 
@@ -88,7 +88,7 @@ void blink_and_watchdog_task (
                 } else if (does_watchdog_blinking) {
                     // Do nothing, no code
                 } else if (AFTER_32 (blink_resolution_timeout_tics, watchdog_feed_timeout_tics)) {
-                    does_watchdog_blinking = true; // Once on, never off
+                    does_watchdog_blinking = true;
 
                     port_pins or_eq watchdog_port_pins_mask;
                     p_port <: port_pins;
@@ -98,7 +98,7 @@ void blink_and_watchdog_task (
                     debug_print ("%s\n", "WATCHDOG STARTING");
                 } else {}
 
-                if (does_watchdog_blinking) { // Continuously on when first on
+                if (does_watchdog_blinking) {
                     if (AFTER_32 (blink_resolution_timeout_tics, watchdog_blink_timeout_tics)) {
                         if (is_watchdog_port_pins_on) {
                             port_pins and_eq (compl watchdog_port_pins_mask); // was on now off
@@ -191,6 +191,19 @@ void blink_and_watchdog_task (
 
             case i_beep_blink[int index_of_client].is_watchdog_blinking () -> bool yes: {
                 yes = does_watchdog_blinking;
+            } break;
+
+            case i_beep_blink[int index_of_client].reset_watchdog_ok () -> bool success: {
+                if (enabled_watchdog) {
+                    does_watchdog_blinking = false;
+                    is_watchdog_port_pins_on = false;
+                    port_pins and_eq (compl watchdog_port_pins_mask); // LED off no matter what it was
+                    p_port <: port_pins;
+                    tmr :> single_pulse_timeout_tics;
+                    watchdog_blink_timeout_tics = blink_resolution_timeout_tics + (watchdog_blink_on_ms * XS1_TIMER_KHZ);
+                } else {}
+                success = enabled_watchdog;
+                debug_print ("reset_watchdog_ok success %u\n", success);
             } break;
         }
     }

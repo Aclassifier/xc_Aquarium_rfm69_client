@@ -13,10 +13,10 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.7.1"
+#define RFM69_CLIENT_VERSION_STR "0.7.2"
     // "0.7.2"  29Oct2018
     //          RFM69=001 The IRQ line that keeps high after IRQ 7 (messagePacketLenErr_IRQ) is worked on. Testing at the moment
-    //                    This tag is also seen in the "rfm69_commprot.h" code
+    //          --"--     This tag is also seen in the "rfm69_commprot.h" code
     // "0.7.1"  07Jun2018 _commprot.h -> renamed to rfm69_commprot.h
     //                    _globals.h  -> renamed to rfm69_globals.h and new _globals.h made
     // "0.7.0"  06Jun2018 File changes before moving to lib_fsm69_xc

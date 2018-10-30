@@ -43,6 +43,7 @@ typedef interface blink_and_watchdog_if_t {
                                          const unsigned         blink_on_ms);   // Max about 21 seconds, off is same time
 
                 bool is_watchdog_blinking (void); // Or test returns on the blink_.. functions
+                bool reset_watchdog_ok    (void); // Also switches off the LED blinking
 } blink_and_watchdog_if_t;
 
 #define BEEP_BLINK_TASK_NUM_CLIENTS 1 // Making it multi-client cost 120 bytes
@@ -56,6 +57,6 @@ typedef interface blink_and_watchdog_if_t {
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void blink_and_watchdog_task (
         server blink_and_watchdog_if_t i_beep_blink [BEEP_BLINK_TASK_NUM_CLIENTS],
-        out port               p_explorer_leds);
+        out port                       p_explorer_leds);
 
 #endif /* BLINK_AND_WATCHDOG_H_ */

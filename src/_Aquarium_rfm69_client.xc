@@ -344,7 +344,7 @@ void RFM69_client (
 
     i_blink_and_watchdog.enable_watchdog_ok (
             XCORE_200_EXPLORER_LED_GREEN_BIT_MASK bitor XCORE_200_EXPLORER_LED_RGB_GREEN_BIT_MASK,
-            AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 3 * 1000,
+            ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 3)/2) * 1000,
             200);
 
     tmr :> time_ticks; // First sending now
@@ -578,8 +578,8 @@ void RFM69_client (
 
                                 // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
                                 // Reinserted RFM69=001
-                                #if (SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE == 1)
-                                   if (i_radio.receiveDone()) {                         // This is needed even if..
+                                #if (SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE == 1) // TODO remove
+                                   if (i_radio.receiveDone()) {                          // This is needed even if..
                                        debug_print ("%s\n", "receiveDone in polling!");  // ..it never gets here! (TODO?)
                                    } else {}
                                 #endif
@@ -682,7 +682,7 @@ void RFM69_client (
                                     nowRSSI, interruptAndParsingResult, RX_context.num_radioCRC16errs, RX_context.num_appCRC32errs, RXTX_context.some_rfm69_internals.PACKETLEN);
 
                             // TODO
-                            // 30Aug2018 hang after this:
+                            // 30Aug2018 hang after this. 29Oct2018 now called RFM69=001
                             // RSSI -48, fail IRQ 7, RX_context.num_radioCRC16errs 0, RX_context.num_appCRC32errs 0 with PACKETLEN 1
                             //                    7 messagePacketLenErr_IRQ
                             // 12Sept2018 same hanging, see file "2018 09 12 A fail IRQ 7 still not solved.txt"
@@ -894,7 +894,17 @@ void RFM69_client (
             } break;
 
             case i_button_in[int iof_button].button (const button_action_t button_action) : {
-
+                switch (iof_button) {
+                    case IOF_BUTTON_LEFT: {
+                        i_blink_and_watchdog.reset_watchdog_ok();
+                    } break;
+                    case IOF_BUTTON_CENTER: {
+                        //
+                    } break;
+                    case IOF_BUTTON_RIGHT: {
+                        //
+                    } break;
+                }
             } break;
         }
     }
