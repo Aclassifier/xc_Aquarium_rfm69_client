@@ -32,7 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 */
 
 /*
- * core_graphics_adafruit_GFX.h
+ * core_graphics_adafruit_gfx.h
  *
  *  Created on: 28. feb. 2015
  *      Author: Teig

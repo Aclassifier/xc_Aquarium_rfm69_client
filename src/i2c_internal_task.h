@@ -1,5 +1,5 @@
 /*
- * I2C_internal_task.h
+ * i2c_internal_task.h
  *
  *  Created on: 27. feb. 2015
  *      Author: Teig
@@ -35,14 +35,20 @@
 
 typedef interface i2c_internal_commands_if {
 
-    bool write_display_ok (const i2c_dev_address_t dev_addr, const i2c_reg_address_t reg_addr, unsigned char data[], unsigned nbytes);
+    bool write_display_ok (
+            const i2c_dev_address_t dev_addr,
+            const i2c_reg_address_t reg_addr,
+            const unsigned char     data[],
+            const unsigned          nbytes);
 
 } i2c_internal_commands_if;
 
 #define I2C_INTERNAL_NUM_CLIENTS 1
 
 [[combinable]]
-void I2C_Internal_Task (server i2c_internal_commands_if i_i2c_internal_commands[I2C_INTERNAL_NUM_CLIENTS]);
+void I2C_Internal_Task (
+        server i2c_internal_commands_if i_i2c_internal_commands[I2C_INTERNAL_NUM_CLIENTS],
+        client  i2c_master_if           i_i2c); // synchronous
 
 #else
     #error Nested include I2C_INTERNAL_SERVER_H_

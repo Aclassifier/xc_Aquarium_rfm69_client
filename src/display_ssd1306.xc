@@ -47,14 +47,6 @@ All text above, and the splash screen below must be included in any redistributi
 #include "display_ssd1306.h"
 #endif
 
-out port outP_display_notReset =
-    // on tile[0]:XS1_PORT_1G; // #RES at startKIT GPIO header (J7) port P1G0, processor pin X0D22, socket GPIO 3
-    on tile[0]:XS1_PORT_1M;    // I_NRES RES at startKIT GPIO header (J7) port P1M0, processor pin X0D22, socket GPIO 3
-    // on adafruit monochrome 128x32 I2C OLED graphic display PRODUCT ID: 931, containing
-    // module UG-2832HSWEG02 with chip SSD1306 from Univision Technology Inc. Data sheet often says 128 x 64 bits
-    // as it looks like much of the logic is the same as for 128 z 32 bits.
-    // At least 3 us low to reset
-
 // The memory buffer of the display
 static uint8_t buffer[SSD1306_LCDHEIGHT*SSD1306_LCDWIDTH/8];
 
@@ -80,20 +72,20 @@ bool writeDisplay_i2c_data (client i2c_internal_commands_if i_i2c_internal_comma
     return not error;
 }
 
-bool Adafruit_SSD1306_i2c_begin (client i2c_internal_commands_if i_i2c_internal_commands) {
+bool Adafruit_SSD1306_i2c_begin (client i2c_internal_commands_if i_i2c_internal_commands, out port p_display_notReset) {
 
     bool error = false;
 
     // By default, we'll generate the high voltage for the display in the display chip's charge pump, from the 3.3V line
     const display_vccstate_t vccstate = SSD1306_SWITCHCAPVCC; // Initially parameterised, no ned to. Just hard-code it here
 
-    outP_display_notReset <: 1; // High. Didn't help remove qwe
+    p_display_notReset <: 1; // High. Didn't help remove qwe
 
     // The pin is initially not driven. Adafruit display board ID-931 contains a 10K pullup and a diode
     // So the pin is high now
-    outP_display_notReset <: 0; // Low
+    p_display_notReset <: 0; // Low
     delay_milliseconds(10);
-    outP_display_notReset <: 1; // High
+    p_display_notReset <: 1; // High
 
     #if defined SSD1306_128_32
         // Init sequence for 128x32 OLED module
@@ -285,10 +277,10 @@ bool writeToDisplay_i2c_all_buffer (client i2c_internal_commands_if i_i2c_intern
     #endif
 
     // I2C
-    for (uint16_t i=0; i<(SSD1306_LCDWIDTH*SSD1306_LCDHEIGHT/8); i++) {
+    for (uint16_t i=0; i<SSD1306_BUFFER_SIZE; i++) {
         // send a bunch of data in one transmission
         // I2C
-        #if (((SSD1306_LCDWIDTH*SSD1306_LCDHEIGHT/8) % SSD1306_WRITE_CHUNK_SIZE) != 0)
+        #if ((SSD1306_BUFFER_SIZE % SSD1306_WRITE_CHUNK_SIZE) != 0)
             #error Display buffer not multiple of 16
         #endif
 
@@ -308,7 +300,7 @@ bool writeToDisplay_i2c_all_buffer (client i2c_internal_commands_if i_i2c_intern
 
 // clear everything
 void Clear_All_Pixels_In_Buffer (void) {
-    memset (buffer, 0, (SSD1306_LCDWIDTH*SSD1306_LCDHEIGHT/8));
+    memset (buffer, 0, SSD1306_BUFFER_SIZE);
 }
 
 void fillSplashScreen_in_buffer (void) {

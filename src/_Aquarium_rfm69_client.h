@@ -10,10 +10,12 @@
 
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
-        server  irq_if_t                i_irq,
-        client  radio_if_t              i_radio,
-        client  blink_and_watchdog_if_t i_beep_blink,
-        const   bool                    semantics_do_rssi_in_irq_detect_task,
-        server  button_if               i_button_in[BUTTONS_NUM_CLIENTS]);
+        server  irq_if_t                 i_irq,
+        client  radio_if_t               i_radio,
+        client  blink_and_watchdog_if_t  i_beep_blink,
+        const   bool                     semantics_do_rssi_in_irq_detect_task,
+        server  button_if                i_button_in[BUTTONS_NUM_CLIENTS],
+        client  i2c_internal_commands_if i_i2c_internal_commands,
+        out port                         p_display_notReset);
 
 #endif /* AQUARIUM_RFM69_CLIENT_H_ */

@@ -36,7 +36,7 @@ typedef enum display_vccstate_t {
     SSD1306_SWITCHCAPVCC = 0x02
 } display_vccstate_t;
 
-extern bool Adafruit_SSD1306_i2c_begin           (client i2c_internal_commands_if i_i2c_internal_commands);
+extern bool Adafruit_SSD1306_i2c_begin           (client i2c_internal_commands_if i_i2c_internal_commands, out port p_display_notReset);
 
 extern bool writeDisplay_i2c_command             (client i2c_internal_commands_if i_i2c_internal_commands, uint8_t c);
 extern bool writeDisplay_i2c_data                (client i2c_internal_commands_if i_i2c_internal_commands, uint8_t c); // Never used..
@@ -76,7 +76,7 @@ extern void drawHorisontalLineInternal_in_buffer (int16_t x, int16_t y, int16_t 
     #error Display not defined
 #endif
 
-#define SSD1306_BUFFER_SIZE      ((SSD1306_LCDWIDTH*SSD1306_LCDHEIGHT)/8) // 512 ot 1024 bytes
+#define SSD1306_BUFFER_SIZE      ((SSD1306_LCDWIDTH*SSD1306_LCDHEIGHT)/8) // 512 or 1024 bytes
 #define SSD1306_WRITE_CHUNK_SIZE 16
 
 

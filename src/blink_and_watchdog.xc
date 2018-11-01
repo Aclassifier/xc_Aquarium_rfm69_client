@@ -23,7 +23,7 @@
 #include "blink_and_watchdog.h"
 #endif
 
-#define DEBUG_PRINT_BLINK_AND_WATCHDOG_RFM69 0 // DON'T SET 1 HERE IF TESTING HOW printf AND XTAG-3 BLOCKS THE CALL!
+#define DEBUG_PRINT_BLINK_AND_WATCHDOG_RFM69 1 // DON'T SET 1 HERE IF TESTING HOW printf AND XTAG-3 BLOCKS THE CALL!
                                                // See http://www.teigfam.net/oyvind/home/technology/098-my-xmos-notes/#xtag-3_debug_log_hanging
                                                // Use is_watchdog_blinking instead!
 //
@@ -199,8 +199,7 @@ void blink_and_watchdog_task (
                     is_watchdog_port_pins_on = false;
                     port_pins and_eq (compl watchdog_port_pins_mask); // LED off no matter what it was
                     p_port <: port_pins;
-                    tmr :> single_pulse_timeout_tics;
-                    watchdog_blink_timeout_tics = blink_resolution_timeout_tics + (watchdog_blink_on_ms * XS1_TIMER_KHZ);
+                    do_watchdog_feed_next = true;
                 } else {}
                 success = enabled_watchdog;
                 debug_print ("reset_watchdog_ok success %u\n", success);

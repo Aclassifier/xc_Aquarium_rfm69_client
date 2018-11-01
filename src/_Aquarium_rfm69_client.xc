@@ -45,10 +45,18 @@
 #include <spi.h>
 #include <xassert.h>
 #include <limits.h>
+#include <i2c.h>
 
 #include "_version.h"
 #include "_globals.h"
 #include "blink_and_watchdog.h"
+
+#include "param.h"
+#include "defines_adafruit.h"
+#include "i2c_internal_task.h"
+#include "display_ssd1306.h"
+#include "core_graphics_adafruit_gfx.h"
+#include "_texts_and_constants.h"
 
 #include <rfm69_globals.h>
 #include <rfm69_crc.h>
@@ -79,6 +87,9 @@
         #warning IS SLAVE
     #endif
 #endif
+
+
+#define SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE
 
 #define SEMANTICS_DEBUG_CALC_RF_FRF_REGISTERS 1 // 1 : never while real TX->RX!. Also set ALLOW_FLOAT_FREQ_CALC 1 for calculations
                                                 // 0 : Standard usage
@@ -168,13 +179,20 @@ typedef struct {
     //
 } TX_context_t; // TX same as MASTER same as ISMASTER==1
 
+typedef struct {
+    char display_ts1_chars [SSD1306_TS1_DISPLAY_VISIBLE_CHAR_LEN]; // 84 chars for display needs 85 char buffer (with NUL) when sprintf is use (use SSD1306_TS1_DISPLAY_ALL_CHAR_LEN for full flexibility)
+    int  sprintf_numchars;
+} display_context_t;
+
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
-         server  irq_if_t                i_irq,
-         client  radio_if_t              i_radio,
-         client  blink_and_watchdog_if_t i_blink_and_watchdog,
-         const   bool                    semantics_do_rssi_in_irq_detect_task,
-         server  button_if               i_button_in[BUTTONS_NUM_CLIENTS])
+         server  irq_if_t                 i_irq,
+         client  radio_if_t               i_radio,
+         client  blink_and_watchdog_if_t  i_blink_and_watchdog,
+         const   bool                     semantics_do_rssi_in_irq_detect_task,
+         server  button_if                i_button_in[BUTTONS_NUM_CLIENTS],
+         client  i2c_internal_commands_if i_i2c_internal_commands,
+         out port                         p_display_notReset)
 {
     timer    tmr;
     time32_t time_ticks;
@@ -271,6 +289,29 @@ void RFM69_client (
             (semantics_do_rssi_in_irq_detect_task) ? "in IRQ_detect_task" : "by RFM69_client",
             (SEMANTICS_DO_CRC_ERR_NO_IRQ == 1) ? "no" : "with",
             (SEMANTICS_DO_LOOP_FOR_RF_IRQFLAGS2_PACKETSENT == 1) ? "loop for" : "state for");
+
+    // Display matters
+
+    display_context_t display_context;
+
+    Adafruit_GFX_constructor (SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT);
+    Adafruit_SSD1306_i2c_begin (i_i2c_internal_commands, p_display_notReset);
+
+    Clear_All_Pixels_In_Buffer();
+    writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
+
+    for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
+        display_context.display_ts1_chars [index_of_char] = ' ';
+    }
+
+    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "HALLO");
+    setTextSize(2);
+    setTextColor(WHITE);
+    setCursor(0,0);
+    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+    writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
+
+    // Radio matters
 
     i_radio.do_spi_aux_adafruit_rfm69hcw_RST_pulse (MASKOF_SPI_AUX0_RST);
     i_radio.initialize (RXTX_context.radio_init);
@@ -494,6 +535,26 @@ void RFM69_client (
                                             RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload,
                                             RX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload);
                                 }
+
+                                Clear_All_Pixels_In_Buffer();
+                                for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
+                                    display_context.display_ts1_chars [index_of_char] = ' ';
+                                }
+
+                                degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
+                                degC_Unary_Part   = degC_dp1/10;
+                                degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+
+                                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%02u:%02u:%02u\n%u.%u DegC",
+                                        RX_radio_payload.u.payload_u0.hour,
+                                        RX_radio_payload.u.payload_u0.minute,
+                                        RX_radio_payload.u.payload_u0.second,
+                                        degC_Unary_Part, degC_Decimal_Part);
+                                setTextSize(2);
+                                setTextColor(WHITE);
+                                setCursor(0,0);
+                                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                                writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
 
                                 debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
                                         (RX_radio_payload.u.payload_u0.num_days_since_start == RX_context.RX_radio_payload_prev.u.payload_u0.num_days_since_start) ? CHAR_EQ_STR : CHAR_CHANGE_STR,

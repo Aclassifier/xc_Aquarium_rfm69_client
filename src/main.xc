@@ -17,10 +17,18 @@
 #include <iso646.h>   // not etc.
 #include <spi.h>
 #include <xassert.h>
+#include <i2c.h>
 
 #include "_version.h"
 #include "_globals.h"
 #include "blink_and_watchdog.h"
+
+#include "param.h"
+#include "defines_adafruit.h"
+#include "i2c_internal_task.h"
+#include "display_ssd1306.h"
+#include "core_graphics_adafruit_gfx.h"
+#include "_texts_and_constants.h"
 
 #include <rfm69_globals.h>
 #include <rfm69_crc.h>
@@ -47,43 +55,52 @@
 #define CAT3(a,b,c) a##b##c
 #define XS1_PORT(WIDTH,LETTER) CAT3(XS1_PORT_,WIDTH,LETTER) // XS1_PORT_ is a string here, not some #define from the woods!
 
-                                    //                StartKIT                  eXplorerKIT - BUT NOT AS PREDEFINED SPI in their Portmaps
-                                    //                                          as WiFi sliceCARD My breakpot board
-#define SPI_MOSI      XS1_PORT(1,K) // XS1_PORT_1K   X0D34 P1K        PCIe-B10 GPIO-PIN19                                (also on J12 servo connector)
-#define SPI_CLK       XS1_PORT(1,J) // XS1_PORT_1J   X0D25 P1J        PCIe-A8  GPIO-PIN21
-#define SPI_MISO      XS1_PORT(1,I) // XS1_PORT_1I   X0D24 P1I        PCIe-B15 GPIO-PIN23
-#define SPI_CS_EN     XS1_PORT(4,C) // XS1_PORT_4C   X0D14 P4C0       PCIe-B6  GPIO-PIN47  MASKOF_SPI_SLAVE0_CS          CS/SS Chip select is port BIT0 low
-                                    // XS1_PORT_4C   X0D15 P4C1       PCIe-B7  GPIO-PIN45  MASKOF_SPI_SLAVE0_EN          nPWR_EN SPI_EN Power enable is port BIT1 high
-                                    // XS1_PORT_4C   X0D20 P4C2       PCIe-A6  GPIO-PIN43  MASKOF_SPI_SLAVE0_PROBE1_INNER
-                                    // XS1_PORT_4C   X0D21 P4C3       PCIe-A7  GPIO-PIN42  MASKOF_SPI_SLAVE0_PROBE2_OUTER
-#define SPI_AUX       XS1_PORT(4,D) // XS1_PORT_4D   X0D16 P4D0       PCIe-B9  GPIO-PIN31  MASKOF_SPI_AUX0_RST           RST Restart is port BIT0
-                                    // XS1_PORT_4D   X0D17 P4D1       PCIe-B11 GPIO-PIN29  MASKOF_SPI_AUX0_PROBE3_IRQ
-#define SPI_IRQ       XS1_PORT(1,L) // XS1_PORT_1L   X0D35 P1L        PCIe-A15 GPIO-PIN17  IRQ, "G0", "GPIO 0", DIO0     (also on J10 servo connector)
-#define PROBE4        XS1_PORT(1,F) // XS1_PORT_1F   X0D13 P1F  J7.1  PCIe-B2  GPIO-PIN37  "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
-#define PROBE5        XS1_PORT(1,D) // XS1_PORT_1D   X0D11 P1D  J3.21 LED-D2   SPI-MOSI    "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
-#define BUTTON_LEFT   XS1_PORT(1,N) // XS1_PORT_1N                             GPIO-PIN61 With pull-up of 9.1k           (also on J9 servo connector)
-#define BUTTON_CENTER XS1_PORT(1,O) // XS1_PORT_1O                             GPIO-PIN59 With pull-up of 9.1k
-#define BUTTON_RIGHT  XS1_PORT(1,P) // XS1_PORT_1P                             GPIO-PIN57 With pull-up of 9.1k
-
+                                              //                StartKIT                  eXplorerKIT - BUT NOT AS PREDEFINED SPI in their Portmaps
+                                              //                                          as WiFi sliceCARD My breakpot board
+#define SPI_MOSI                XS1_PORT(1,K) // XS1_PORT_1K   X0D34 P1K        PCIe-B10 GPIO-PIN19                                (also on J12 servo connector)
+#define SPI_CLK                 XS1_PORT(1,J) // XS1_PORT_1J   X0D25 P1J        PCIe-A8  GPIO-PIN21
+#define SPI_MISO                XS1_PORT(1,I) // XS1_PORT_1I   X0D24 P1I        PCIe-B15 GPIO-PIN23
+#define SPI_CS_EN               XS1_PORT(4,C) // XS1_PORT_4C   X0D14 P4C0       PCIe-B6  GPIO-PIN47  MASKOF_SPI_SLAVE0_CS          CS/SS Chip select is port BIT0 low
+                                              // XS1_PORT_4C   X0D15 P4C1       PCIe-B7  GPIO-PIN45  MASKOF_SPI_SLAVE0_EN          nPWR_EN SPI_EN Power enable is port BIT1 high
+                                              // XS1_PORT_4C   X0D20 P4C2       PCIe-A6  GPIO-PIN43  MASKOF_SPI_SLAVE0_PROBE1_INNER
+                                              // XS1_PORT_4C   X0D21 P4C3       PCIe-A7  GPIO-PIN42  MASKOF_SPI_SLAVE0_PROBE2_OUTER
+#define SPI_AUX                 XS1_PORT(4,D) // XS1_PORT_4D   X0D16 P4D0       PCIe-B9  GPIO-PIN31  MASKOF_SPI_AUX0_RST           RST Restart is port BIT0
+                                              // XS1_PORT_4D   X0D17 P4D1       PCIe-B11 GPIO-PIN29  MASKOF_SPI_AUX0_PROBE3_IRQ
+#define SPI_IRQ                 XS1_PORT(1,L) // XS1_PORT_1L   X0D35 P1L        PCIe-A15 GPIO-PIN17  IRQ, "G0", "GPIO 0", DIO0     (also on J10 servo connector)
+#define PROBE5                  XS1_PORT(1,D) // XS1_PORT_1D   X0D11 P1D  J3.21 LED-D2   SPI-MOSI    "PROBE1", "PROBE2" & "PROBE3" are in bitmasks
+#define BUTTON_LEFT             XS1_PORT(1,N) // XS1_PORT_1N                             GPIO-PIN61 With pull-up of 9.1k           (also on J9 servo connector)
+#define BUTTON_CENTER           XS1_PORT(1,O) // XS1_PORT_1O                             GPIO-PIN59 With pull-up of 9.1k
+#define BUTTON_RIGHT            XS1_PORT(1,P) // XS1_PORT_1P                             GPIO-PIN57 With pull-up of 9.1k
 #define XCORE_200_EXPLORER_LEDS XS1_PORT(4,F) // XS1_PORT_4F
+#define I2C_SCL                 XS1_PORT(1,E) // XS1_PORT_1E                             GPIO-PIN39
+#define I2C_SDA                 XS1_PORT(1,F) // XS1_PORT_1F                             GPIO-PIN37
+#define DISPLAY_NRES            XS1_PORT(1,G) // XS1_PORT_1G                             GPIO-PIN35
 
 // From spi_lib spi.pdf
-//                            32 bits over 1 bit:        // New as above | As spi_master_interface in main.xc in _app_tiwisl_simple_webserver
-in  buffered port:32 p_miso  = on tile[0]: SPI_MISO;     // New as above | Was XS1_PORT_1A, but that's for sliceKIT
-out buffered port:32 p_sclk  = on tile[0]: SPI_CLK;      // New as above | Was XS1_PORT_1C, but that's for sliceKIT (Was 22 in spi.pdf but that must be a typo)
-out buffered port:32 p_mosi  = on tile[0]: SPI_MOSI;     // New as above | Was XS1_PORT_1D, but that's for sliceKIT
-clock                clk_spi = on tile[0]: XS1_CLKBLK_1; // See USE_CLOCK_BLOCK
+//                32 bits over 1 bit:                                  New as above | As spi_master_interface in main.xc in _app_tiwisl_simple_webserver
+in  buffered port:32 p_miso             = on tile[0]: SPI_MISO;     // New as above | Was XS1_PORT_1A, but that's for sliceKIT
+out buffered port:32 p_sclk             = on tile[0]: SPI_CLK;      // New as above | Was XS1_PORT_1C, but that's for sliceKIT (Was 22 in spi.pdf but that must be a typo)
+out buffered port:32 p_mosi             = on tile[0]: SPI_MOSI;     // New as above | Was XS1_PORT_1D, but that's for sliceKIT
+//
+clock                clk_spi            = on tile[0]: XS1_CLKBLK_1; // See USE_CLOCK_BLOCK
+port                 p_scl              = on tile[0]: I2C_SCL;
+port                 p_sda              = on tile[0]: I2C_SDA;
+out port             p_display_notReset = on tile[0]: DISPLAY_NRES; // was outP_display_notReset
+                                        // on adafruit monochrome 128x32 I2C OLED graphic display PRODUCT ID: 931, containing
+                                        // module UG-2832HSWEG02 with chip SSD1306 from Univision Technology Inc. Data sheet often says 128 x 64 bits
+                                        // as it looks like much of the logic is the same as for 128 z 32 bits.
+                                        // At least 3 us low to reset
 
 #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
-    #define NUM_SPI_CLIENT_USERS 2 // Number of users per board
+    #define SPI_NUM_CLIENTS 2 // Number of users per board
 #else
-    #define NUM_SPI_CLIENT_USERS 1 // Number of users per board
+    #define SPI_NUM_CLIENTS 1 // Number of users per board
 #endif
 
 #define                     SPI_CLIENT_0    0 // BOTH HERE: Remember a call to i_spi.await_spi_port_init_by_all_clients(); before use of spi_master_if (by i_spi)
 #define                     SPI_CLIENT_1    1 // AND HERE:  --"--
 #define                     SPI_CLIENT_VOID 0 // Any value
-#define NUM_SPI_CS_SETS NUM_SPI_CLIENT_USERS  // See (*) below. Actually number of different SPI boards, but since both clients use the same chip, the sets are equal
+#define NUM_SPI_CS_SETS SPI_NUM_CLIENTS  // See (*) below. Actually number of different SPI boards, but since both clients use the same chip, the sets are equal
 
 // https://learn.adafruit.com/adafruit-rfm69hcw-and-rfm96-rfm95-rfm98-lora-packet-padio-breakouts/pinouts
 //      SPI_CS_EN bits:
@@ -189,37 +206,45 @@ port inP_button_left   = on tile[0]: XS1_PORT_1N; // P1N0, X0D37 B_Left
 port inP_button_center = on tile[0]: XS1_PORT_1O; // P1O0, X0D38 B_Center
 port inP_button_right  = on tile[0]: XS1_PORT_1P; // P11P, X0D39 B_Right
 
-// Another way of doing it. Used as nullable parameter, so may be dropped
-probe_pins_t probe_config = {
-    on tile[0]:PROBE4
-};
+#define I2C_MASTER_NUM_CLIENTS          1
+#define I2C_MASTER_SPEED_KBPS           333 // 333 is same speed as used in the aquarium in i2c_internal_task.xc,
+                                             // i2c_internal_config.clockTicks 300 for older XMOS code struct r_i2c in i2c.h and module_i2c_master
+#define I2C_MASTER_TRANSACTION_MAX_NUMB (SSD1306_WRITE_CHUNK_SIZE * 2) // Just more. Only if asynchnronous mode with i2c_master_async and i2c_master_async_if
+
+#define I2C_INTERNAL_NUM_CLIENTS        1
 
 int main() {
 
-    button_if       i_buttons[BUTTONS_NUM_CLIENTS];
-    spi_master_if   i_spi[NUM_SPI_CLIENT_USERS];
-    radio_if_t      i_radio;
-    irq_if_t        i_irq;
-    blink_and_watchdog_if_t i_blink_and_watchdog[BEEP_BLINK_TASK_NUM_CLIENTS];
+    button_if                i_buttons[BUTTONS_NUM_CLIENTS];
+    spi_master_if            i_spi[SPI_NUM_CLIENTS];
+    radio_if_t               i_radio;
+    irq_if_t                 i_irq;
+    blink_and_watchdog_if_t  i_blink_and_watchdog[BEEP_BLINK_TASK_NUM_CLIENTS];
+    i2c_internal_commands_if i_i2c_internal_commands [I2C_INTERNAL_NUM_CLIENTS];
+    i2c_master_if            i_i2c[I2C_MASTER_NUM_CLIENTS];
 
     // Observe http://www.teigfam.net/oyvind/home/technology/098-my-xmos-notes/#xtag-3_debug_log_hanging!
 
     par {
-        on tile[0].core[0]: spi_master_2            (i_spi, NUM_SPI_CLIENT_USERS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
+        on tile[0].core[0]: spi_master_2            (i_spi, SPI_NUM_CLIENTS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
         on tile[0].core[0]: RFM69_driver            (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combineable]]
-        on tile[0].core[0]: RFM69_client            (i_irq, i_radio, i_blink_and_watchdog[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK, i_buttons);
+        on tile[0].core[0]: RFM69_client            (i_irq, i_radio, i_blink_and_watchdog[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK, i_buttons, i_i2c_internal_commands[0], p_display_notReset);
         on tile[0].core[1]: blink_and_watchdog_task (i_blink_and_watchdog, p_explorer_leds);
 
         #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
             // Does not work, see XMOS ticket 31286
-            IRQ_detect_task (i_irq, p_spi_irq, probe_config, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
+            IRQ_detect_task (i_irq, p_spi_irq, null, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
         #else
-            on tile[0].core[0]: IRQ_detect_task (i_irq, p_spi_irq, probe_config, null, SPI_CLIENT_VOID);
+            on tile[0].core[0]: IRQ_detect_task (i_irq, p_spi_irq, null, null, SPI_CLIENT_VOID);
         #endif
 
         on tile[0].core[2]: Button_Task (IOF_BUTTON_LEFT,   inP_button_left,   i_buttons[IOF_BUTTON_LEFT]);   // [[combinable]]
         on tile[0].core[2]: Button_Task (IOF_BUTTON_CENTER, inP_button_center, i_buttons[IOF_BUTTON_CENTER]); // [[combinable]]
         on tile[0].core[2]: Button_Task (IOF_BUTTON_RIGHT,  inP_button_right,  i_buttons[IOF_BUTTON_RIGHT]);  // [[combinable]]
+
+        on tile[0].core[3]: I2C_Internal_Task (i_i2c_internal_commands, i_i2c[0]);
+        on tile[0].core[3]: i2c_master (i_i2c, I2C_MASTER_NUM_CLIENTS, p_scl, p_sda, I2C_MASTER_SPEED_KBPS); // Synchronous==distributable
+
     }
 
     return 0;
