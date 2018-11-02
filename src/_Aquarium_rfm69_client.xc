@@ -56,6 +56,7 @@
 #include "i2c_internal_task.h"
 #include "display_ssd1306.h"
 #include "core_graphics_adafruit_gfx.h"
+#include "core_graphics_font5x8.h"
 #include "_texts_and_constants.h"
 
 #include <rfm69_globals.h>
@@ -304,7 +305,7 @@ void RFM69_client (
         }
 
         display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                "\n Ver %s rx data\n fra akvariet hvert\n %u sek", RFM69_CLIENT_VERSION_STR, AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC);
+                "\n Ver %s rx data\n fra akvariet hvert\n %u sek..", RFM69_CLIENT_VERSION_STR, AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC);
         setTextSize(1);
         setTextColor(WHITE);
         setCursor(0,0);
@@ -542,6 +543,7 @@ void RFM69_client (
                                     debug_print ("%s", "I2C ");
 
                                     bool i2c_ok;
+                                    const char char_degC_circle_str[] = DEGC_CIRCLE_STR;
 
                                     Clear_All_Pixels_In_Buffer();
                                     for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
@@ -573,8 +575,10 @@ void RFM69_client (
                                     setTextSize(2);
                                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
 
-                                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%u.%u DegC",
-                                            degC_Unary_Part, degC_Decimal_Part);
+                                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%u.%u%sC %uW",
+                                            degC_Unary_Part, degC_Decimal_Part,
+                                            char_degC_circle_str,
+                                            RX_radio_payload.u.payload_u0.heater_on_watt);
                                     setTextSize(2);
                                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
 
