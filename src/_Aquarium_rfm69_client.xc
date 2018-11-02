@@ -574,9 +574,6 @@ void RFM69_client (
                                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
 
                                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%u.%u DegC",
-                                            RX_radio_payload.u.payload_u0.hour,
-                                            RX_radio_payload.u.payload_u0.minute,
-                                            RX_radio_payload.u.payload_u0.second,
                                             degC_Unary_Part, degC_Decimal_Part);
                                     setTextSize(2);
                                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
