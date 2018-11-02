@@ -14,7 +14,7 @@
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
 #define RFM69_CLIENT_VERSION_STR "0.7.2"
-    // "0.7.2"  29Oct2018 THIS VERSION SHOWS AQUARIUM TIME AND WATER TEMP IN THE DISLAY! YESS!
+    // "0.7.2"  29Oct2018 THIS VERSION SHOWS AQUARIUM TIME AND WATER TEMP IN THE DISPLAY! YESS!
     //          RFM69=001 The IRQ line that keeps high after IRQ 7 (messagePacketLenErr_IRQ) is worked on. Testing at the moment
     //          --"--     This tag is also seen in the "rfm69_commprot.h" code
     // "0.7.1"  07Jun2018 _commprot.h -> renamed to rfm69_commprot.h

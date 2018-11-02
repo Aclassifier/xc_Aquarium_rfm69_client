@@ -197,8 +197,9 @@ void RFM69_client (
     timer    tmr;
     time32_t time_ticks;
 
-    RXTX_context_t RXTX_context;
-    //
+    RXTX_context_t    RXTX_context;
+    display_context_t display_context;
+
     RXTX_context.interruptCnt = 0;
     RXTX_context.radio_init.nodeID    = NODEID;
     RXTX_context.radio_init.RegFrf    = MY_RFM69_FREQ_REGS;
@@ -291,25 +292,26 @@ void RFM69_client (
             (SEMANTICS_DO_LOOP_FOR_RF_IRQFLAGS2_PACKETSENT == 1) ? "loop for" : "state for");
 
     // Display matters
+    {
+        Adafruit_GFX_constructor (SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT);
+        Adafruit_SSD1306_i2c_begin (i_i2c_internal_commands, p_display_notReset);
 
-    display_context_t display_context;
+        Clear_All_Pixels_In_Buffer();
+        writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
 
-    Adafruit_GFX_constructor (SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT);
-    Adafruit_SSD1306_i2c_begin (i_i2c_internal_commands, p_display_notReset);
+        for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
+            display_context.display_ts1_chars [index_of_char] = ' ';
+        }
 
-    Clear_All_Pixels_In_Buffer();
-    writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
-
-    for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
-        display_context.display_ts1_chars [index_of_char] = ' ';
+        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                "\n Ver %s rx data\n fra akvariet hvert\n %u sek", RFM69_CLIENT_VERSION_STR, AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC);
+        setTextSize(1);
+        setTextColor(WHITE);
+        setCursor(0,0);
+        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+        writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
+        delay_milliseconds (4000);
     }
-
-    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "HALLO");
-    setTextSize(2);
-    setTextColor(WHITE);
-    setCursor(0,0);
-    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-    writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
 
     // Radio matters
 
@@ -536,25 +538,52 @@ void RFM69_client (
                                             RX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload);
                                 }
 
-                                Clear_All_Pixels_In_Buffer();
-                                for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
-                                    display_context.display_ts1_chars [index_of_char] = ' ';
+                                { // DISPLAY
+                                    debug_print ("%s", "I2C ");
+
+                                    bool i2c_ok;
+
+                                    Clear_All_Pixels_In_Buffer();
+                                    for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
+                                        display_context.display_ts1_chars [index_of_char] = ' ';
+                                    }
+
+                                    setTextSize(2);
+                                    setTextColor(WHITE);
+                                    setCursor(0,0);
+
+                                    degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
+                                    degC_Unary_Part   = degC_dp1/10;
+                                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+
+                                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%02u:%02u:%02u",
+                                            RX_radio_payload.u.payload_u0.hour,
+                                            RX_radio_payload.u.payload_u0.minute,
+                                            RX_radio_payload.u.payload_u0.second);
+                                    setTextSize(2);
+                                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s%u",
+                                            RX_radio_payload.u.payload_u0.num_days_since_start <= 999 ? " " : "", // To get it on that line
+                                            RX_radio_payload.u.payload_u0.num_days_since_start);
+                                    setTextSize(1);
+                                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "\n");
+                                    setTextSize(2);
+                                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%u.%u DegC",
+                                            RX_radio_payload.u.payload_u0.hour,
+                                            RX_radio_payload.u.payload_u0.minute,
+                                            RX_radio_payload.u.payload_u0.second,
+                                            degC_Unary_Part, degC_Decimal_Part);
+                                    setTextSize(2);
+                                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                                    i2c_ok = writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
+                                    debug_print ("%s\n", i2c_ok ? "ok2" : "err2");
                                 }
-
-                                degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
-                                degC_Unary_Part   = degC_dp1/10;
-                                degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-
-                                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%02u:%02u:%02u\n%u.%u DegC",
-                                        RX_radio_payload.u.payload_u0.hour,
-                                        RX_radio_payload.u.payload_u0.minute,
-                                        RX_radio_payload.u.payload_u0.second,
-                                        degC_Unary_Part, degC_Decimal_Part);
-                                setTextSize(2);
-                                setTextColor(WHITE);
-                                setCursor(0,0);
-                                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-                                writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
 
                                 debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
                                         (RX_radio_payload.u.payload_u0.num_days_since_start == RX_context.RX_radio_payload_prev.u.payload_u0.num_days_since_start) ? CHAR_EQ_STR : CHAR_CHANGE_STR,

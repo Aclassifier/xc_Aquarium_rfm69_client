@@ -30,7 +30,7 @@
 
 #endif
 
-#define DEBUG_PRINT_DISPLAY 0 // Cost 0.3k
+#define DEBUG_PRINT_DISPLAY 0
 #define debug_print(fmt, ...) do { if(DEBUG_PRINT_DISPLAY and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
 
 // Internal i2c matters (not display matters)
@@ -52,7 +52,7 @@ void I2C_Internal_Task (
             case i_i2c_internal_commands[int index_of_client].write_display_ok (
                     const i2c_dev_address_t dev_addr,
                     const i2c_reg_address_t reg_addr,
-                    const unsigned char     data[], // SSD1306_WRITE_CHUNK_SIZE alwasys is n:
+                    const unsigned char     data[], // SSD1306_WRITE_CHUNK_SIZE always is n:
                     const unsigned          nbytes) -> bool ok: {
 
                 #define REG_SIZE 1 // register address is one bytes. It's sent after dev_addr
@@ -74,10 +74,10 @@ void I2C_Internal_Task (
 
                         #ifdef DEBUG_PRINT_DISPLAY // Keep it
                             if (x==(write_nbytes-1)) {
-                                debug_print("%02x",data[x]); // Last, no comma
+                                debug_print("%02x",write_data[x]); // Last, no comma
                             }
                             else {
-                                debug_print("%02x ",data[x]);
+                                debug_print("%02x ",write_data[x]);
                             }
                         #endif
                     }
@@ -88,7 +88,7 @@ void I2C_Internal_Task (
 
                     i2c_res= i_i2c.write ((uint8_t)dev_addr, write_data, (size_t) write_nbytes, num_bytes_sent, send_stop_bit);
 
-                    if (i2c_res == I2C_NACK) {
+                    if ((i2c_res == I2C_NACK) or (num_bytes_sent != write_nbytes)) {
                         i2c_result = I2C_ERR;
                     } else {
                         // ==I2C_ACK
@@ -112,7 +112,7 @@ void I2C_Internal_Task (
                     #ifdef DEBUG_PRINT_DISPLAY // Keep it
                         debug_print(" r-sent %d\n", num_bytes_sent); // Including reg_addr
                         num_chars += write_nbytes;
-                        debug_print(" #%u\n", num_chars);
+                        debug_print(" #%u\n", num_chars); // For a typical display at least 3KB are written
                     #endif
 
                 } else {
