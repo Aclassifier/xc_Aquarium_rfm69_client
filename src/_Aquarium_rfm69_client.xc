@@ -388,7 +388,7 @@ void RFM69_client (
 
     i_blink_and_watchdog.enable_watchdog_ok (
             XCORE_200_EXPLORER_LED_GREEN_BIT_MASK bitor XCORE_200_EXPLORER_LED_RGB_GREEN_BIT_MASK,
-            ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 3)/2) * 1000,
+            ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC*5)/2) * 1000, // 10 seconds. May lose two ok. Max 21 secs
             200);
 
     tmr :> time_ticks; // First sending now
