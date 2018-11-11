@@ -145,6 +145,7 @@ typedef struct {
 
 typedef struct {
     rfm69_params_t         radio_init;
+    int16_t                irq_value;
     uint8_t                device_type;
     bool                   receiveDone;
     is_error_e             is_new_error;
@@ -153,6 +154,9 @@ typedef struct {
     packet_t               PACKET;
     //
 } RXTX_context_t;
+
+#define RX_PACKET_U RXTX_context.PACKET
+#define TX_PACKET_U RXTX_context.PACKET // Same
 
 typedef struct {
     bool      doListenToAll;
@@ -185,15 +189,459 @@ typedef struct {
     int  sprintf_numchars;
 } display_context_t;
 
-[[combinable]] // Cannot be [[distributable]] since timer case in select
-void RFM69_client (
-         server  irq_if_t                 i_irq,
+void RFM69_handle_irq (
+         RXTX_context_t                   &RXTX_context,
+         display_context_t                &display_context,
+         client  radio_if_t                i_radio,
+         client  blink_and_watchdog_if_t   i_blink_and_watchdog,
+         const   bool                      semantics_do_rssi_in_irq_detect_task,
+         client  i2c_internal_commands_if  i_i2c_internal_commands,
+         RX_context_t                     &?RX_context,
+         TX_context_t                     &?TX_context)
+{
+    i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 50);
+
+    int16_t nowRSSI;
+    if (semantics_do_rssi_in_irq_detect_task) {
+        nowRSSI = RXTX_context.irq_value;
+    } else {
+        nowRSSI = i_radio.readRSSI_dBm (FORCETRIGGER_OFF);
+    }
+
+    // c_irq_rising is delivered from IRQ_detect_task also if pin change was over while _this_ task
+    // was in an i_radio call, which might last longer than the IRQ pulse! We saw that this
+    // construct used here was never taken:
+    //     case p_spi_irq when pinsneq(spi_irq_current_val) :> spi_irq_current_val: {
+    // So we offloaded to IRQ_detect_task instead
+    interruptAndParsingResult_e interruptAndParsingResult;
+
+    RXTX_context.interruptCnt++;
+
+    i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, high); // For scope
+
+    {RXTX_context.some_rfm69_internals, RX_PACKET_U, interruptAndParsingResult} = i_radio.handleSPIInterrupt();
+
+
+    #if (DEBUG_PRINT_BUFFER==1)
+        #if (IS_MYTARGET_MASTER == 1)
+            debug_print ("%sIRQ %u:\n", char_leading_space_str, interruptAndParsingResult);
+        #endif
+
+        for (unsigned index = 0; index < PACKET_LEN32; index++) {
+            unsigned value = RX_PACKET_U.u.packet_u2_uint32_arr[index];
+            debug_print ("%s[%u]: %08X\n",
+                    (interruptAndParsingResult == messageReceivedOk_IRQ)   ? "RX" :
+                    (interruptAndParsingResult == messagePacketSentOk_IRQ) ? "TX" : "?X",
+                    index,
+                    value);
+        }
+
+        debug_print ("%s", char_leading_space_str);
+    #endif
+
+    RXTX_context.receiveDone = i_radio.receiveDone(); // For any interruptAndParsingResult (30Aug2018, 12Sept2018 TODO works?)
+
+    switch (interruptAndParsingResult) {
+
+        #if (IS_MYTARGET_SLAVE == 1)
+            case messageReceivedOk_IRQ: {
+                // if (i_radio.receiveDone()) {
+                if (RXTX_context.receiveDone) {
+
+                    payload_t RX_radio_payload; // Copy it out and use rather than typecast
+                    int degC_dp1;
+                    int degC_Unary_Part;
+                    int degC_Decimal_Part;
+                    int Volt_dp1;
+                    int Volt_Unary_Part;
+                    int Volt_Decimal_Part;
+
+                    RX_context.seconds_since_last_received = 0;
+
+                    int32_t num_messages_lost_since_last_success; // May be negative if sender restarts
+
+                    if (RX_context.first_debug_print_received_done) {
+                        debug_print ("\nRSSI %d, P %u, ",
+                                nowRSSI,
+                                RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
+                    } else {
+                        debug_print ("\nSENDERID %d, RSSI %d, P %u, ",
+                               RXTX_context.some_rfm69_internals.SENDERID,
+                               nowRSSI,
+                               RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
+                    }
+
+                    if (RX_context.doListenToAll) {
+                        debug_print ("to %d, ", RXTX_context.some_rfm69_internals.TARGETID);
+                    } else {}
+
+                    num_messages_lost_since_last_success = RX_PACKET_U.u.packet_u3.appSeqCnt - RX_context.lastReceivedAppSeqCnt - 1;
+
+                    if (RX_context.first_debug_print_received_done) {
+
+                        debug_print ("RXappSeqCnt %u ", RX_PACKET_U.u.packet_u3.appSeqCnt);
+                        if (num_messages_lost_since_last_success < 0) {
+                            if (RX_context.num_totLost != 0) {
+                                debug_print ("Sender restarted? (RX_context.num_totLost %u kept)\n", RX_context.num_totLost);
+                            } else {
+                                debug_print ("%s", "\n");
+                            }
+                        } else if (num_messages_lost_since_last_success == 0) {
+                            debug_print ("%s", "\n");
+                        } else { // num_messages_lost_since_last_success > 0
+                            RX_context.num_totLost += num_messages_lost_since_last_success;
+                            debug_print ("num_messages_lost_since_last_success %d, RX_context.num_totLost %u\n", num_messages_lost_since_last_success, RX_context.num_totLost);
+                            // 03Apr2018: one lost in 140, then in 141 (of tenths of thousands!), one in 263
+                        }
+                    } else {
+                        debug_print ("numbytes %u, from NODEID %u, RXappSeqCnt %u\n",
+                               RXTX_context.some_rfm69_internals.PACKETLEN,
+                               RX_PACKET_U.u.packet_u3.appNODEID,
+                               RX_PACKET_U.u.packet_u3.appSeqCnt);
+                        num_messages_lost_since_last_success = 0; // Testing on it for diff. To avoid diff both on first and second after start.
+                    }
+
+                    RX_context.lastReceivedAppSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt;
+
+                    for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+                        RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
+                    }
+
+                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
+                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt                           = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
+                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = max (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = max (RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+
+                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent                        = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
+                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt                           = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
+                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = min (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = min (RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+
+                    {
+                        unsigned rest;
+                        unsigned thousands;
+                        unsigned hundreds;
+                        unsigned tens;
+
+                        rest      = RX_radio_payload.u.payload_u0.application_version_num;
+                        thousands = rest / 1000;
+                        rest      = rest - (thousands * 1000);
+                        hundreds  = rest / 100;
+                        rest      = rest - (hundreds * 100);
+                        tens      = rest;
+                        debug_print ("Version %01u.%01u.%02u\n", thousands, hundreds, tens); // 1110 -> 1.1.10
+
+                        debug_print ("version_of_full_payload %u, num_of_this_app_payload %u\n",
+                                RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload,
+                                RX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload);
+                    }
+
+                    { // DISPLAY
+                        debug_print ("%s", "I2C ");
+
+                        bool i2c_ok;
+                        const char char_degC_circle_str[] = DEGC_CIRCLE_STR;
+
+                        Clear_All_Pixels_In_Buffer();
+                        for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
+                            display_context.display_ts1_chars [index_of_char] = ' ';
+                        }
+
+                        setTextSize(2);
+                        setTextColor(WHITE);
+                        setCursor(0,0);
+
+                        degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
+                        degC_Unary_Part   = degC_dp1/10;
+                        degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%02u:%02u:%02u",
+                                RX_radio_payload.u.payload_u0.hour,
+                                RX_radio_payload.u.payload_u0.minute,
+                                RX_radio_payload.u.payload_u0.second);
+                        setTextSize(2);
+                        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s%u",
+                                RX_radio_payload.u.payload_u0.num_days_since_start <= 999 ? " " : "", // To get it on that line
+                                RX_radio_payload.u.payload_u0.num_days_since_start);
+                        setTextSize(1);
+                        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "\n");
+                        setTextSize(2);
+                        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%u.%u%sC %uW",
+                                degC_Unary_Part, degC_Decimal_Part,
+                                char_degC_circle_str,
+                                RX_radio_payload.u.payload_u0.heater_on_watt);
+                        setTextSize(2);
+                        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                        i2c_ok = writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
+                        debug_print ("%s\n", i2c_ok ? "ok2" : "err2");
+                    }
+
+                    debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
+                            (RX_radio_payload.u.payload_u0.num_days_since_start == RX_context.RX_radio_payload_prev.u.payload_u0.num_days_since_start) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_radio_payload.u.payload_u0.num_days_since_start,
+                             RX_radio_payload.u.payload_u0.hour,
+                             RX_radio_payload.u.payload_u0.minute,
+                             RX_radio_payload.u.payload_u0.second);
+
+                    debug_print ("error_bits_now%s0x%04x (error_bits_history%s0x%04x)\n",
+                            (RX_radio_payload.u.payload_u0.error_bits_now == RX_context.RX_radio_payload_prev.u.payload_u0.error_bits_now) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_radio_payload.u.payload_u0.error_bits_now,
+                            (RX_radio_payload.u.payload_u0.error_bits_history == RX_context.RX_radio_payload_prev.u.payload_u0.error_bits_history) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_radio_payload.u.payload_u0.error_bits_history);
+
+                    degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
+                    degC_Unary_Part   = degC_dp1/10;
+                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+                    //
+                    debug_print ("Water %u.%udegC - ", degC_Unary_Part, degC_Decimal_Part);
+
+                    degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC;
+                    degC_Unary_Part   = degC_dp1/10;
+                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+                    //
+                    debug_print ("ambient %u.%udegC\n", degC_Unary_Part, degC_Decimal_Part);
+
+                    degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC;
+                    degC_Unary_Part   = degC_dp1/10;
+                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+                    //
+                    debug_print ("Heater now_regulating_at%s%u temp %u.%udegC, ",
+                            (RX_radio_payload.u.payload_u0.now_regulating_at == RX_context.RX_radio_payload_prev.u.payload_u0.now_regulating_at) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_radio_payload.u.payload_u0.now_regulating_at,
+                             degC_Unary_Part,
+                             degC_Decimal_Part);
+
+                    degC_dp1          = RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC;
+                    degC_Unary_Part   = degC_dp1/10;
+                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+                    debug_print ("mean %u.%udegC heater_on_percent%s%u%% heater_on_watt%s%uW\n", degC_Unary_Part, degC_Decimal_Part,
+                            (RX_radio_payload.u.payload_u0.heater_on_percent == RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_percent) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_radio_payload.u.payload_u0.heater_on_percent,
+                            (RX_radio_payload.u.payload_u0.heater_on_watt == RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_radio_payload.u.payload_u0.heater_on_watt);
+
+                    const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_TEXT_TOTLEN] = LIGHT_CONTROL_SCHEME_STRINGS;
+                    debug_print ("Light light_control_scheme%s%s with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
+                            (RX_radio_payload.u.payload_u0.light_control_scheme == RX_context.RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             light_control_scheme_strings[RX_radio_payload.u.payload_u0.light_control_scheme],
+                            (RX_radio_payload.u.payload_u0.light_composition == RX_context.RX_radio_payload_prev.u.payload_u0.light_composition) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_radio_payload.u.payload_u0.light_composition,
+                             RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
+                             RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
+                             RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
+                            (RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds == RX_context.RX_radio_payload_prev.u.payload_u0.light_amount_full_or_two_thirds) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET,
+                            (RX_radio_payload.u.payload_u0.light_daytime_hours == RX_context.RX_radio_payload_prev.u.payload_u0.light_daytime_hours) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_radio_payload.u.payload_u0.light_daytime_hours,
+                             RX_radio_payload.u.payload_u0.day_start_light_hour,
+                             RX_radio_payload.u.payload_u0.night_start_dark_hour);
+
+                    Volt_dp1          = RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV;
+                    Volt_Unary_Part   = Volt_dp1/10;
+                    Volt_Decimal_Part = Volt_dp1 - (Volt_Unary_Part*10);
+                    debug_print ("Voltage at heater %02u.%uV, ", Volt_Unary_Part, Volt_Decimal_Part);
+
+                    Volt_dp1          = RX_radio_payload.u.payload_u0.rr_12V_LEDlight_onetenthV;
+                    Volt_Unary_Part   = Volt_dp1/10;
+                    Volt_Decimal_Part = Volt_dp1 - (Volt_Unary_Part*10);
+                    debug_print ("light %02u.%uV\n", Volt_Unary_Part, Volt_Decimal_Part);
+
+                    degC_dp1          = RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC;
+                    degC_Unary_Part   = degC_dp1/10;
+                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+                    debug_print ("Box %02u.%udegC\n", degC_Unary_Part, degC_Decimal_Part);
+
+                    debug_print ("Debug%s%02X\n",
+                            (RX_radio_payload.u.payload_u0.debug == RX_context.RX_radio_payload_prev.u.payload_u0.debug) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                            RX_radio_payload.u.payload_u0.debug);
+
+                    RX_context.first_debug_print_received_done = true;
+
+                    // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
+                    // Reinserted RFM69=001
+                    #if (SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE == 1) // TODO remove
+                       if (i_radio.receiveDone()) {                          // This is needed even if..
+                           debug_print ("%s\n", "receiveDone in polling!");  // ..it never gets here! (TODO?)
+                       } else {}
+                    #endif
+
+                    i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 50); // Looks orange
+
+                    if (num_messages_lost_since_last_success == 0) {
+                        // BOTH 40 5Oct2018: debug_print ("sizeof %u, LEN %u\n", sizeof RX_radio_payload.u.payload_u1_uint8_arr, _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08);
+                        for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+                            // Take a copy of last received into "previous"
+                            RX_context.RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = RX_radio_payload.u.payload_u1_uint8_arr [index]; // Received last
+                        }
+                    } else {} // Don't restore or set to PACKET_INIT_VAL08, I get to many CHAR_CHANGE_STR ('#')
+
+                    debug_print ("NOW: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
+                        RX_radio_payload.u.payload_u0.heater_on_percent,
+                        RX_radio_payload.u.payload_u0.heater_on_watt,
+                        RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC,
+                        RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC,
+                        RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC,
+                        RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
+                        RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+                    debug_print ("MAX: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
+                        RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,
+                        RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,
+                        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,
+                        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC,
+                        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,
+                        RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
+                        RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC);
+                    debug_print ("MIN: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
+                        RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,
+                        RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,
+                        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,
+                        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC,
+                        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC,
+                        RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
+                        RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC);
+                } else {
+                    debug_print ("Max %u %u \n", "IRQ but not receiveDone!");
+                }
+            } break;
+
+            #if (TEST_01_FOLLOW_ADDRESS==1)
+                case messageNotForThisNode_IRQ: {
+                    #if (TEST_01_LISTENTOALL==1)
+                        debug_print ("\nStarting to receive on any address, RX_context.num_totLost %u kept, RXappSeqCnt %u\n", RX_context.num_totLost, RX_PACKET_U.u.packet_u1.appSeqCnt);
+                        i_radio.RX_context.doListenToAll (true);
+                    #else
+                        uint8_t previous_NODEID = i_radio.setNODEID (RXTX_context.some_rfm69_internals.TARGETID); // Follow who sender wants to send to
+                        debug_print ("\nStarting (from #%03u) to receive on address #%03u, RX_context.num_totLost %u, RXappSeqCnt %u\n",
+                                previous_NODEID,
+                                RXTX_context.some_rfm69_internals.TARGETID,
+                                RX_context.num_totLost,
+                                RX_PACKET_U.u.packet_u3.appSeqCnt);
+                    #endif
+                } break;
+            #endif
+
+            case messageRadioCRC16Err_IRQ:
+            case messageAppCRC32Err_IRQ:
+            case messageRadioCRC16AppCRC32Errs_IRQ:{
+
+                const bool CRC16err = (interruptAndParsingResult == messageRadioCRC16Err_IRQ);
+                const bool CRC32err = (interruptAndParsingResult == messageAppCRC32Err_IRQ);
+                const bool bothErr  = (interruptAndParsingResult == messageRadioCRC16AppCRC32Errs_IRQ);
+
+                if (CRC16err) {RX_context.num_radioCRC16errs++;}
+                if (CRC32err) {RX_context.num_appCRC32errs++;}
+                if (bothErr)  {RX_context.num_radioCRC16errs++; RX_context.num_appCRC32errs++;}
+
+                debug_print ("RSSI %d, CRC-fail@%u radioCRC16@%u %u, appCRC32@%u %u with PACKETLEN %u\n",
+                        nowRSSI,
+                        bothErr,
+                        bothErr ? 1 : CRC16err,
+                        RX_context.num_radioCRC16errs,
+                        bothErr ? 1 : CRC32err,
+                        RX_context.num_appCRC32errs,
+                        RXTX_context.some_rfm69_internals.PACKETLEN);
+            } break;
+
+            case messagePacketSentOk_IRQ:
+            case messagePacketSentOk2_IRQ:
+            case messagePacketSentOkMissing_IRQ:
+            case messagePacketSentOkMissing2_IRQ:
+            {
+                // No code. We haven't sent anything so we can't do anything
+            } break;
+
+            case void_IRQ:
+            case messageNotExpectedBy_IRQ:
+            case messagePacketLenErr_IRQ:
+            #if (TEST_01_FOLLOW_ADDRESS==0)
+                case messageNotForThisNode_IRQ:
+            #endif
+
+            default: // none left for default
+            {
+                debug_print ("RSSI %d, fail IRQ %u, RX_context.num_radioCRC16errs %u, RX_context.num_appCRC32errs %u with PACKETLEN %u\n",
+                        nowRSSI, interruptAndParsingResult, RX_context.num_radioCRC16errs, RX_context.num_appCRC32errs, RXTX_context.some_rfm69_internals.PACKETLEN);
+
+                // TODO
+                // 30Aug2018 hang after this. 29Oct2018 now called RFM69=001
+                // RSSI -48, fail IRQ 7, RX_context.num_radioCRC16errs 0, RX_context.num_appCRC32errs 0 with PACKETLEN 1
+                //                    7 messagePacketLenErr_IRQ
+                // 12Sept2018 same hanging, see file "2018 09 12 A fail IRQ 7 still not solved.txt"
+                // RSSI -44, fail IRQ 7, RX_context.num_radioCRC16errs 0, RX_context.num_appCRC32errs 0 with PACKETLEN 1
+            } break;
+
+        #elif (IS_MYTARGET_MASTER == 1)
+            case messageReceivedOk_IRQ:
+            case messagePacketLenErr_IRQ:
+            case messageNotForThisNode_IRQ:
+            case messageRadioCRC16Err_IRQ:
+            case messageAppCRC32Err_IRQ:
+            case messageRadioCRC16AppCRC32Errs_IRQ:
+            {
+                // Just let it pass, not interesting, at least not if only sending
+            } break;
+
+            case messagePacketSentOk_IRQ:
+            {
+                if (TX_context.waitForIRQInterruptCause == messagePacketSent_IRQExpected) {
+                    TX_context.waitForIRQInterruptCause = no_IRQExpected; // Ending normal send with this IRQ
+                } else {}
+            } break;
+
+            case void_IRQ:
+            case messagePacketSentOk2_IRQ:
+            case messagePacketSentOkMissing_IRQ:
+            case messagePacketSentOkMissing2_IRQ:
+            case messageNotExpectedBy_IRQ:
+            default: // none left for default
+            {
+                debug_print ("fail IRQ %u\n", interruptAndParsingResult);
+            } break;
+        #endif
+    }
+
+    {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+    if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
+        debug_print ("RFM69 err2 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
+    } else {}
+
+    i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, low); // For scope
+}
+
+void RFM69_handle_timeout (
+         RXTX_context_t                  &RXTX_context,
+         RX_context_t                    &RX_context,
+         display_context_t               &display_context,
          client  radio_if_t               i_radio,
          client  blink_and_watchdog_if_t  i_blink_and_watchdog,
          const   bool                     semantics_do_rssi_in_irq_detect_task,
-         server  button_if                i_button_in[BUTTONS_NUM_CLIENTS],
-         client  i2c_internal_commands_if i_i2c_internal_commands,
-         out port                         p_display_notReset)
+         client  i2c_internal_commands_if i_i2c_internal_commands)
+{
+}
+
+
+[[combinable]] // Cannot be [[distributable]] since timer case in select
+void RFM69_client (
+          server  irq_if_t                 i_irq,
+          client  radio_if_t               i_radio,
+          client  blink_and_watchdog_if_t  i_blink_and_watchdog,
+          const   bool                     semantics_do_rssi_in_irq_detect_task,
+          server  button_if                i_button_in[BUTTONS_NUM_CLIENTS],
+          client  i2c_internal_commands_if i_i2c_internal_commands,
+          out port                         p_display_notReset)
 {
     timer    tmr;
     time32_t time_ticks;
@@ -210,12 +658,12 @@ void RFM69_client (
         RXTX_context.radio_init.key[i] = KEY[i];
     }
 
-    #define RX_PACKET_U RXTX_context.PACKET
-    #define TX_PACKET_U RXTX_context.PACKET // Same
-
     #if (IS_MYTARGET_MASTER==1)
+
         const char char_leading_space_str[] = "       ";
         TX_context_t TX_context;
+        #define TX_CONTEXT TX_context
+        #define RX_CONTEXT NULL
         //
         TX_context.TX_appPowerLevel_dBm = APPPPOWERLEVEL_MAX_DBM;
         TX_context.TX_gatewayid = GATEWAYID;
@@ -224,7 +672,10 @@ void RFM69_client (
         TX_context.waitForIRQInterruptCause = no_IRQExpected;
 
     #elif (IS_MYTARGET_SLAVE==1)
+
         RX_context_t RX_context;
+        #define RX_CONTEXT RX_context
+        #define TX_CONTEXT NULL
         //
         RX_context.doListenToAll = false; // Set to 'true' to sniff all packets on the same network
         RX_context.num_totLost = 0;
@@ -397,429 +848,15 @@ void RFM69_client (
         select {
             case i_irq.pin_rising (const int16_t value) : { // PROTOCOL: int16_t chan_value
 
-                i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 50);
+                RXTX_context.irq_value = value;
 
-                int16_t nowRSSI;
-                if (semantics_do_rssi_in_irq_detect_task) {
-                    nowRSSI = value;
-                } else {
-                    nowRSSI = i_radio.readRSSI_dBm (FORCETRIGGER_OFF);
-                }
-                //
-                // c_irq_rising is delivered from IRQ_detect_task also if pin change was over while _this_ task
-                // was in an i_radio call, which might last longer than the IRQ pulse! We saw that this
-                // construct used here was never taken:
-                //     case p_spi_irq when pinsneq(spi_irq_current_val) :> spi_irq_current_val: {
-                // So we offloaded to IRQ_detect_task instead
-                interruptAndParsingResult_e interruptAndParsingResult;
+                RFM69_handle_irq (RXTX_context, display_context, i_radio, i_blink_and_watchdog, semantics_do_rssi_in_irq_detect_task, i_i2c_internal_commands, RX_CONTEXT, TX_CONTEXT);
 
-                RXTX_context.interruptCnt++;
-
-                i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, high); // For scope
-
-                {RXTX_context.some_rfm69_internals, RX_PACKET_U, interruptAndParsingResult} = i_radio.handleSPIInterrupt();
-
-                #if (DEBUG_PRINT_BUFFER==1)
-                    #if (IS_MYTARGET_MASTER == 1)
-                        debug_print ("%sIRQ %u:\n", char_leading_space_str, interruptAndParsingResult);
-                    #endif
-
-                    for (unsigned index = 0; index < PACKET_LEN32; index++) {
-                        unsigned value = RX_PACKET_U.u.packet_u2_uint32_arr[index];
-                        debug_print ("%s[%u]: %08X\n",
-                                (interruptAndParsingResult == messageReceivedOk_IRQ)   ? "RX" :
-                                (interruptAndParsingResult == messagePacketSentOk_IRQ) ? "TX" : "?X",
-                                index,
-                                value);
-                    }
-
-                    debug_print ("%s", char_leading_space_str);
-                #endif
-
-                RXTX_context.receiveDone = i_radio.receiveDone(); // For any interruptAndParsingResult (30Aug2018, 12Sept2018 TODO works?)
-
-                switch (interruptAndParsingResult) {
-
-                    #if (IS_MYTARGET_SLAVE == 1)
-                        case messageReceivedOk_IRQ: {
-                            // if (i_radio.receiveDone()) {
-                            if (RXTX_context.receiveDone) {
-
-                                payload_t RX_radio_payload; // Copy it out and use rather than typecast
-                                int degC_dp1;
-                                int degC_Unary_Part;
-                                int degC_Decimal_Part;
-                                int Volt_dp1;
-                                int Volt_Unary_Part;
-                                int Volt_Decimal_Part;
-
-                                RX_context.seconds_since_last_received = 0;
-
-                                int32_t num_messages_lost_since_last_success; // May be negative if sender restarts
-
-                                if (RX_context.first_debug_print_received_done) {
-                                    debug_print ("\nRSSI %d, P %u, ",
-                                            nowRSSI,
-                                            RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
-                                } else {
-                                    debug_print ("\nSENDERID %d, RSSI %d, P %u, ",
-                                           RXTX_context.some_rfm69_internals.SENDERID,
-                                           nowRSSI,
-                                           RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
-                                }
-
-                                if (RX_context.doListenToAll) {
-                                    debug_print ("to %d, ", RXTX_context.some_rfm69_internals.TARGETID);
-                                } else {}
-
-                                num_messages_lost_since_last_success = RX_PACKET_U.u.packet_u3.appSeqCnt - RX_context.lastReceivedAppSeqCnt - 1;
-
-                                if (RX_context.first_debug_print_received_done) {
-
-                                    debug_print ("RXappSeqCnt %u ", RX_PACKET_U.u.packet_u3.appSeqCnt);
-                                    if (num_messages_lost_since_last_success < 0) {
-                                        if (RX_context.num_totLost != 0) {
-                                            debug_print ("Sender restarted? (RX_context.num_totLost %u kept)\n", RX_context.num_totLost);
-                                        } else {
-                                            debug_print ("%s", "\n");
-                                        }
-                                    } else if (num_messages_lost_since_last_success == 0) {
-                                        debug_print ("%s", "\n");
-                                    } else { // num_messages_lost_since_last_success > 0
-                                        RX_context.num_totLost += num_messages_lost_since_last_success;
-                                        debug_print ("num_messages_lost_since_last_success %d, RX_context.num_totLost %u\n", num_messages_lost_since_last_success, RX_context.num_totLost);
-                                        // 03Apr2018: one lost in 140, then in 141 (of tenths of thousands!), one in 263
-                                    }
-                                } else {
-                                    debug_print ("numbytes %u, from NODEID %u, RXappSeqCnt %u\n",
-                                           RXTX_context.some_rfm69_internals.PACKETLEN,
-                                           RX_PACKET_U.u.packet_u3.appNODEID,
-                                           RX_PACKET_U.u.packet_u3.appSeqCnt);
-                                    num_messages_lost_since_last_success = 0; // Testing on it for diff. To avoid diff both on first and second after start.
-                                }
-
-                                RX_context.lastReceivedAppSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt;
-
-                                for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
-                                    RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
-                                }
-
-                                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
-                                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt                           = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
-                                RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
-                                RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
-                                RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
-                                RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = max (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
-                                RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = max (RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
-
-                                RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent                        = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
-                                RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt                           = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
-                                RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
-                                RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
-                                RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
-                                RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = min (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
-                                RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = min (RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
-
-                                {
-                                    unsigned rest;
-                                    unsigned thousands;
-                                    unsigned hundreds;
-                                    unsigned tens;
-
-                                    rest      = RX_radio_payload.u.payload_u0.application_version_num;
-                                    thousands = rest / 1000;
-                                    rest      = rest - (thousands * 1000);
-                                    hundreds  = rest / 100;
-                                    rest      = rest - (hundreds * 100);
-                                    tens      = rest;
-                                    debug_print ("Version %01u.%01u.%02u\n", thousands, hundreds, tens); // 1110 -> 1.1.10
-
-                                    debug_print ("version_of_full_payload %u, num_of_this_app_payload %u\n",
-                                            RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload,
-                                            RX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload);
-                                }
-
-                                { // DISPLAY
-                                    debug_print ("%s", "I2C ");
-
-                                    bool i2c_ok;
-                                    const char char_degC_circle_str[] = DEGC_CIRCLE_STR;
-
-                                    Clear_All_Pixels_In_Buffer();
-                                    for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
-                                        display_context.display_ts1_chars [index_of_char] = ' ';
-                                    }
-
-                                    setTextSize(2);
-                                    setTextColor(WHITE);
-                                    setCursor(0,0);
-
-                                    degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
-                                    degC_Unary_Part   = degC_dp1/10;
-                                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-
-                                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%02u:%02u:%02u",
-                                            RX_radio_payload.u.payload_u0.hour,
-                                            RX_radio_payload.u.payload_u0.minute,
-                                            RX_radio_payload.u.payload_u0.second);
-                                    setTextSize(2);
-                                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-
-                                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s%u",
-                                            RX_radio_payload.u.payload_u0.num_days_since_start <= 999 ? " " : "", // To get it on that line
-                                            RX_radio_payload.u.payload_u0.num_days_since_start);
-                                    setTextSize(1);
-                                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-
-                                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "\n");
-                                    setTextSize(2);
-                                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-
-                                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%u.%u%sC %uW",
-                                            degC_Unary_Part, degC_Decimal_Part,
-                                            char_degC_circle_str,
-                                            RX_radio_payload.u.payload_u0.heater_on_watt);
-                                    setTextSize(2);
-                                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-
-                                    i2c_ok = writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
-                                    debug_print ("%s\n", i2c_ok ? "ok2" : "err2");
-                                }
-
-                                debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
-                                        (RX_radio_payload.u.payload_u0.num_days_since_start == RX_context.RX_radio_payload_prev.u.payload_u0.num_days_since_start) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                                         RX_radio_payload.u.payload_u0.num_days_since_start,
-                                         RX_radio_payload.u.payload_u0.hour,
-                                         RX_radio_payload.u.payload_u0.minute,
-                                         RX_radio_payload.u.payload_u0.second);
-
-                                debug_print ("error_bits_now%s0x%04x (error_bits_history%s0x%04x)\n",
-                                        (RX_radio_payload.u.payload_u0.error_bits_now == RX_context.RX_radio_payload_prev.u.payload_u0.error_bits_now) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                                         RX_radio_payload.u.payload_u0.error_bits_now,
-                                        (RX_radio_payload.u.payload_u0.error_bits_history == RX_context.RX_radio_payload_prev.u.payload_u0.error_bits_history) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                                         RX_radio_payload.u.payload_u0.error_bits_history);
-
-                                degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
-                                degC_Unary_Part   = degC_dp1/10;
-                                degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-                                //
-                                debug_print ("Water %u.%udegC - ", degC_Unary_Part, degC_Decimal_Part);
-
-                                degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC;
-                                degC_Unary_Part   = degC_dp1/10;
-                                degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-                                //
-                                debug_print ("ambient %u.%udegC\n", degC_Unary_Part, degC_Decimal_Part);
-
-                                degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC;
-                                degC_Unary_Part   = degC_dp1/10;
-                                degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-                                //
-                                debug_print ("Heater now_regulating_at%s%u temp %u.%udegC, ",
-                                        (RX_radio_payload.u.payload_u0.now_regulating_at == RX_context.RX_radio_payload_prev.u.payload_u0.now_regulating_at) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                                         RX_radio_payload.u.payload_u0.now_regulating_at,
-                                         degC_Unary_Part,
-                                         degC_Decimal_Part);
-
-                                degC_dp1          = RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC;
-                                degC_Unary_Part   = degC_dp1/10;
-                                degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-                                debug_print ("mean %u.%udegC heater_on_percent%s%u%% heater_on_watt%s%uW\n", degC_Unary_Part, degC_Decimal_Part,
-                                        (RX_radio_payload.u.payload_u0.heater_on_percent == RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_percent) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                                         RX_radio_payload.u.payload_u0.heater_on_percent,
-                                        (RX_radio_payload.u.payload_u0.heater_on_watt == RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                                         RX_radio_payload.u.payload_u0.heater_on_watt);
-
-                                const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_TEXT_TOTLEN] = LIGHT_CONTROL_SCHEME_STRINGS;
-                                debug_print ("Light light_control_scheme%s%s with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
-                                        (RX_radio_payload.u.payload_u0.light_control_scheme == RX_context.RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                                         light_control_scheme_strings[RX_radio_payload.u.payload_u0.light_control_scheme],
-                                        (RX_radio_payload.u.payload_u0.light_composition == RX_context.RX_radio_payload_prev.u.payload_u0.light_composition) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                                         RX_radio_payload.u.payload_u0.light_composition,
-                                         RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
-                                         RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
-                                         RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
-                                        (RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds == RX_context.RX_radio_payload_prev.u.payload_u0.light_amount_full_or_two_thirds) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                                         RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET,
-                                        (RX_radio_payload.u.payload_u0.light_daytime_hours == RX_context.RX_radio_payload_prev.u.payload_u0.light_daytime_hours) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                                         RX_radio_payload.u.payload_u0.light_daytime_hours,
-                                         RX_radio_payload.u.payload_u0.day_start_light_hour,
-                                         RX_radio_payload.u.payload_u0.night_start_dark_hour);
-
-                                Volt_dp1          = RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV;
-                                Volt_Unary_Part   = Volt_dp1/10;
-                                Volt_Decimal_Part = Volt_dp1 - (Volt_Unary_Part*10);
-                                debug_print ("Voltage at heater %02u.%uV, ", Volt_Unary_Part, Volt_Decimal_Part);
-
-                                Volt_dp1          = RX_radio_payload.u.payload_u0.rr_12V_LEDlight_onetenthV;
-                                Volt_Unary_Part   = Volt_dp1/10;
-                                Volt_Decimal_Part = Volt_dp1 - (Volt_Unary_Part*10);
-                                debug_print ("light %02u.%uV\n", Volt_Unary_Part, Volt_Decimal_Part);
-
-                                degC_dp1          = RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC;
-                                degC_Unary_Part   = degC_dp1/10;
-                                degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-                                debug_print ("Box %02u.%udegC\n", degC_Unary_Part, degC_Decimal_Part);
-
-                                debug_print ("Debug%s%02X\n",
-                                        (RX_radio_payload.u.payload_u0.debug == RX_context.RX_radio_payload_prev.u.payload_u0.debug) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                                        RX_radio_payload.u.payload_u0.debug);
-
-                                RX_context.first_debug_print_received_done = true;
-
-                                // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
-                                // Reinserted RFM69=001
-                                #if (SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE == 1) // TODO remove
-                                   if (i_radio.receiveDone()) {                          // This is needed even if..
-                                       debug_print ("%s\n", "receiveDone in polling!");  // ..it never gets here! (TODO?)
-                                   } else {}
-                                #endif
-
-                                i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 50); // Looks orange
-
-                                if (num_messages_lost_since_last_success == 0) {
-                                    // BOTH 40 5Oct2018: debug_print ("sizeof %u, LEN %u\n", sizeof RX_radio_payload.u.payload_u1_uint8_arr, _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08);
-                                    for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
-                                        // Take a copy of last received into "previous"
-                                        RX_context.RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = RX_radio_payload.u.payload_u1_uint8_arr [index]; // Received last
-                                    }
-                                } else {} // Don't restore or set to PACKET_INIT_VAL08, I get to many CHAR_CHANGE_STR ('#')
-
-                                debug_print ("NOW: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
-                                    RX_radio_payload.u.payload_u0.heater_on_percent,
-                                    RX_radio_payload.u.payload_u0.heater_on_watt,
-                                    RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC,
-                                    RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC,
-                                    RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC,
-                                    RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
-                                    RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
-                                debug_print ("MAX: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
-                                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,
-                                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,
-                                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,
-                                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC,
-                                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,
-                                    RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
-                                    RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC);
-                                debug_print ("MIN: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
-                                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,
-                                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,
-                                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,
-                                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC,
-                                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC,
-                                    RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
-                                    RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC);
-                            } else {
-                                debug_print ("Max %u %u \n", "IRQ but not receiveDone!");
-                            }
-                        } break;
-
-                        #if (TEST_01_FOLLOW_ADDRESS==1)
-                            case messageNotForThisNode_IRQ: {
-                                #if (TEST_01_LISTENTOALL==1)
-                                    debug_print ("\nStarting to receive on any address, RX_context.num_totLost %u kept, RXappSeqCnt %u\n", RX_context.num_totLost, RX_PACKET_U.u.packet_u1.appSeqCnt);
-                                    i_radio.RX_context.doListenToAll (true);
-                                #else
-                                    uint8_t previous_NODEID = i_radio.setNODEID (RXTX_context.some_rfm69_internals.TARGETID); // Follow who sender wants to send to
-                                    debug_print ("\nStarting (from #%03u) to receive on address #%03u, RX_context.num_totLost %u, RXappSeqCnt %u\n",
-                                            previous_NODEID,
-                                            RXTX_context.some_rfm69_internals.TARGETID,
-                                            RX_context.num_totLost,
-                                            RX_PACKET_U.u.packet_u3.appSeqCnt);
-                                #endif
-                            } break;
-                        #endif
-
-                        case messageRadioCRC16Err_IRQ:
-                        case messageAppCRC32Err_IRQ:
-                        case messageRadioCRC16AppCRC32Errs_IRQ:{
-
-                            const bool CRC16err = (interruptAndParsingResult == messageRadioCRC16Err_IRQ);
-                            const bool CRC32err = (interruptAndParsingResult == messageAppCRC32Err_IRQ);
-                            const bool bothErr  = (interruptAndParsingResult == messageRadioCRC16AppCRC32Errs_IRQ);
-
-                            if (CRC16err) {RX_context.num_radioCRC16errs++;}
-                            if (CRC32err) {RX_context.num_appCRC32errs++;}
-                            if (bothErr)  {RX_context.num_radioCRC16errs++; RX_context.num_appCRC32errs++;}
-
-                            debug_print ("RSSI %d, CRC-fail@%u radioCRC16@%u %u, appCRC32@%u %u with PACKETLEN %u\n",
-                                    nowRSSI,
-                                    bothErr,
-                                    bothErr ? 1 : CRC16err,
-                                    RX_context.num_radioCRC16errs,
-                                    bothErr ? 1 : CRC32err,
-                                    RX_context.num_appCRC32errs,
-                                    RXTX_context.some_rfm69_internals.PACKETLEN);
-                        } break;
-
-                        case messagePacketSentOk_IRQ:
-                        case messagePacketSentOk2_IRQ:
-                        case messagePacketSentOkMissing_IRQ:
-                        case messagePacketSentOkMissing2_IRQ:
-                        {
-                            // No code. We haven't sent anything so we can't do anything
-                        } break;
-
-                        case void_IRQ:
-                        case messageNotExpectedBy_IRQ:
-                        case messagePacketLenErr_IRQ:
-                        #if (TEST_01_FOLLOW_ADDRESS==0)
-                            case messageNotForThisNode_IRQ:
-                        #endif
-
-                        default: // none left for default
-                        {
-                            debug_print ("RSSI %d, fail IRQ %u, RX_context.num_radioCRC16errs %u, RX_context.num_appCRC32errs %u with PACKETLEN %u\n",
-                                    nowRSSI, interruptAndParsingResult, RX_context.num_radioCRC16errs, RX_context.num_appCRC32errs, RXTX_context.some_rfm69_internals.PACKETLEN);
-
-                            // TODO
-                            // 30Aug2018 hang after this. 29Oct2018 now called RFM69=001
-                            // RSSI -48, fail IRQ 7, RX_context.num_radioCRC16errs 0, RX_context.num_appCRC32errs 0 with PACKETLEN 1
-                            //                    7 messagePacketLenErr_IRQ
-                            // 12Sept2018 same hanging, see file "2018 09 12 A fail IRQ 7 still not solved.txt"
-                            // RSSI -44, fail IRQ 7, RX_context.num_radioCRC16errs 0, RX_context.num_appCRC32errs 0 with PACKETLEN 1
-                        } break;
-
-                    #elif (IS_MYTARGET_MASTER == 1)
-                        case messageReceivedOk_IRQ:
-                        case messagePacketLenErr_IRQ:
-                        case messageNotForThisNode_IRQ:
-                        case messageRadioCRC16Err_IRQ:
-                        case messageAppCRC32Err_IRQ:
-                        case messageRadioCRC16AppCRC32Errs_IRQ:
-                        {
-                            // Just let it pass, not interesting, at least not if only sending
-                        } break;
-
-                        case messagePacketSentOk_IRQ:
-                        {
-                            if (TX_context.waitForIRQInterruptCause == messagePacketSent_IRQExpected) {
-                                TX_context.waitForIRQInterruptCause = no_IRQExpected; // Ending normal send with this IRQ
-                            } else {}
-                        } break;
-
-                        case void_IRQ:
-                        case messagePacketSentOk2_IRQ:
-                        case messagePacketSentOkMissing_IRQ:
-                        case messagePacketSentOkMissing2_IRQ:
-                        case messageNotExpectedBy_IRQ:
-                        default: // none left for default
-                        {
-                            debug_print ("fail IRQ %u\n", interruptAndParsingResult);
-                        } break;
-                    #endif
-                }
-
-                {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
-                if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
-                    debug_print ("RFM69 err2 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
-                } else {}
-
-                i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, low); // For scope
             } break;
 
-
             case tmr when timerafter (time_ticks) :> time32_t startTime_ticks: {
+
+                //RFM69_handle_timeout (RXTX_context, RX_context, display_context, i_radio, i_blink_and_watchdog, semantics_do_rssi_in_irq_detect_task, i_i2c_internal_commands);
 
                 // i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, 50);
 
