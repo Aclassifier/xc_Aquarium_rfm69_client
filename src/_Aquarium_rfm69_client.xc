@@ -190,14 +190,14 @@ typedef struct {
 } display_context_t;
 
 void RFM69_handle_irq (
+         RX_context_t                     &?RX_context,
+         TX_context_t                     &?TX_context,
          RXTX_context_t                   &RXTX_context,
          display_context_t                &display_context,
          client  radio_if_t                i_radio,
          client  blink_and_watchdog_if_t   i_blink_and_watchdog,
          const   bool                      semantics_do_rssi_in_irq_detect_task,
-         client  i2c_internal_commands_if  i_i2c_internal_commands,
-         RX_context_t                     &?RX_context,
-         TX_context_t                     &?TX_context)
+         client  i2c_internal_commands_if  i_i2c_internal_commands)
 {
     i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 50);
 
@@ -622,16 +622,16 @@ void RFM69_handle_irq (
 }
 
 void RFM69_handle_timeout (
-         RXTX_context_t                  &RXTX_context,
-         RX_context_t                    &RX_context,
-         display_context_t               &display_context,
-         client  radio_if_t               i_radio,
-         client  blink_and_watchdog_if_t  i_blink_and_watchdog,
-         const   bool                     semantics_do_rssi_in_irq_detect_task,
-         client  i2c_internal_commands_if i_i2c_internal_commands)
+        RX_context_t                     &?RX_context,
+        TX_context_t                     &?TX_context,
+        RXTX_context_t                   &RXTX_context,
+        display_context_t                &display_context,
+        client  radio_if_t               i_radio,
+        client  blink_and_watchdog_if_t  i_blink_and_watchdog,
+        const   bool                     semantics_do_rssi_in_irq_detect_task,
+        client  i2c_internal_commands_if i_i2c_internal_commands)
 {
 }
-
 
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
@@ -646,6 +646,8 @@ void RFM69_client (
     timer    tmr;
     time32_t time_ticks;
 
+    // All declared, used or not, since nullable references not allowed for structs
+
     RXTX_context_t    RXTX_context;
     display_context_t display_context;
 
@@ -659,11 +661,11 @@ void RFM69_client (
     }
 
     #if (IS_MYTARGET_MASTER==1)
+        TX_context_t       TX_context;
+        #define TX_CONTEXT TX_context
+        #define RX_CONTEXT null
 
         const char char_leading_space_str[] = "       ";
-        TX_context_t TX_context;
-        #define TX_CONTEXT TX_context
-        #define RX_CONTEXT NULL
         //
         TX_context.TX_appPowerLevel_dBm = APPPPOWERLEVEL_MAX_DBM;
         TX_context.TX_gatewayid = GATEWAYID;
@@ -672,11 +674,10 @@ void RFM69_client (
         TX_context.waitForIRQInterruptCause = no_IRQExpected;
 
     #elif (IS_MYTARGET_SLAVE==1)
-
-        RX_context_t RX_context;
+        RX_context_t       RX_context;
         #define RX_CONTEXT RX_context
-        #define TX_CONTEXT NULL
-        //
+        #define TX_CONTEXT null
+
         RX_context.doListenToAll = false; // Set to 'true' to sniff all packets on the same network
         RX_context.num_totLost = 0;
         RX_context.num_radioCRC16errs = 0;
@@ -850,13 +851,13 @@ void RFM69_client (
 
                 RXTX_context.irq_value = value;
 
-                RFM69_handle_irq (RXTX_context, display_context, i_radio, i_blink_and_watchdog, semantics_do_rssi_in_irq_detect_task, i_i2c_internal_commands, RX_CONTEXT, TX_CONTEXT);
+                RFM69_handle_irq (RX_CONTEXT, TX_CONTEXT, RXTX_context, display_context, i_radio, i_blink_and_watchdog, semantics_do_rssi_in_irq_detect_task, i_i2c_internal_commands);
 
             } break;
 
             case tmr when timerafter (time_ticks) :> time32_t startTime_ticks: {
 
-                //RFM69_handle_timeout (RXTX_context, RX_context, display_context, i_radio, i_blink_and_watchdog, semantics_do_rssi_in_irq_detect_task, i_i2c_internal_commands);
+                RFM69_handle_timeout (RX_CONTEXT, TX_CONTEXT, RXTX_context, display_context, i_radio, i_blink_and_watchdog, semantics_do_rssi_in_irq_detect_task, i_i2c_internal_commands);
 
                 // i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, 50);
 
