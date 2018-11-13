@@ -186,7 +186,8 @@ typedef struct {
 
 typedef enum display_screen_name_t {
     // English-Norwegian here because the screens are in Norwegian
-    SCREEN_0_TIME_TEMP_ETC,
+    SCREEN_0_WELCOME,
+    SCREEN_1_TIME_TEMP_ETC,
     SCREEN_X_NONE,
 } display_screen_name_t;
 
@@ -196,11 +197,101 @@ typedef struct {
     display_screen_name_t display_screen_name;
 } display_context_t;
 
+
+bool // i2c_ok
+    Display_screen (
+        display_context_t                 &display_context,
+        payload_t                         &?RX_radio_payload,
+        client  i2c_internal_commands_if  i_i2c_internal_commands) {
+
+    bool i2c_ok;
+
+    Clear_All_Pixels_In_Buffer();
+    writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
+
+    for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
+        display_context.display_ts1_chars [index_of_char] = ' ';
+    }
+
+    switch (display_context.display_screen_name) {
+
+        case SCREEN_0_WELCOME: {
+            display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                    "\n Ver %s rx data\n fra akvariet hvert\n %u sek..", RFM69_CLIENT_VERSION_STR, AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC);
+            setTextSize(1);
+            setTextColor(WHITE);
+            setCursor(0,0);
+            display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+        } break;
+
+        case SCREEN_1_TIME_TEMP_ETC: {
+            #if (IS_MYTARGET_SLAVE == 1)
+                if (!isnull(RX_radio_payload)) {
+
+                    int degC_dp1;
+                    int degC_Unary_Part;
+                    int degC_Decimal_Part;
+
+                    debug_print ("%s", "I2C ");
+
+                    const char char_degC_circle_str[] = DEGC_CIRCLE_STR;
+
+                    Clear_All_Pixels_In_Buffer();
+                    for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
+                        display_context.display_ts1_chars [index_of_char] = ' ';
+                    }
+
+                    setTextSize(2);
+                    setTextColor(WHITE);
+                    setCursor(0,0);
+
+                    degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
+                    degC_Unary_Part   = degC_dp1/10;
+                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%02u:%02u:%02u",
+                            RX_radio_payload.u.payload_u0.hour,
+                            RX_radio_payload.u.payload_u0.minute,
+                            RX_radio_payload.u.payload_u0.second);
+                    setTextSize(2);
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s%u",
+                            RX_radio_payload.u.payload_u0.num_days_since_start <= 999 ? " " : "", // To get it on that line
+                            RX_radio_payload.u.payload_u0.num_days_since_start);
+                    setTextSize(1);
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "\n");
+                    setTextSize(2);
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%u.%u%sC %uW",
+                            degC_Unary_Part, degC_Decimal_Part,
+                            char_degC_circle_str,
+                            RX_radio_payload.u.payload_u0.heater_on_watt);
+                    setTextSize(2);
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                }
+            #endif
+        } break;
+
+        default:
+        case SCREEN_X_NONE: {
+
+        } break;
+    }
+
+    i2c_ok = writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
+    debug_print ("%s\n", i2c_ok ? "ok2" : "err2");
+    return i2c_ok;
+}
+
 void RFM69_handle_irq (
-         RX_context_t                     &?RX_context,
-         TX_context_t                     &?TX_context,
-         RXTX_context_t                   &RXTX_context,
-         display_context_t                &display_context,
+         RX_context_t                      &?RX_context,
+         TX_context_t                      &?TX_context,
+         RXTX_context_t                    &RXTX_context,
+         display_context_t                 &display_context,
          client  radio_if_t                i_radio,
          client  blink_and_watchdog_if_t   i_blink_and_watchdog,
          const   bool                      semantics_do_rssi_in_irq_detect_task,
@@ -350,50 +441,8 @@ void RFM69_handle_irq (
                     }
 
                     { // DISPLAY
-                        debug_print ("%s", "I2C ");
-
-                        bool i2c_ok;
-                        const char char_degC_circle_str[] = DEGC_CIRCLE_STR;
-
-                        Clear_All_Pixels_In_Buffer();
-                        for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
-                            display_context.display_ts1_chars [index_of_char] = ' ';
-                        }
-
-                        setTextSize(2);
-                        setTextColor(WHITE);
-                        setCursor(0,0);
-
-                        degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
-                        degC_Unary_Part   = degC_dp1/10;
-                        degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-
-                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%02u:%02u:%02u",
-                                RX_radio_payload.u.payload_u0.hour,
-                                RX_radio_payload.u.payload_u0.minute,
-                                RX_radio_payload.u.payload_u0.second);
-                        setTextSize(2);
-                        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-
-                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s%u",
-                                RX_radio_payload.u.payload_u0.num_days_since_start <= 999 ? " " : "", // To get it on that line
-                                RX_radio_payload.u.payload_u0.num_days_since_start);
-                        setTextSize(1);
-                        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-
-                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "\n");
-                        setTextSize(2);
-                        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-
-                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%u.%u%sC %uW",
-                                degC_Unary_Part, degC_Decimal_Part,
-                                char_degC_circle_str,
-                                RX_radio_payload.u.payload_u0.heater_on_watt);
-                        setTextSize(2);
-                        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-
-                        i2c_ok = writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
-                        debug_print ("%s\n", i2c_ok ? "ok2" : "err2");
+                        display_context.display_screen_name = SCREEN_1_TIME_TEMP_ETC;
+                        Display_screen (display_context, RX_radio_payload, i_i2c_internal_commands);
                     }
 
                     debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
@@ -814,8 +863,7 @@ void RFM69_client (
     RXTX_context_t    RXTX_context;
     display_context_t display_context;
 
-    [Product Bug #31706] AutoReply: Crash of xTIMEcomposer 14.3.3
-    display_context.display_scree_name = tried to look up this
+    display_context.display_screen_name = SCREEN_0_WELCOME;
 
     RXTX_context.interruptCnt = 0;
     RXTX_context.radio_init.nodeID    = NODEID;
@@ -913,20 +961,8 @@ void RFM69_client (
         Adafruit_GFX_constructor (SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT);
         Adafruit_SSD1306_i2c_begin (i_i2c_internal_commands, p_display_notReset);
 
-        Clear_All_Pixels_In_Buffer();
-        writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
+        Display_screen (display_context, null, i_i2c_internal_commands);
 
-        for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
-            display_context.display_ts1_chars [index_of_char] = ' ';
-        }
-
-        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                "\n Ver %s rx data\n fra akvariet hvert\n %u sek..", RFM69_CLIENT_VERSION_STR, AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC);
-        setTextSize(1);
-        setTextColor(WHITE);
-        setCursor(0,0);
-        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-        writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
         delay_milliseconds (4000);
     }
 
