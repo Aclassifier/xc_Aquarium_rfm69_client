@@ -184,9 +184,16 @@ typedef struct {
     //
 } TX_context_t; // TX same as MASTER same as ISMASTER==1
 
+typedef enum display_screen_name_t {
+    // English-Norwegian here because the screens are in Norwegian
+    SCREEN_0_TIME_TEMP_ETC,
+    SCREEN_X_NONE,
+} display_screen_name_t;
+
 typedef struct {
-    char display_ts1_chars [SSD1306_TS1_DISPLAY_VISIBLE_CHAR_LEN]; // 84 chars for display needs 85 char buffer (with NUL) when sprintf is use (use SSD1306_TS1_DISPLAY_ALL_CHAR_LEN for full flexibility)
-    int  sprintf_numchars;
+    char                  display_ts1_chars [SSD1306_TS1_DISPLAY_VISIBLE_CHAR_LEN]; // 84 chars for display needs 85 char buffer (with NUL) when sprintf is use (use SSD1306_TS1_DISPLAY_ALL_CHAR_LEN for full flexibility)
+    int                   sprintf_numchars;
+    display_screen_name_t display_screen_name;
 } display_context_t;
 
 void RFM69_handle_irq (
@@ -806,6 +813,9 @@ void RFM69_client (
 
     RXTX_context_t    RXTX_context;
     display_context_t display_context;
+
+    [Product Bug #31706] AutoReply: Crash of xTIMEcomposer 14.3.3
+    display_context.display_scree_name = tried to look up this
 
     RXTX_context.interruptCnt = 0;
     RXTX_context.radio_init.nodeID    = NODEID;
