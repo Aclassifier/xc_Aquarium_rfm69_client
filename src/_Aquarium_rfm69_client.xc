@@ -134,6 +134,7 @@
 #define CHAR_CHANGE_STR "#"
 
 typedef struct {
+    time32_t   time_ticks;
     time32_t   max_diffTime_ms;
     time32_t   sum_diffTime_ms;
     time32_t   mean_diffTime_ms;
@@ -141,7 +142,7 @@ typedef struct {
     bool       changed_mean_diffTime_ms;
     unsigned   num_diffTime_ms;
     //
-} diffTime_t;
+} divTime_t;
 
 typedef struct {
     rfm69_params_t         radio_init;
@@ -169,10 +170,12 @@ typedef struct {
     payload_t RX_radio_payload_prev;
     payload_t RX_radio_payload_max;
     payload_t RX_radio_payload_min;
+    int32_t   num_messages_lost_since_last_success; // May be negative if sender restarts
+    int16_t   nowRSSI;
+
     #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG==1)
         uint8_t debug_data_prev[NUM_DEBUG_BYTES];
     #endif
-    //
 } RX_context_t; // RX same as SLAVE same as ISMASTER==0
 
 typedef struct {
@@ -207,20 +210,21 @@ bool // i2c_ok
     bool i2c_ok;
 
     Clear_All_Pixels_In_Buffer();
-    writeToDisplay_i2c_all_buffer(i_i2c_internal_commands);
 
     for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
         display_context.display_ts1_chars [index_of_char] = ' ';
     }
+
+    setTextColor(WHITE);
+    setCursor(0,0);
 
     switch (display_context.display_screen_name) {
 
         case SCREEN_0_WELCOME: {
             display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                     "\n Ver %s rx data\n fra akvariet hvert\n %u sek..", RFM69_CLIENT_VERSION_STR, AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC);
+
             setTextSize(1);
-            setTextColor(WHITE);
-            setCursor(0,0);
             display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
         } break;
 
@@ -236,12 +240,6 @@ bool // i2c_ok
 
                     const char char_degC_circle_str[] = DEGC_CIRCLE_STR;
 
-                    Clear_All_Pixels_In_Buffer();
-                    for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
-                        display_context.display_ts1_chars [index_of_char] = ' ';
-                    }
-
-                    setTextSize(2);
                     setTextColor(WHITE);
                     setCursor(0,0);
 
@@ -253,16 +251,19 @@ bool // i2c_ok
                             RX_radio_payload.u.payload_u0.hour,
                             RX_radio_payload.u.payload_u0.minute,
                             RX_radio_payload.u.payload_u0.second);
+
                     setTextSize(2);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s%u",
                             RX_radio_payload.u.payload_u0.num_days_since_start <= 999 ? " " : "", // To get it on that line
                             RX_radio_payload.u.payload_u0.num_days_since_start);
+
                     setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "\n");
+
                     setTextSize(2);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
 
@@ -270,6 +271,7 @@ bool // i2c_ok
                             degC_Unary_Part, degC_Decimal_Part,
                             char_degC_circle_str,
                             RX_radio_payload.u.payload_u0.heater_on_watt);
+
                     setTextSize(2);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 }
@@ -299,11 +301,10 @@ void RFM69_handle_irq (
 {
     i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 50);
 
-    int16_t nowRSSI;
     if (semantics_do_rssi_in_irq_detect_task) {
-        nowRSSI = RXTX_context.irq_value;
+        RX_context.nowRSSI = RXTX_context.irq_value;
     } else {
-        nowRSSI = i_radio.readRSSI_dBm (FORCETRIGGER_OFF);
+        RX_context.nowRSSI = i_radio.readRSSI_dBm (FORCETRIGGER_OFF);
     }
 
     // c_irq_rising is delivered from IRQ_detect_task also if pin change was over while _this_ task
@@ -319,8 +320,8 @@ void RFM69_handle_irq (
 
     {RXTX_context.some_rfm69_internals, RX_PACKET_U, interruptAndParsingResult} = i_radio.handleSPIInterrupt();
 
-
     #if (DEBUG_PRINT_BUFFER==1)
+        const char char_leading_space_str[] = CHAR_LEADING_SPACE_STR;
         #if (IS_MYTARGET_MASTER == 1)
             debug_print ("%sIRQ %u:\n", char_leading_space_str, interruptAndParsingResult);
         #endif
@@ -354,18 +355,18 @@ void RFM69_handle_irq (
                     int Volt_Unary_Part;
                     int Volt_Decimal_Part;
 
-                    RX_context.seconds_since_last_received = 0;
+                    i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 50); // Looks orange
 
-                    int32_t num_messages_lost_since_last_success; // May be negative if sender restarts
+                    RX_context.seconds_since_last_received = 0;
 
                     if (RX_context.first_debug_print_received_done) {
                         debug_print ("\nRSSI %d, P %u, ",
-                                nowRSSI,
+                                RX_context.nowRSSI,
                                 RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
                     } else {
                         debug_print ("\nSENDERID %d, RSSI %d, P %u, ",
                                RXTX_context.some_rfm69_internals.SENDERID,
-                               nowRSSI,
+                               RX_context.nowRSSI,
                                RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
                     }
 
@@ -373,22 +374,22 @@ void RFM69_handle_irq (
                         debug_print ("to %d, ", RXTX_context.some_rfm69_internals.TARGETID);
                     } else {}
 
-                    num_messages_lost_since_last_success = RX_PACKET_U.u.packet_u3.appSeqCnt - RX_context.lastReceivedAppSeqCnt - 1;
+                    RX_context.num_messages_lost_since_last_success = RX_PACKET_U.u.packet_u3.appSeqCnt - RX_context.lastReceivedAppSeqCnt - 1;
 
                     if (RX_context.first_debug_print_received_done) {
 
                         debug_print ("RXappSeqCnt %u ", RX_PACKET_U.u.packet_u3.appSeqCnt);
-                        if (num_messages_lost_since_last_success < 0) {
+                        if (RX_context.num_messages_lost_since_last_success < 0) {
                             if (RX_context.num_totLost != 0) {
                                 debug_print ("Sender restarted? (RX_context.num_totLost %u kept)\n", RX_context.num_totLost);
                             } else {
                                 debug_print ("%s", "\n");
                             }
-                        } else if (num_messages_lost_since_last_success == 0) {
+                        } else if (RX_context.num_messages_lost_since_last_success == 0) {
                             debug_print ("%s", "\n");
-                        } else { // num_messages_lost_since_last_success > 0
-                            RX_context.num_totLost += num_messages_lost_since_last_success;
-                            debug_print ("num_messages_lost_since_last_success %d, RX_context.num_totLost %u\n", num_messages_lost_since_last_success, RX_context.num_totLost);
+                        } else { // RX_context.num_messages_lost_since_last_success > 0
+                            RX_context.num_totLost += RX_context.num_messages_lost_since_last_success;
+                            debug_print ("num_messages_lost_since_last_success %d, RX_context.num_totLost %u\n", RX_context.num_messages_lost_since_last_success, RX_context.num_totLost);
                             // 03Apr2018: one lost in 140, then in 141 (of tenths of thousands!), one in 263
                         }
                     } else {
@@ -396,7 +397,7 @@ void RFM69_handle_irq (
                                RXTX_context.some_rfm69_internals.PACKETLEN,
                                RX_PACKET_U.u.packet_u3.appNODEID,
                                RX_PACKET_U.u.packet_u3.appSeqCnt);
-                        num_messages_lost_since_last_success = 0; // Testing on it for diff. To avoid diff both on first and second after start.
+                        RX_context.num_messages_lost_since_last_success = 0; // Testing on it for diff. To avoid diff both on first and second after start.
                     }
 
                     RX_context.lastReceivedAppSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt;
@@ -534,9 +535,7 @@ void RFM69_handle_irq (
                        } else {}
                     #endif
 
-                    i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 50); // Looks orange
-
-                    if (num_messages_lost_since_last_success == 0) {
+                    if (RX_context.num_messages_lost_since_last_success == 0) {
                         // BOTH 40 5Oct2018: debug_print ("sizeof %u, LEN %u\n", sizeof RX_radio_payload.u.payload_u1_uint8_arr, _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08);
                         for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
                             // Take a copy of last received into "previous"
@@ -602,7 +601,7 @@ void RFM69_handle_irq (
                 if (bothErr)  {RX_context.num_radioCRC16errs++; RX_context.num_appCRC32errs++;}
 
                 debug_print ("RSSI %d, CRC-fail@%u radioCRC16@%u %u, appCRC32@%u %u with PACKETLEN %u\n",
-                        nowRSSI,
+                        RX_context.nowRSSI,
                         bothErr,
                         bothErr ? 1 : CRC16err,
                         RX_context.num_radioCRC16errs,
@@ -629,7 +628,7 @@ void RFM69_handle_irq (
             default: // none left for default
             {
                 debug_print ("RSSI %d, fail IRQ %u, RX_context.num_radioCRC16errs %u, RX_context.num_appCRC32errs %u with PACKETLEN %u\n",
-                        nowRSSI, interruptAndParsingResult, RX_context.num_radioCRC16errs, RX_context.num_appCRC32errs, RXTX_context.some_rfm69_internals.PACKETLEN);
+                        RX_context.nowRSSI, interruptAndParsingResult, RX_context.num_radioCRC16errs, RX_context.num_appCRC32errs, RXTX_context.some_rfm69_internals.PACKETLEN);
 
                 // TODO
                 // 30Aug2018 hang after this. 29Oct2018 now called RFM69=001
@@ -678,7 +677,7 @@ void RFM69_handle_irq (
 }
 
 void RFM69_handle_timeout (
-        diffTime_t                       &diffTime,
+        divTime_t                       &divTime,
         const time32_t                   startTime_ticks,
         RX_context_t                     &?RX_context,
         TX_context_t                     &?TX_context,
@@ -693,11 +692,11 @@ void RFM69_handle_timeout (
     // i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, 50);
 
     #if (DEBUG_PRINT_TIME_USED == 1)
-        debug_print ("..After %08X is time %08X ticks\n", time_ticks, startTime_ticks);
+        debug_print ("..After %08X is time %08X ticks\n", divTime.time_ticks, startTime_ticks);
     #endif
 
     #if (IS_MYTARGET_SLAVE == 1)
-        RX_context.seconds_since_last_received++; // about, anyhow, since we don't reset time_ticks in pin_rising
+        RX_context.seconds_since_last_received++; // about, anyhow, since we don't reset divTime.time_ticks in pin_rising
         //
         if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds
             i_radio.receiveDone();
@@ -735,7 +734,7 @@ void RFM69_handle_timeout (
 
     #elif (IS_MYTARGET_MASTER == 1)
         if (TX_context.sendPacket_seconds_cntdown == 0) {
-            const char char_leading_space_str[] = "       ";
+            const char char_leading_space_str[] = CHAR_LEADING_SPACE_STR;
             TX_context.TX_appSeqCnt++;
 
             if (TX_context.waitForIRQInterruptCause != no_IRQExpected) {
@@ -772,8 +771,8 @@ void RFM69_handle_timeout (
                 } else if (TX_context.TX_appSeqCnt == 26) {
                     debug_print ("%s\n", "=== ZEROED: Time max 0, mean-1");
                     debug_print ("%s", char_leading_space_str);
-                    diffTime.max_diffTime_ms  = 0;
-                    diffTime.mean_diffTime_ms = 0;
+                    divTime.max_diffTime_ms  = 0;
+                    divTime.mean_diffTime_ms = 0;
                     #if (RADIO_IF_FULL == 1)
                         // i_radio.readAllRegs();
                     #endif
@@ -823,23 +822,23 @@ void RFM69_handle_timeout (
             diffTime_tics = endTime_tics - startTime_ticks;
             diffTime_ms   = diffTime_tics / XS1_TIMER_KHZ;
 
-            diffTime.max_diffTime_ms = max (diffTime.max_diffTime_ms, diffTime_ms);
-            diffTime.num_diffTime_ms++;
+            divTime.max_diffTime_ms = max (divTime.max_diffTime_ms, diffTime_ms);
+            divTime.num_diffTime_ms++;
 
             // IIR very slow moving average::
-            diffTime.sum_diffTime_ms          = diffTime.sum_diffTime_ms + diffTime_ms; // running total or partial sum
-            diffTime.mean_diffTime_ms         = diffTime.sum_diffTime_ms / diffTime.num_diffTime_ms;
-            diffTime.changed_mean_diffTime_ms = (diffTime.prev_mean_diffTime_ms != diffTime.mean_diffTime_ms);
-            diffTime.prev_mean_diffTime_ms    = diffTime.mean_diffTime_ms;
+            divTime.sum_diffTime_ms          = divTime.sum_diffTime_ms + diffTime_ms; // running total or partial sum
+            divTime.mean_diffTime_ms         = divTime.sum_diffTime_ms / divTime.num_diffTime_ms;
+            divTime.changed_mean_diffTime_ms = (divTime.prev_mean_diffTime_ms != divTime.mean_diffTime_ms);
+            divTime.prev_mean_diffTime_ms    = divTime.mean_diffTime_ms;
 
             #if (DEBUG_PRINT_TIME_USED == 1)
                 // I can hear sending in my speakers when full power when this printing is going on!
                 // Probably because this delays IRQ handling!
                 debug_print ("Time used %06d ms (%08X - %08X). Time max %d, mean-%u %d ms\n",
                         diffTime_ms, endTime_tics, startTime_ticks,
-                        diffTime.max_diffTime_ms,            // 345
-                        diffTime.changed_mean_diffTime_ms,
-                        diffTime.mean_diffTime_ms);          // 255
+                        divTime.max_diffTime_ms,            // 345
+                        divTime.changed_mean_diffTime_ms,
+                        divTime.mean_diffTime_ms);          // 255
             #endif
         }
     #endif
@@ -855,13 +854,13 @@ void RFM69_client (
           client  i2c_internal_commands_if i_i2c_internal_commands,
           out port                         p_display_notReset)
 {
-    timer    tmr;
-    time32_t time_ticks;
+    timer tmr;
 
     // All declared, used or not, since nullable references not allowed for structs
 
     RXTX_context_t    RXTX_context;
     display_context_t display_context;
+    divTime_t         divTime;
 
     display_context.display_screen_name = SCREEN_0_WELCOME;
 
@@ -906,14 +905,12 @@ void RFM69_client (
         #error MUST BE ONE of them! To code for both, recode somewhat
     #endif
 
-    diffTime_t diffTime;
-    //
-    diffTime.max_diffTime_ms = 0;
-    diffTime.sum_diffTime_ms = 0;
-    diffTime.mean_diffTime_ms = 0;
-    diffTime.prev_mean_diffTime_ms = 0;
-    diffTime.changed_mean_diffTime_ms = false;
-    diffTime.num_diffTime_ms = 0;
+    divTime.max_diffTime_ms = 0;
+    divTime.sum_diffTime_ms = 0;
+    divTime.mean_diffTime_ms = 0;
+    divTime.prev_mean_diffTime_ms = 0;
+    divTime.changed_mean_diffTime_ms = false;
+    divTime.num_diffTime_ms = 0;
 
     #if ((PACKET_LEN_FACIT % 4) != 0)
         #error sizeof packet_u1_t must be word aligned (12, 16, 20 ...)
@@ -1043,7 +1040,7 @@ void RFM69_client (
             ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC*5)/2) * 1000, // 10 seconds. May lose two ok. Max 21 secs
             200);
 
-    tmr :> time_ticks; // First sending now
+    tmr :> divTime.time_ticks; // First sending now
 
     while (1) {
         select {
@@ -1063,10 +1060,10 @@ void RFM69_client (
 
             } break;
 
-            case tmr when timerafter (time_ticks) :> time32_t startTime_ticks: {
+            case tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
 
                 RFM69_handle_timeout (
-                        diffTime,
+                        divTime,
                         startTime_ticks,
                         RX_CONTEXT,
                         TX_CONTEXT,
@@ -1078,9 +1075,9 @@ void RFM69_client (
                         i_i2c_internal_commands);
 
                 #if (TEST_CAR_KEY == 1)
-                    time_ticks += ONE_SECOND_TICKS/5; // Every 200 ms will destroy for car's requirement of seein the pulse train for 500 ms
+                    divTime.time_ticks += ONE_SECOND_TICKS/5; // Every 200 ms will destroy for car's requirement of seein the pulse train for 500 ms
                 #else
-                    time_ticks += ONE_SECOND_TICKS; // FUTURE TIMEOUT
+                    divTime.time_ticks += ONE_SECOND_TICKS; // FUTURE TIMEOUT
                     // observe AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC
                 #endif
 

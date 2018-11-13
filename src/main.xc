@@ -42,10 +42,6 @@
 #define DEBUG_PRINT_RFM69 1
 #define debug_print(fmt, ...) do { if(DEBUG_PRINT_RFM69 and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
 
-#define DEBUG_PRINT_BUFFER    0
-#define DEBUG_PRINT_TIME_USED 0
-
-
 #define SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK 0 // # chanends ---MEM---  (relative values)
                                                // 1 :     2    700 bytes  Does it faster after IRQ line (good if much logging in RFM69_driver)
                                                //                         DOES NOT WORK WITH xTIMEcomposer 13.3.3, see XMOS ticket 31286
