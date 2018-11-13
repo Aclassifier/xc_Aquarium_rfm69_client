@@ -622,6 +622,8 @@ void RFM69_handle_irq (
 }
 
 void RFM69_handle_timeout (
+        diffTime_t                       &diffTime,
+        const time32_t                   startTime_ticks,
         RX_context_t                     &?RX_context,
         TX_context_t                     &?TX_context,
         RXTX_context_t                   &RXTX_context,
@@ -631,6 +633,160 @@ void RFM69_handle_timeout (
         const   bool                     semantics_do_rssi_in_irq_detect_task,
         client  i2c_internal_commands_if i_i2c_internal_commands)
 {
+
+    // i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, 50);
+
+    #if (DEBUG_PRINT_TIME_USED == 1)
+        debug_print ("..After %08X is time %08X ticks\n", time_ticks, startTime_ticks);
+    #endif
+
+    #if (IS_MYTARGET_SLAVE == 1)
+        RX_context.seconds_since_last_received++; // about, anyhow, since we don't reset time_ticks in pin_rising
+        //
+        if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds
+            i_radio.receiveDone();
+            RX_context.seconds_since_last_received = 0;
+        } else {}
+
+        if (i_blink_and_watchdog.is_watchdog_blinking()) {
+            debug_print ("WATCHDOG BLINKING T %u ", RX_context.seconds_since_last_received); // no nl, added below
+        } else {
+            debug_print ("T %u ", RX_context.seconds_since_last_received);  // no nl, added below
+        }
+
+        #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG==1)
+        {
+            uint8_t debug_data[NUM_DEBUG_BYTES];
+            bool    are_equal;
+
+            i_radio.getDebug (debug_data);
+
+            are_equal = (memcmp (RX_context.debug_data_prev, debug_data, NUM_DEBUG_BYTES) == 0);
+
+            for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
+                RX_context.debug_data_prev[i] = debug_data[i];
+            }
+
+            debug_print ("DEB%s", are_equal ? CHAR_EQ_STR : CHAR_CHANGE_STR);
+
+            for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
+                debug_print ("%02X%s", debug_data[i], ((i == (NUM_DEBUG_BYTES-1)) ? "\n" : " "));
+            }
+        }
+        #else
+            debug_print ("%s", "\n"); // Add missing nl from above
+        #endif
+
+    #elif (IS_MYTARGET_MASTER == 1)
+        if (TX_context.sendPacket_seconds_cntdown == 0) {
+            const char char_leading_space_str[] = "       ";
+            TX_context.TX_appSeqCnt++;
+
+            if (TX_context.waitForIRQInterruptCause != no_IRQExpected) {
+                // Normal send failed: no messagePacketSentOk_IRQ seen
+                #if (SEMANTICS_DO_LOOP_FOR_RF_IRQFLAGS2_PACKETSENT == 0)
+                    debug_print ("fail IRQ waitForIRQInterruptCause %u\n", TX_context.waitForIRQInterruptCause); // Report and continue
+                    TX_context.waitForIRQInterruptCause = no_IRQExpected; // Clear it here even if i_radio.send will overwrite it
+                #endif
+            } else {} // No code
+
+            if (TX_context.TX_appSeqCnt == 10) {
+                #if (TEST_CAR_KEY == 1)
+                    // No code, kep full power always
+                #else
+                TX_context.TX_appPowerLevel_dBm = APPPOWERLEVEL_MIN_DBM;
+                    i_radio.setPowerLevel_dBm (TX_context.TX_appPowerLevel_dBm); // Should stop the sound in my speakers!
+                #endif
+            } else {}
+
+            #if ((TEST_01_FOLLOW_ADDRESS==1) or (TEST_01_LISTENTOALL==1))
+                if (TX_context.TX_appSeqCnt == 10) {
+                    debug_print ("\nKEY2\n", TX_context.TX_gatewayid);
+                    debug_print ("%s", char_leading_space_str);
+                    #define KEY2 "OM11-Aquarium-2"
+                    i_radio.encrypt16 (KEY2, KEY_LEN);
+                } else if (TX_context.TX_appSeqCnt == 20) {
+                    debug_print ("\nKEY again\n", "KEY again");
+                    debug_print ("%s", char_leading_space_str);
+                    i_radio.encrypt16 (RXTX_context.radio_init.key, KEY_LEN);
+                } else if (TX_context.TX_appSeqCnt == 25) {
+                    TX_context.TX_gatewayid = 58;
+                    debug_print ("\ngatewayid %u(%02X)\n", TX_context.TX_gatewayid, TX_context.TX_gatewayid);
+                    debug_print ("%s", char_leading_space_str);
+                } else if (TX_context.TX_appSeqCnt == 26) {
+                    debug_print ("%s\n", "=== ZEROED: Time max 0, mean-1");
+                    debug_print ("%s", char_leading_space_str);
+                    diffTime.max_diffTime_ms  = 0;
+                    diffTime.mean_diffTime_ms = 0;
+                    #if (RADIO_IF_FULL == 1)
+                        // i_radio.readAllRegs();
+                    #endif
+                } else {}
+            #endif
+
+            for (unsigned index = 0; index < PACKET_LEN32; index++) {
+                 TX_PACKET_U.u.packet_u2_uint32_arr[index] = PACKET_INIT_VAL32;
+            }
+
+            TX_PACKET_U.u.packet_u3.appHeading.numbytes_of_full_payload = PACKET_LEN08;
+            TX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_01;
+            TX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload  = NUM_OF_THIS_APP_PAYLOAD_01;
+
+            TX_PACKET_U.u.packet_u3.appNODEID = NODEID;
+            TX_PACKET_U.u.packet_u3.appPowerLevel_dBm = TX_context.TX_appPowerLevel_dBm;
+
+            TX_PACKET_U.u.packet_u3.appSeqCnt = TX_context.TX_appSeqCnt;
+
+            debug_print("TXappSeqCnt %u\n", TX_context.TX_appSeqCnt);
+
+            TX_context.waitForIRQInterruptCause = i_radio.send (
+                    TX_context.TX_gatewayid,
+                    TX_PACKET_U); // element CommHeaderRFM69 is not taken from here, so don't fill it in
+
+            // delay_milliseconds(500); // I can hear the sending in my speakers when high power since delays time to IRQ
+
+            {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+            if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
+                debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
+            } else {}
+
+            TX_context.sendPacket_seconds_cntdown = SEND_PACKET_ON_NO_CHANGE_TIMOEUT_SECONDS - 1;
+
+        } else {
+            TX_context.sendPacket_seconds_cntdown--; // To zero
+        }
+
+        {
+            time32_t endTime_tics;
+            time32_t diffTime_tics;
+            time32_t diffTime_ms;
+
+            timer tmr_now; // Not need to parameterise this as it doesn't take an extra hw timer
+            tmr_now :> endTime_tics; // NOW TIME
+
+            diffTime_tics = endTime_tics - startTime_ticks;
+            diffTime_ms   = diffTime_tics / XS1_TIMER_KHZ;
+
+            diffTime.max_diffTime_ms = max (diffTime.max_diffTime_ms, diffTime_ms);
+            diffTime.num_diffTime_ms++;
+
+            // IIR very slow moving average::
+            diffTime.sum_diffTime_ms          = diffTime.sum_diffTime_ms + diffTime_ms; // running total or partial sum
+            diffTime.mean_diffTime_ms         = diffTime.sum_diffTime_ms / diffTime.num_diffTime_ms;
+            diffTime.changed_mean_diffTime_ms = (diffTime.prev_mean_diffTime_ms != diffTime.mean_diffTime_ms);
+            diffTime.prev_mean_diffTime_ms    = diffTime.mean_diffTime_ms;
+
+            #if (DEBUG_PRINT_TIME_USED == 1)
+                // I can hear sending in my speakers when full power when this printing is going on!
+                // Probably because this delays IRQ handling!
+                debug_print ("Time used %06d ms (%08X - %08X). Time max %d, mean-%u %d ms\n",
+                        diffTime_ms, endTime_tics, startTime_ticks,
+                        diffTime.max_diffTime_ms,            // 345
+                        diffTime.changed_mean_diffTime_ms,
+                        diffTime.mean_diffTime_ms);          // 255
+            #endif
+        }
+    #endif
 }
 
 [[combinable]] // Cannot be [[distributable]] since timer case in select
@@ -664,8 +820,6 @@ void RFM69_client (
         TX_context_t       TX_context;
         #define TX_CONTEXT TX_context
         #define RX_CONTEXT null
-
-        const char char_leading_space_str[] = "       ";
         //
         TX_context.TX_appPowerLevel_dBm = APPPPOWERLEVEL_MAX_DBM;
         TX_context.TX_gatewayid = GATEWAYID;
@@ -851,165 +1005,31 @@ void RFM69_client (
 
                 RXTX_context.irq_value = value;
 
-                RFM69_handle_irq (RX_CONTEXT, TX_CONTEXT, RXTX_context, display_context, i_radio, i_blink_and_watchdog, semantics_do_rssi_in_irq_detect_task, i_i2c_internal_commands);
+                RFM69_handle_irq (
+                        RX_CONTEXT,
+                        TX_CONTEXT,
+                        RXTX_context,
+                        display_context,
+                        i_radio,
+                        i_blink_and_watchdog,
+                        semantics_do_rssi_in_irq_detect_task,
+                        i_i2c_internal_commands);
 
             } break;
 
             case tmr when timerafter (time_ticks) :> time32_t startTime_ticks: {
 
-                RFM69_handle_timeout (RX_CONTEXT, TX_CONTEXT, RXTX_context, display_context, i_radio, i_blink_and_watchdog, semantics_do_rssi_in_irq_detect_task, i_i2c_internal_commands);
-
-                // i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_GREEN_BIT_MASK, 50);
-
-                #if (DEBUG_PRINT_TIME_USED == 1)
-                    debug_print ("..After %08X is time %08X ticks\n", time_ticks, startTime_ticks);
-                #endif
-
-                #if (IS_MYTARGET_SLAVE == 1)
-                    RX_context.seconds_since_last_received++; // about, anyhow, since we don't reset time_ticks in pin_rising
-                    //
-                    if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds
-                        i_radio.receiveDone();
-                        RX_context.seconds_since_last_received = 0;
-                    } else {}
-
-                    if (i_blink_and_watchdog.is_watchdog_blinking()) {
-                        debug_print ("WATCHDOG BLINKING T %u ", RX_context.seconds_since_last_received); // no nl, added below
-                    } else {
-                        debug_print ("T %u ", RX_context.seconds_since_last_received);  // no nl, added below
-                    }
-
-                    #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG==1)
-                    {
-                        uint8_t debug_data[NUM_DEBUG_BYTES];
-                        bool    are_equal;
-
-                        i_radio.getDebug (debug_data);
-
-                        are_equal = (memcmp (RX_context.debug_data_prev, debug_data, NUM_DEBUG_BYTES) == 0);
-
-                        for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
-                            RX_context.debug_data_prev[i] = debug_data[i];
-                        }
-
-                        debug_print ("DEB%s", are_equal ? CHAR_EQ_STR : CHAR_CHANGE_STR);
-
-                        for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
-                            debug_print ("%02X%s", debug_data[i], ((i == (NUM_DEBUG_BYTES-1)) ? "\n" : " "));
-                        }
-                    }
-                    #else
-                        debug_print ("%s", "\n"); // Add missing nl from above
-                    #endif
-
-                #elif (IS_MYTARGET_MASTER == 1)
-                    if (TX_context.sendPacket_seconds_cntdown == 0) {
-                        TX_context.TX_appSeqCnt++;
-
-                        if (TX_context.waitForIRQInterruptCause != no_IRQExpected) {
-                            // Normal send failed: no messagePacketSentOk_IRQ seen
-                            #if (SEMANTICS_DO_LOOP_FOR_RF_IRQFLAGS2_PACKETSENT == 0)
-                                debug_print ("fail IRQ waitForIRQInterruptCause %u\n", TX_context.waitForIRQInterruptCause); // Report and continue
-                                TX_context.waitForIRQInterruptCause = no_IRQExpected; // Clear it here even if i_radio.send will overwrite it
-                            #endif
-                        } else {} // No code
-
-                        if (TX_context.TX_appSeqCnt == 10) {
-                            #if (TEST_CAR_KEY == 1)
-                                // No code, kep full power always
-                            #else
-                            TX_context.TX_appPowerLevel_dBm = APPPOWERLEVEL_MIN_DBM;
-                                i_radio.setPowerLevel_dBm (TX_context.TX_appPowerLevel_dBm); // Should stop the sound in my speakers!
-                            #endif
-                        } else {}
-
-                        #if ((TEST_01_FOLLOW_ADDRESS==1) or (TEST_01_LISTENTOALL==1))
-                            if (TX_context.TX_appSeqCnt == 10) {
-                                debug_print ("\nKEY2\n", TX_context.TX_gatewayid);
-                                debug_print ("%s", char_leading_space_str);
-                                #define KEY2 "OM11-Aquarium-2"
-                                i_radio.encrypt16 (KEY2, KEY_LEN);
-                            } else if (TX_context.TX_appSeqCnt == 20) {
-                                debug_print ("\nKEY again\n", "KEY again");
-                                debug_print ("%s", char_leading_space_str);
-                                i_radio.encrypt16 (RXTX_context.radio_init.key, KEY_LEN);
-                            } else if (TX_context.TX_appSeqCnt == 25) {
-                                TX_context.TX_gatewayid = 58;
-                                debug_print ("\ngatewayid %u(%02X)\n", TX_context.TX_gatewayid, TX_context.TX_gatewayid);
-                                debug_print ("%s", char_leading_space_str);
-                            } else if (TX_context.TX_appSeqCnt == 26) {
-                                debug_print ("%s\n", "=== ZEROED: Time max 0, mean-1");
-                                debug_print ("%s", char_leading_space_str);
-                                diffTime.max_diffTime_ms  = 0;
-                                diffTime.mean_diffTime_ms = 0;
-                                #if (RADIO_IF_FULL == 1)
-                                    // i_radio.readAllRegs();
-                                #endif
-                            } else {}
-                        #endif
-
-                        for (unsigned index = 0; index < PACKET_LEN32; index++) {
-                             TX_PACKET_U.u.packet_u2_uint32_arr[index] = PACKET_INIT_VAL32;
-                        }
-
-                        TX_PACKET_U.u.packet_u3.appHeading.numbytes_of_full_payload = PACKET_LEN08;
-                        TX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_01;
-                        TX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload  = NUM_OF_THIS_APP_PAYLOAD_01;
-
-                        TX_PACKET_U.u.packet_u3.appNODEID = NODEID;
-                        TX_PACKET_U.u.packet_u3.appPowerLevel_dBm = TX_context.TX_appPowerLevel_dBm;
-
-                        TX_PACKET_U.u.packet_u3.appSeqCnt = TX_context.TX_appSeqCnt;
-
-                        debug_print("TXappSeqCnt %u\n", TX_context.TX_appSeqCnt);
-
-                        TX_context.waitForIRQInterruptCause = i_radio.send (
-                                TX_context.TX_gatewayid,
-                                TX_PACKET_U); // element CommHeaderRFM69 is not taken from here, so don't fill it in
-
-                        // delay_milliseconds(500); // I can hear the sending in my speakers when high power since delays time to IRQ
-
-                        {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
-                        if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
-                            debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
-                        } else {}
-
-                        TX_context.sendPacket_seconds_cntdown = SEND_PACKET_ON_NO_CHANGE_TIMOEUT_SECONDS - 1;
-
-                    } else {
-                        TX_context.sendPacket_seconds_cntdown--; // To zero
-                    }
-
-                    {
-                        time32_t endTime_tics;
-                        time32_t diffTime_tics;
-                        time32_t diffTime_ms;
-
-                        tmr :> endTime_tics; // NOW TIME
-
-                        diffTime_tics = endTime_tics - startTime_ticks;
-                        diffTime_ms   = diffTime_tics / XS1_TIMER_KHZ;
-
-                        diffTime.max_diffTime_ms = max (diffTime.max_diffTime_ms, diffTime_ms);
-                        diffTime.num_diffTime_ms++;
-
-                        // IIR very slow moving average::
-                        diffTime.sum_diffTime_ms          = diffTime.sum_diffTime_ms + diffTime_ms; // running total or partial sum
-                        diffTime.mean_diffTime_ms         = diffTime.sum_diffTime_ms / diffTime.num_diffTime_ms;
-                        diffTime.changed_mean_diffTime_ms = (diffTime.prev_mean_diffTime_ms != diffTime.mean_diffTime_ms);
-                        diffTime.prev_mean_diffTime_ms    = diffTime.mean_diffTime_ms;
-
-                        #if (DEBUG_PRINT_TIME_USED == 1)
-                            // I can hear sending in my speakers when full power when this printing is going on!
-                            // Probably because this delays IRQ handling!
-                            debug_print ("Time used %06d ms (%08X - %08X). Time max %d, mean-%u %d ms\n",
-                                    diffTime_ms, endTime_tics, startTime_ticks,
-                                    diffTime.max_diffTime_ms,            // 345
-                                    diffTime.changed_mean_diffTime_ms,
-                                    diffTime.mean_diffTime_ms);          // 255
-                        #endif
-                    }
-                #endif
+                RFM69_handle_timeout (
+                        diffTime,
+                        startTime_ticks,
+                        RX_CONTEXT,
+                        TX_CONTEXT,
+                        RXTX_context,
+                        display_context,
+                        i_radio,
+                        i_blink_and_watchdog,
+                        semantics_do_rssi_in_irq_detect_task,
+                        i_i2c_internal_commands);
 
                 #if (TEST_CAR_KEY == 1)
                     time_ticks += ONE_SECOND_TICKS/5; // Every 200 ms will destroy for car's requirement of seein the pulse train for 500 ms

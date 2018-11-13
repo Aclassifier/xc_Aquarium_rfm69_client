@@ -13,7 +13,8 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.1"
+#define RFM69_CLIENT_VERSION_STR "0.8.2"
+    // "0.8.2"  13Nov2018 IRQ and timeout handling now separate functions in _Aquarium_rfm69_client.xc
     // "0.8.1"  02Nov2018 DEG C and WATT ALSO DISPLAYED
     // "0.7.2"  29Oct2018 THIS VERSION SHOWS AQUARIUM TIME AND WATER TEMP IN THE DISPLAY! YESS!
     //          RFM69=001 The IRQ line that keeps high after IRQ 7 (messagePacketLenErr_IRQ) is worked on. Testing at the moment
