@@ -206,18 +206,18 @@ typedef enum {
 } debug_print_state_e;
 
 typedef struct {
-    debug_print_state_e state;
-    bool                debug_print_rx_1_done;
+    bool debug_print_rx_1_done;
 } debug_print_context_t;
 
 
 void Debug_print_values (
-        debug_print_context_t  &debug_print_context,
-        payload_t              &?RX_radio_payload,
-        RX_context_t           &RX_context,
-        RXTX_context_t         &RXTX_context)
+        const debug_print_state_e state_in,
+        debug_print_context_t     &debug_print_context,
+        payload_t                 &?RX_radio_payload,
+        RX_context_t              &RX_context,
+        RXTX_context_t            &RXTX_context)
 {
-    switch(debug_print_context.state) {
+    switch(state_in) {
         case DEBUG_PRINT_TEMPS_ETC: {
 
             if (debug_print_context.debug_print_rx_1_done) {
@@ -257,7 +257,7 @@ void Debug_print_values (
                     (RX_radio_payload.u.payload_u0.error_bits_history == RX_context.RX_radio_payload_prev.u.payload_u0.error_bits_history) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
                      RX_radio_payload.u.payload_u0.error_bits_history);
             {
-                const dp1_t dp1 = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                const dp1_t dp1 = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC); // dp1.sign never used here since it's per def POS
                 debug_print ("Water %u.%udegC - ", dp1.unary, dp1.decimal);
             }
             {
@@ -524,22 +524,6 @@ void RFM69_handle_irq (
                         RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
                     }
 
-                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
-                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt                           = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
-                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = max (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = max (RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
-
-                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent                        = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
-                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt                           = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
-                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = min (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = min (RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
-
                     display_context.display_screen_name = SCREEN_1_TIME_TEMP_ETC;
                     Display_screen (display_context, RX_radio_payload, i_i2c_internal_commands);
 
@@ -567,8 +551,7 @@ void RFM69_handle_irq (
                         RX_context.num_messages_lost_since_last_success = 0; // Testing on it for diff. To avoid diff both on first and second after start.
                     }
 
-                    debug_print_context.state = DEBUG_PRINT_TEMPS_ETC;
-                    Debug_print_values (debug_print_context, RX_radio_payload, RX_context, RXTX_context);
+                    Debug_print_values (DEBUG_PRINT_TEMPS_ETC, debug_print_context, RX_radio_payload, RX_context, RXTX_context);
 
                     // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
                     // Reinserted RFM69=001
@@ -586,8 +569,23 @@ void RFM69_handle_irq (
                         }
                     } else {} // Don't restore or set to PACKET_INIT_VAL08, I get to many CHAR_CHANGE_STR ('#')
 
-                    debug_print_context.state = DEBUG_PRINT_RX_NOW_MAX_MIN;
-                    Debug_print_values (debug_print_context, RX_radio_payload, RX_context, RXTX_context);
+                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
+                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt                           = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
+                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = max (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = max (RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+
+                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent                        = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
+                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt                           = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
+                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = min (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = min (RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+
+                    Debug_print_values (DEBUG_PRINT_RX_NOW_MAX_MIN, debug_print_context, RX_radio_payload, RX_context, RXTX_context);
 
                 } else {
                     debug_print ("Max %u %u \n", "IRQ but not receiveDone!");
