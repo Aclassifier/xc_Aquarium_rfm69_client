@@ -32,6 +32,40 @@
 
 #define INDEX_VOID (-1)
 
+version_t Parse_packed_version (const unsigned packed_version) { // 1234 is 1.2.34
+
+    version_t version;
+
+    unsigned rest  = packed_version;
+    version.major  = rest / 1000;
+    rest           = rest - (version.major * 1000);
+    version.minor  = rest / 100;
+    rest           = rest - (version.minor * 100);
+    version.build  = rest;
+
+    return version;
+}
+
+dp1_t Parse_i16_dp1 (const int16_t val_dp1_c) { // 301 is 30.1 is unary 30 and decimal 1
+
+    dp1_t   dp1;
+    int16_t val_dp1 = val_dp1_c;
+
+    if (val_dp1 < 0) {
+        dp1.sign = NEG;
+        val_dp1 = -val_dp1;
+    } else {
+        dp1.sign = POS;
+    }
+
+    #define DP1_DIV 10 // dp2 would have given div 100
+    dp1.unary   = val_dp1/DP1_DIV;
+    dp1.decimal = val_dp1 - (dp1.unary*DP1_DIV);
+
+    return dp1;
+}
+
+
 // Init_Arithmetic_Mean_Temp_OnetenthDegC
 // Arithmetic_mean_value = (xn + xn-1 + xn-2 + xn-3 + ...x) / n_of_temps (or during filling, divide by how many there are)
 // A direct form discrete-time FIR filter of order N. All gains are 1/n_of_temps

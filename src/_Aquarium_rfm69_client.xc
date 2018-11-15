@@ -64,6 +64,7 @@
 #include <rfm69_commprot.h>
 #include <rfm69_xc.h>
 
+#include "f_conversions.h"
 #include "_rfm69_commprot.h"
 #include "button_press.h"
 
@@ -165,7 +166,6 @@ typedef struct {
     unsigned  num_radioCRC16errs;
     unsigned  num_appCRC32errs;
     unsigned  seconds_since_last_received;
-    bool      first_debug_print_received_done;
     uint32_t  lastReceivedAppSeqCnt;
     payload_t RX_radio_payload_prev;
     payload_t RX_radio_payload_max;
@@ -200,6 +200,174 @@ typedef struct {
     display_screen_name_t display_screen_name;
 } display_context_t;
 
+typedef enum {
+    DEBUG_PRINT_TEMPS_ETC,
+    DEBUG_PRINT_RX_NOW_MAX_MIN
+} debug_print_state_e;
+
+typedef struct {
+    debug_print_state_e state;
+    bool                debug_print_rx_1_done;
+} debug_print_context_t;
+
+
+void Debug_print_values (
+        debug_print_context_t  &debug_print_context,
+        payload_t              &?RX_radio_payload,
+        RX_context_t           &RX_context,
+        RXTX_context_t         &RXTX_context)
+{
+    switch(debug_print_context.state) {
+        case DEBUG_PRINT_TEMPS_ETC: {
+
+            if (debug_print_context.debug_print_rx_1_done) {
+                debug_print ("\nRSSI %d, P %u, ",
+                        RX_context.nowRSSI,
+                        RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
+            } else {
+                debug_print ("\nSENDERID %d, RSSI %d, P %u, ",
+                       RXTX_context.some_rfm69_internals.SENDERID,
+                       RX_context.nowRSSI,
+                       RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
+            }
+
+            if (RX_context.doListenToAll) {
+                debug_print ("to %d, ", RXTX_context.some_rfm69_internals.TARGETID);
+            } else {}
+
+            {
+                const version_t version = Parse_packed_version (RX_radio_payload.u.payload_u0.application_version_num);
+                debug_print ("Version %01u.%01u.%02u\n", version.major, version.minor, version.build); // 1110 -> 1.1.10
+            }
+
+            debug_print ("version_of_full_payload %u, num_of_this_app_payload %u\n",
+                    RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload,
+                    RX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload);
+
+            debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
+                    (RX_radio_payload.u.payload_u0.num_days_since_start == RX_context.RX_radio_payload_prev.u.payload_u0.num_days_since_start) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                     RX_radio_payload.u.payload_u0.num_days_since_start,
+                     RX_radio_payload.u.payload_u0.hour,
+                     RX_radio_payload.u.payload_u0.minute,
+                     RX_radio_payload.u.payload_u0.second);
+
+            debug_print ("error_bits_now%s0x%04x (error_bits_history%s0x%04x)\n",
+                    (RX_radio_payload.u.payload_u0.error_bits_now == RX_context.RX_radio_payload_prev.u.payload_u0.error_bits_now) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                     RX_radio_payload.u.payload_u0.error_bits_now,
+                    (RX_radio_payload.u.payload_u0.error_bits_history == RX_context.RX_radio_payload_prev.u.payload_u0.error_bits_history) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                     RX_radio_payload.u.payload_u0.error_bits_history);
+            {
+                const dp1_t dp1 = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                debug_print ("Water %u.%udegC - ", dp1.unary, dp1.decimal);
+            }
+            {
+                const dp1_t dp1 = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                debug_print ("ambient %u.%udegC\n", dp1.unary, dp1.decimal);
+            }
+            {
+                const dp1_t dp1 = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                debug_print ("ambient %u.%udegC\n", dp1.unary, dp1.decimal);
+                debug_print ("Heater now_regulating_at%s%u temp %u.%udegC, ",
+                        (RX_radio_payload.u.payload_u0.now_regulating_at == RX_context.RX_radio_payload_prev.u.payload_u0.now_regulating_at) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                         RX_radio_payload.u.payload_u0.now_regulating_at,
+                         dp1.unary, dp1.decimal);
+            }
+            {
+                const dp1_t dp1 = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                debug_print ("mean %u.%udegC heater_on_percent%s%u%% heater_on_watt%s%uW\n", dp1.unary, dp1.decimal,
+                        (RX_radio_payload.u.payload_u0.heater_on_percent == RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_percent) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                         RX_radio_payload.u.payload_u0.heater_on_percent,
+                        (RX_radio_payload.u.payload_u0.heater_on_watt == RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                         RX_radio_payload.u.payload_u0.heater_on_watt);
+            }
+
+            const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_TEXT_TOTLEN] = LIGHT_CONTROL_SCHEME_STRINGS;
+            debug_print ("Light light_control_scheme%s%s with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
+                    (RX_radio_payload.u.payload_u0.light_control_scheme == RX_context.RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                     light_control_scheme_strings[RX_radio_payload.u.payload_u0.light_control_scheme],
+                    (RX_radio_payload.u.payload_u0.light_composition == RX_context.RX_radio_payload_prev.u.payload_u0.light_composition) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                     RX_radio_payload.u.payload_u0.light_composition,
+                     RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
+                     RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
+                     RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
+                    (RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds == RX_context.RX_radio_payload_prev.u.payload_u0.light_amount_full_or_two_thirds) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                     RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET,
+                    (RX_radio_payload.u.payload_u0.light_daytime_hours == RX_context.RX_radio_payload_prev.u.payload_u0.light_daytime_hours) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                     RX_radio_payload.u.payload_u0.light_daytime_hours,
+                     RX_radio_payload.u.payload_u0.day_start_light_hour,
+                     RX_radio_payload.u.payload_u0.night_start_dark_hour);
+
+            {
+                const dp1_t dp1 = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV);
+                debug_print ("Voltage at heater %02u.%uV, ",  dp1.unary, dp1.decimal);
+            }
+            {
+                const dp1_t dp1 = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.rr_12V_LEDlight_onetenthV);
+                debug_print ("light %02u.%uV\n", dp1.unary, dp1.decimal);
+            }
+            {
+                const dp1_t dp1 = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+                debug_print ("Box %02u.%udegC\n", dp1.unary, dp1.decimal);
+            }
+
+            debug_print ("Debug%s%02X\n",
+                    (RX_radio_payload.u.payload_u0.debug == RX_context.RX_radio_payload_prev.u.payload_u0.debug) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                    RX_radio_payload.u.payload_u0.debug);
+
+            debug_print_context.debug_print_rx_1_done = true;
+        } break;
+
+        case DEBUG_PRINT_RX_NOW_MAX_MIN: {
+            {
+                const dp1_t heater_dp1       = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                const dp1_t ambient_dp1      = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                const dp1_t water_dp1        = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                const dp1_t heater_mean_dp1  = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                const dp1_t internal_dp1     = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+                debug_print ("NOW: On:%3u%% @ Watt:%2u - Heater:%2d.%1d Ambient:%2d.%1d Water:%2d.%1d Mean:%2d.%1d Box:%2d.%1d\n",
+                    RX_radio_payload.u.payload_u0.heater_on_percent,
+                    RX_radio_payload.u.payload_u0.heater_on_watt,
+                    heater_dp1.unary, heater_dp1.decimal,
+                    ambient_dp1.unary, ambient_dp1.decimal,
+                    water_dp1.unary, water_dp1.decimal,
+                    heater_mean_dp1.unary, heater_mean_dp1.decimal,
+                    internal_dp1.unary, internal_dp1.decimal);
+            }
+            {
+                const dp1_t heater_dp1       = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                const dp1_t ambient_dp1      = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                const dp1_t water_dp1        = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC);
+                const dp1_t heater_mean_dp1  = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                const dp1_t internal_dp1     = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC);
+                debug_print ("MAX: On:%3u%% @ Watt:%2u - Heater:%2d.%1d Ambient:%2d.%1d Water:%2d.%1d Mean:%2d.%1d Box:%2d.%1d\n",
+                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,
+                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,
+                    heater_dp1.unary, heater_dp1.decimal,
+                    ambient_dp1.unary, ambient_dp1.decimal,
+                    water_dp1.unary, water_dp1.decimal,
+                    heater_mean_dp1.unary, heater_mean_dp1.decimal,
+                    internal_dp1.unary, internal_dp1.decimal);
+            }
+            {
+                const dp1_t heater_dp1       = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                const dp1_t ambient_dp1      = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                const dp1_t water_dp1        = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC);
+                const dp1_t heater_mean_dp1  = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                const dp1_t internal_dp1     = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC);
+                debug_print ("MAX: On:%3u%% @ Watt:%2u - Heater:%2d.%1d Ambient:%2d.%1d Water:%2d.%1d Mean:%2d.%1d Box:%2d.%1d\n",
+                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,
+                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,
+                    heater_dp1.unary, heater_dp1.decimal,
+                    ambient_dp1.unary, ambient_dp1.decimal,
+                    water_dp1.unary, water_dp1.decimal,
+                    heater_mean_dp1.unary, heater_mean_dp1.decimal,
+                    internal_dp1.unary, internal_dp1.decimal);
+            }
+        } break;
+
+        default: {} break;
+    }
+}
 
 bool // i2c_ok
     Display_screen (
@@ -232,20 +400,12 @@ bool // i2c_ok
             #if (IS_MYTARGET_SLAVE == 1)
                 if (!isnull(RX_radio_payload)) {
 
-                    int degC_dp1;
-                    int degC_Unary_Part;
-                    int degC_Decimal_Part;
-
                     debug_print ("%s", "I2C ");
 
                     const char char_degC_circle_str[] = DEGC_CIRCLE_STR;
 
                     setTextColor(WHITE);
                     setCursor(0,0);
-
-                    degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
-                    degC_Unary_Part   = degC_dp1/10;
-                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%02u:%02u:%02u",
                             RX_radio_payload.u.payload_u0.hour,
@@ -267,10 +427,13 @@ bool // i2c_ok
                     setTextSize(2);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
 
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%u.%u%sC %uW",
-                            degC_Unary_Part, degC_Decimal_Part,
-                            char_degC_circle_str,
-                            RX_radio_payload.u.payload_u0.heater_on_watt);
+                    {
+                        const dp1_t dp1 = Parse_i16_dp1 (RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%u.%u%sC %uW",
+                                dp1.unary, dp1.decimal,
+                                char_degC_circle_str,
+                                RX_radio_payload.u.payload_u0.heater_on_watt);
+                    }
 
                     setTextSize(2);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
@@ -297,7 +460,8 @@ void RFM69_handle_irq (
          client  radio_if_t                i_radio,
          client  blink_and_watchdog_if_t   i_blink_and_watchdog,
          const   bool                      semantics_do_rssi_in_irq_detect_task,
-         client  i2c_internal_commands_if  i_i2c_internal_commands)
+         client  i2c_internal_commands_if  i_i2c_internal_commands,
+         debug_print_context_t             &debug_print_context)
 {
     i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 50);
 
@@ -348,35 +512,38 @@ void RFM69_handle_irq (
                 if (RXTX_context.receiveDone) {
 
                     payload_t RX_radio_payload; // Copy it out and use rather than typecast
-                    int degC_dp1;
-                    int degC_Unary_Part;
-                    int degC_Decimal_Part;
-                    int Volt_dp1;
-                    int Volt_Unary_Part;
-                    int Volt_Decimal_Part;
 
                     i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 50); // Looks orange
 
                     RX_context.seconds_since_last_received = 0;
 
-                    if (RX_context.first_debug_print_received_done) {
-                        debug_print ("\nRSSI %d, P %u, ",
-                                RX_context.nowRSSI,
-                                RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
-                    } else {
-                        debug_print ("\nSENDERID %d, RSSI %d, P %u, ",
-                               RXTX_context.some_rfm69_internals.SENDERID,
-                               RX_context.nowRSSI,
-                               RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
-                    }
-
-                    if (RX_context.doListenToAll) {
-                        debug_print ("to %d, ", RXTX_context.some_rfm69_internals.TARGETID);
-                    } else {}
-
+                    RX_context.lastReceivedAppSeqCnt                = RX_PACKET_U.u.packet_u3.appSeqCnt;
                     RX_context.num_messages_lost_since_last_success = RX_PACKET_U.u.packet_u3.appSeqCnt - RX_context.lastReceivedAppSeqCnt - 1;
 
-                    if (RX_context.first_debug_print_received_done) {
+                    for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+                        RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
+                    }
+
+                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
+                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt                           = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
+                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = max (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                    RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = max (RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+
+                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent                        = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
+                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt                           = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
+                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = min (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                    RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = min (RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+
+                    display_context.display_screen_name = SCREEN_1_TIME_TEMP_ETC;
+                    Display_screen (display_context, RX_radio_payload, i_i2c_internal_commands);
+
+                    if (debug_print_context.debug_print_rx_1_done) {
 
                         debug_print ("RXappSeqCnt %u ", RX_PACKET_U.u.packet_u3.appSeqCnt);
                         if (RX_context.num_messages_lost_since_last_success < 0) {
@@ -400,132 +567,8 @@ void RFM69_handle_irq (
                         RX_context.num_messages_lost_since_last_success = 0; // Testing on it for diff. To avoid diff both on first and second after start.
                     }
 
-                    RX_context.lastReceivedAppSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt;
-
-                    for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
-                        RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
-                    }
-
-                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
-                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt                           = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
-                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = max (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = max (RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
-
-                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent                        = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,                        RX_radio_payload.u.payload_u0.heater_on_percent);
-                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt                           = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,                           RX_radio_payload.u.payload_u0.heater_on_watt);
-                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = min (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = min (RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC,           RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
-
-                    {
-                        unsigned rest;
-                        unsigned thousands;
-                        unsigned hundreds;
-                        unsigned tens;
-
-                        rest      = RX_radio_payload.u.payload_u0.application_version_num;
-                        thousands = rest / 1000;
-                        rest      = rest - (thousands * 1000);
-                        hundreds  = rest / 100;
-                        rest      = rest - (hundreds * 100);
-                        tens      = rest;
-                        debug_print ("Version %01u.%01u.%02u\n", thousands, hundreds, tens); // 1110 -> 1.1.10
-
-                        debug_print ("version_of_full_payload %u, num_of_this_app_payload %u\n",
-                                RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload,
-                                RX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload);
-                    }
-
-                    { // DISPLAY
-                        display_context.display_screen_name = SCREEN_1_TIME_TEMP_ETC;
-                        Display_screen (display_context, RX_radio_payload, i_i2c_internal_commands);
-                    }
-
-                    debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
-                            (RX_radio_payload.u.payload_u0.num_days_since_start == RX_context.RX_radio_payload_prev.u.payload_u0.num_days_since_start) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                             RX_radio_payload.u.payload_u0.num_days_since_start,
-                             RX_radio_payload.u.payload_u0.hour,
-                             RX_radio_payload.u.payload_u0.minute,
-                             RX_radio_payload.u.payload_u0.second);
-
-                    debug_print ("error_bits_now%s0x%04x (error_bits_history%s0x%04x)\n",
-                            (RX_radio_payload.u.payload_u0.error_bits_now == RX_context.RX_radio_payload_prev.u.payload_u0.error_bits_now) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                             RX_radio_payload.u.payload_u0.error_bits_now,
-                            (RX_radio_payload.u.payload_u0.error_bits_history == RX_context.RX_radio_payload_prev.u.payload_u0.error_bits_history) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                             RX_radio_payload.u.payload_u0.error_bits_history);
-
-                    degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC;
-                    degC_Unary_Part   = degC_dp1/10;
-                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-                    //
-                    debug_print ("Water %u.%udegC - ", degC_Unary_Part, degC_Decimal_Part);
-
-                    degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC;
-                    degC_Unary_Part   = degC_dp1/10;
-                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-                    //
-                    debug_print ("ambient %u.%udegC\n", degC_Unary_Part, degC_Decimal_Part);
-
-                    degC_dp1          = RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC;
-                    degC_Unary_Part   = degC_dp1/10;
-                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-                    //
-                    debug_print ("Heater now_regulating_at%s%u temp %u.%udegC, ",
-                            (RX_radio_payload.u.payload_u0.now_regulating_at == RX_context.RX_radio_payload_prev.u.payload_u0.now_regulating_at) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                             RX_radio_payload.u.payload_u0.now_regulating_at,
-                             degC_Unary_Part,
-                             degC_Decimal_Part);
-
-                    degC_dp1          = RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC;
-                    degC_Unary_Part   = degC_dp1/10;
-                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-                    debug_print ("mean %u.%udegC heater_on_percent%s%u%% heater_on_watt%s%uW\n", degC_Unary_Part, degC_Decimal_Part,
-                            (RX_radio_payload.u.payload_u0.heater_on_percent == RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_percent) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                             RX_radio_payload.u.payload_u0.heater_on_percent,
-                            (RX_radio_payload.u.payload_u0.heater_on_watt == RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                             RX_radio_payload.u.payload_u0.heater_on_watt);
-
-                    const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_TEXT_TOTLEN] = LIGHT_CONTROL_SCHEME_STRINGS;
-                    debug_print ("Light light_control_scheme%s%s with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
-                            (RX_radio_payload.u.payload_u0.light_control_scheme == RX_context.RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                             light_control_scheme_strings[RX_radio_payload.u.payload_u0.light_control_scheme],
-                            (RX_radio_payload.u.payload_u0.light_composition == RX_context.RX_radio_payload_prev.u.payload_u0.light_composition) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                             RX_radio_payload.u.payload_u0.light_composition,
-                             RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
-                             RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
-                             RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
-                            (RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds == RX_context.RX_radio_payload_prev.u.payload_u0.light_amount_full_or_two_thirds) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                             RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET,
-                            (RX_radio_payload.u.payload_u0.light_daytime_hours == RX_context.RX_radio_payload_prev.u.payload_u0.light_daytime_hours) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                             RX_radio_payload.u.payload_u0.light_daytime_hours,
-                             RX_radio_payload.u.payload_u0.day_start_light_hour,
-                             RX_radio_payload.u.payload_u0.night_start_dark_hour);
-
-                    Volt_dp1          = RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV;
-                    Volt_Unary_Part   = Volt_dp1/10;
-                    Volt_Decimal_Part = Volt_dp1 - (Volt_Unary_Part*10);
-                    debug_print ("Voltage at heater %02u.%uV, ", Volt_Unary_Part, Volt_Decimal_Part);
-
-                    Volt_dp1          = RX_radio_payload.u.payload_u0.rr_12V_LEDlight_onetenthV;
-                    Volt_Unary_Part   = Volt_dp1/10;
-                    Volt_Decimal_Part = Volt_dp1 - (Volt_Unary_Part*10);
-                    debug_print ("light %02u.%uV\n", Volt_Unary_Part, Volt_Decimal_Part);
-
-                    degC_dp1          = RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC;
-                    degC_Unary_Part   = degC_dp1/10;
-                    degC_Decimal_Part = degC_dp1 - (degC_Unary_Part*10);
-                    debug_print ("Box %02u.%udegC\n", degC_Unary_Part, degC_Decimal_Part);
-
-                    debug_print ("Debug%s%02X\n",
-                            (RX_radio_payload.u.payload_u0.debug == RX_context.RX_radio_payload_prev.u.payload_u0.debug) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                            RX_radio_payload.u.payload_u0.debug);
-
-                    RX_context.first_debug_print_received_done = true;
+                    debug_print_context.state = DEBUG_PRINT_TEMPS_ETC;
+                    Debug_print_values (debug_print_context, RX_radio_payload, RX_context, RXTX_context);
 
                     // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
                     // Reinserted RFM69=001
@@ -543,30 +586,9 @@ void RFM69_handle_irq (
                         }
                     } else {} // Don't restore or set to PACKET_INIT_VAL08, I get to many CHAR_CHANGE_STR ('#')
 
-                    debug_print ("NOW: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
-                        RX_radio_payload.u.payload_u0.heater_on_percent,
-                        RX_radio_payload.u.payload_u0.heater_on_watt,
-                        RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC,
-                        RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC,
-                        RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC,
-                        RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
-                        RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
-                    debug_print ("MAX: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
-                        RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,
-                        RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,
-                        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,
-                        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC,
-                        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,
-                        RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
-                        RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC);
-                    debug_print ("MIN: On:%3u%% @ Watt:%2u - Heater:%3d Ambient:%3d Water:%3d Mean:%3d Box:%3d\n",
-                        RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,
-                        RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,
-                        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,
-                        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC,
-                        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC,
-                        RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC,
-                        RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC);
+                    debug_print_context.state = DEBUG_PRINT_RX_NOW_MAX_MIN;
+                    Debug_print_values (debug_print_context, RX_radio_payload, RX_context, RXTX_context);
+
                 } else {
                     debug_print ("Max %u %u \n", "IRQ but not receiveDone!");
                 }
@@ -858,11 +880,13 @@ void RFM69_client (
 
     // All declared, used or not, since nullable references not allowed for structs
 
-    RXTX_context_t    RXTX_context;
-    display_context_t display_context;
-    divTime_t         divTime;
+    RXTX_context_t        RXTX_context;
+    display_context_t     display_context;
+    debug_print_context_t debug_print_context;
+    divTime_t             divTime;
 
     display_context.display_screen_name = SCREEN_0_WELCOME;
+    debug_print_context.debug_print_rx_1_done = false;
 
     RXTX_context.interruptCnt = 0;
     RXTX_context.radio_init.nodeID    = NODEID;
@@ -894,7 +918,6 @@ void RFM69_client (
         RX_context.num_radioCRC16errs = 0;
         RX_context.num_appCRC32errs = 0;
         RX_context.seconds_since_last_received = 0;
-        RX_context.first_debug_print_received_done = false;
         RX_context.lastReceivedAppSeqCnt = 0;
         #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG==1)
             for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
@@ -1056,7 +1079,8 @@ void RFM69_client (
                         i_radio,
                         i_blink_and_watchdog,
                         semantics_do_rssi_in_irq_detect_task,
-                        i_i2c_internal_commands);
+                        i_i2c_internal_commands,
+                        debug_print_context);
 
             } break;
 
