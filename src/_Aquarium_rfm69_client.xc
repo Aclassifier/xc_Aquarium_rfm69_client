@@ -448,9 +448,12 @@ bool // i2c_ok
             #if (IS_MYTARGET_SLAVE == 1)
                 // use enum not necssary to test
 
-                // MISTET    0
+                // ..........----------.
+                // #TX       xx111222333
+                // #MISTET   0
                 // RSSI(dB) -81
-                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "MISTET    %u\nRSSI(dB) %d",
+                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "#TX       %u\n#MISTET   %u\nRSSI(dB) %d",
+                        RX_context.lastReceivedAppSeqCnt,
                         RX_context.num_totLost,
                         RX_context.nowRSSI);
 
