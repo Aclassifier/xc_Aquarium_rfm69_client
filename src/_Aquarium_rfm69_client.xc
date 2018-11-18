@@ -193,7 +193,7 @@ typedef struct {
 typedef enum display_screen_name_t {
     // English-Norwegian here because the screens are in Norwegian
     SCREEN_0_WELCOME,
-    SCREEN_1_TIME_TEMP_ETC,
+    SCREEN_1_RX_MAIN_TIME_TEMP_ETC,
     SCREEN_2_MISTET_OG_DB,
     SCREEN_3_NA_MIN_MAX,
     SCREEN_X_NONE // used for mudulo div of size
@@ -203,6 +203,7 @@ typedef struct {
     char                  display_ts1_chars [SSD1306_TS1_DISPLAY_VISIBLE_CHAR_LEN]; // 84 chars for display needs 85 char buffer (with NUL) when sprintf is use (use SSD1306_TS1_DISPLAY_ALL_CHAR_LEN for full flexibility)
     int                   sprintf_numchars;
     display_screen_name_t display_screen_name;
+    bool                  allow_auto_switch_to_screen_1_RX_main;
 } display_context_t;
 
 typedef enum {
@@ -392,13 +393,15 @@ bool // i2c_ok
         case SCREEN_0_WELCOME: {
             // use enum not necssary to test
             display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                    "Ver %s rx data\n fra akvariet hvert\n %u sek..", RFM69_CLIENT_VERSION_STR, AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC);
+                    "VERSJON %s\n\nRX DATA FRA AKVARIET\nHVERT %u SEKUND",
+                    RFM69_CLIENT_VERSION_STR,
+                    AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC);
 
             setTextSize(1);
             display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
         } break;
 
-        case SCREEN_1_TIME_TEMP_ETC: {
+        case SCREEN_1_RX_MAIN_TIME_TEMP_ETC: {
             #if (IS_MYTARGET_SLAVE == 1)
                 // use enum not necssary to test
                 if (!isnull(RX_context.RX_radio_payload)) {
@@ -444,7 +447,10 @@ bool // i2c_ok
         case SCREEN_2_MISTET_OG_DB: {
             #if (IS_MYTARGET_SLAVE == 1)
                 // use enum not necssary to test
-                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "MISTET %u\nRSSI %d dB",
+
+                // MISTET    0
+                // RSSI(dB) -81
+                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "MISTET    %u\nRSSI(dB) %d",
                         RX_context.num_totLost,
                         RX_context.nowRSSI);
 
@@ -487,9 +493,9 @@ bool // i2c_ok
                 */
                 const char char_aa_str [] = CHAR_AA_STR;
                 display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                        "     VANN LUFT VARME\nMAX: %2d.%1d %2d.%1d %2d.%1d\nN%s%s %2d.%1d %2d.%1d %2d.%1d\nMIN: %2d.%1d %2d.%1d %2d.%1d",
+                        "     VANN LUFT VARME\nMAX  %2d.%1d %2d.%1d %2d.%1d\nN%s%s %2d.%1d %2d.%1d %2d.%1d\nMIN  %2d.%1d %2d.%1d %2d.%1d",
                         max_water_dp1.unary, max_water_dp1.decimal, max_ambient_dp1.unary, max_ambient_dp1.decimal, max_heater_dp1.unary, max_heater_dp1.decimal,
-                        char_aa_str, (use == USE_THIS) ? ": " : "..",
+                        char_aa_str, (use == USE_THIS) ? "  " : "..",
                         now_water_dp1.unary, now_water_dp1.decimal, now_ambient_dp1.unary, now_ambient_dp1.decimal, now_heater_dp1.unary, now_heater_dp1.decimal,
                         min_water_dp1.unary, min_water_dp1.decimal, min_ambient_dp1.unary, min_ambient_dp1.decimal, min_heater_dp1.unary, min_heater_dp1.decimal);
 
@@ -579,8 +585,9 @@ void RFM69_handle_irq (
                         RX_context.RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
                     }
 
-                    if (display_context.display_screen_name == SCREEN_0_WELCOME) {
-                        display_context.display_screen_name = SCREEN_1_TIME_TEMP_ETC; // First received after welcome
+                    if (display_context.allow_auto_switch_to_screen_1_RX_main) {
+                        display_context.allow_auto_switch_to_screen_1_RX_main = false;
+                        display_context.display_screen_name = SCREEN_1_RX_MAIN_TIME_TEMP_ETC;
                     } else {}
                     Display_screen (display_context, RX_context, USE_THIS, i_i2c_internal_commands);
 
@@ -1038,10 +1045,11 @@ void RFM69_client (
         display_context.display_screen_name = SCREEN_0_WELCOME;
         Display_screen (display_context, RX_context, USE_NONE, i_i2c_internal_commands);
 
-        delay_milliseconds (4000);
+        delay_milliseconds (5000);
+        display_context.allow_auto_switch_to_screen_1_RX_main = true;
     }
 
-    // Radio matters
+    // Radio matters (after SCREEN_0_WELCOME above)
 
     i_radio.do_spi_aux_adafruit_rfm69hcw_RST_pulse (MASKOF_SPI_AUX0_RST);
     i_radio.initialize (RXTX_context.radio_init);
@@ -1094,6 +1102,7 @@ void RFM69_client (
     #if (IS_MYTARGET_SLAVE==1)
         for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
             RX_context.RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
+            RX_context.RX_radio_payload     .u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
         }
 
         RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = HEATER_ON_PERCENT_R_MIN;
