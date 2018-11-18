@@ -195,7 +195,8 @@ typedef enum display_screen_name_t {
     SCREEN_0_WELCOME,
     SCREEN_1_RX_MAIN_TIME_TEMP_ETC,
     SCREEN_2_MISTET_OG_DB,
-    SCREEN_3_NA_MIN_MAX,
+    SCREEN_3_MAX_NA_MIN,
+    SCREEN_4_MAX_NA_MIN,
     SCREEN_X_NONE // used for mudulo div of size
 } display_screen_name_t;
 
@@ -377,6 +378,7 @@ bool // i2c_ok
         const   use_t                     use,
         client  i2c_internal_commands_if  i_i2c_internal_commands) {
 
+    const char char_aa_str [] = CHAR_AA_STR;
     bool i2c_ok;
 
     Clear_All_Pixels_In_Buffer();
@@ -449,10 +451,11 @@ bool // i2c_ok
                 // use enum not necssary to test
 
                 // ..........----------.
-                // #TX       xx111222333
+                // #TX(4s)   xx111222333
                 // #MISTET   0
                 // RSSI(dB) -81
-                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "#TX       %u\n#MISTET   %u\nRSSI(dB) %d",
+                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "#TX(%us)   %u\n#MISTET   %u\nRSSI(dB) %d",
+                        AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
                         RX_context.lastReceivedAppSeqCnt,
                         RX_context.num_totLost,
                         RX_context.nowRSSI);
@@ -462,7 +465,7 @@ bool // i2c_ok
             #endif
         } break;
 
-        case SCREEN_3_NA_MIN_MAX: {
+        case SCREEN_3_MAX_NA_MIN: {
             #if (IS_MYTARGET_SLAVE == 1)
                 const dp1_t max_water_dp1   = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC);
                 const dp1_t max_ambient_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC);
@@ -486,17 +489,15 @@ bool // i2c_ok
                 const dp1_t min_water_dp1   = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC);
                 const dp1_t min_ambient_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC);
                 const dp1_t min_heater_dp1  = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC);
-
                 /*
-                012345678901234567890
-                    VANN LUFT VARME
+                ..........----------.
+                    VANN LUFT UNDER
                 MAX 25.2 26.1 23.2
                 NA  25.2 26.1 23.2
                 MIN 25.2 26.1 23.2
                 */
-                const char char_aa_str [] = CHAR_AA_STR;
                 display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                        "     VANN LUFT VARME\nMAX  %2d.%1d %2d.%1d %2d.%1d\nN%s%s %2d.%1d %2d.%1d %2d.%1d\nMIN  %2d.%1d %2d.%1d %2d.%1d",
+                        "     VANN LUFT UNDER\nMAX  %2d.%1d %2d.%1d %2d.%1d\nN%s%s %2d.%1d %2d.%1d %2d.%1d\nMIN  %2d.%1d %2d.%1d %2d.%1d",
                         max_water_dp1.unary, max_water_dp1.decimal, max_ambient_dp1.unary, max_ambient_dp1.decimal, max_heater_dp1.unary, max_heater_dp1.decimal,
                         char_aa_str, (use == USE_THIS) ? "  " : "..",
                         now_water_dp1.unary, now_water_dp1.decimal, now_ambient_dp1.unary, now_ambient_dp1.decimal, now_heater_dp1.unary, now_heater_dp1.decimal,
@@ -504,6 +505,50 @@ bool // i2c_ok
 
                 setTextSize(1);
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+            #endif
+        } break;
+
+        case SCREEN_4_MAX_NA_MIN: {
+            #if (IS_MYTARGET_SLAVE == 1)
+
+            const heater_on_watt_r    max_heater_watt     =                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt;
+            const heater_on_percent_r max_heater_percent  =                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent;
+            const dp1_t               max_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+
+            heater_on_watt_r    now_heater_watt;
+            heater_on_percent_r now_heater_percent;
+            dp1_t               now_heater_mean_dp1;
+            if (use == USE_THIS) {
+                now_heater_watt     =                RX_context.RX_radio_payload.u.payload_u0.heater_on_watt;
+                now_heater_percent  =                RX_context.RX_radio_payload.u.payload_u0.heater_on_percent;
+                now_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+            } else if (use == USE_PREV) {
+                now_heater_watt     =                RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_watt;
+                now_heater_percent  =                RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_percent;
+                now_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_prev.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+            } else {
+                fail();
+            }
+
+            const heater_on_watt_r    min_heater_watt     =                RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt;
+            const heater_on_percent_r min_heater_percent  =                RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent;
+            const dp1_t               min_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+            /*
+            ..........----------.
+                 WATT %   U-SNITT
+            MAX  25   100 25.3
+            NA.. 25   100 25.3
+            MIN  25   100 25.3
+            */
+            display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                    "     WATT %%   U-SNITTMAX  %02d   %03d %2d.%1d\nN%s%s %02d   %03d %2d.%1d\nMIN  %02d   %03d %2d.%1d",
+                    max_heater_watt, min_heater_percent, max_heater_mean_dp1.unary, max_heater_mean_dp1.decimal,
+                    char_aa_str, (use == USE_THIS) ? "  " : "..",
+                    now_heater_watt, now_heater_percent, now_heater_mean_dp1.unary, now_heater_mean_dp1.decimal,
+                    min_heater_watt, min_heater_percent, min_heater_mean_dp1.unary, min_heater_mean_dp1.decimal);
+
+            setTextSize(1);
+            display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             #endif
         } break;
 

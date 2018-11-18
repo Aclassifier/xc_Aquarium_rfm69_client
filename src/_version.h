@@ -13,7 +13,8 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.4"
+#define RFM69_CLIENT_VERSION_STR "0.8.5"
+    // "0.8.5"  18Nov2018 SCREEN_4_MAX_NA_MIN is new (with Watt etc.)
     // "0.8.4"  18Nov2018 Helper functions to convert and print pluss _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=0 again
     // "0.8.2"  13Nov2018 IRQ and timeout handling now separate functions in _Aquarium_rfm69_client.xc
     // "0.8.1"  02Nov2018 DEG C and WATT ALSO DISPLAYED
