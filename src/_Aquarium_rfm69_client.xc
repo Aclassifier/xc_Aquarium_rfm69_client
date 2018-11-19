@@ -71,7 +71,7 @@
 #include "_Aquarium_rfm69_client.h"
 #endif
 
-#define DEBUG_PRINT_RFM69 0
+#define DEBUG_PRINT_RFM69 1
 #define debug_print(fmt, ...) do { if(DEBUG_PRINT_RFM69 and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
 
 #define DEBUG_PRINT_BUFFER    0
@@ -110,7 +110,7 @@
             //   will accept it. There probably is no packetisation or cryptographic key, just that repeated stream of bits.
             //   So when I sent my packets every 200 ms I destroyed that data stream. This seems very plausible.
             //   Thanks to sghioto and DickCappels! See Wikipedia article On-off keying (https://en.wikipedia.org/wiki/On-off_keying) and
-            //   Application note 4439 from Maxim integrated at IÕm OOK. YouÕre OOK? (https://www.maximintegrated.com/en/app-notes/index.mvp/id/4439)
+            //   Application note 4439 from Maxim integrated at Iâ€™m OOK. Youâ€™re OOK? (https://www.maximintegrated.com/en/app-notes/index.mvp/id/4439)
 #else
     #define MY_RFM69_FREQ_HZ     RF69_INIT_FREQUENCY_433705993_HZ // Frequency is according to calculator 0x006C6D2F * (RF69_FSTEP_FLOAT32 as 61.03515625)
                                                                   // Only needed for printouts and to check calculator-accurate calculation of these hex values:
@@ -162,16 +162,18 @@ typedef struct {
 
 typedef struct {
     bool      doListenToAll;
-    unsigned  num_totLost;
+    unsigned  num_received;
+    int32_t   num_lost_since_last_success; // May be negative if sender restarts
+    unsigned  num_appSeqCnt_notSeen; // Earlier num_toLost but they are only counted when we see a message again
     unsigned  num_radioCRC16errs;
     unsigned  num_appCRC32errs;
     unsigned  seconds_since_last_received;
-    uint32_t  lastReceivedAppSeqCnt;
+    uint32_t  appSeqCnt;
+    uint32_t  appSeqCnt_prev;
     payload_t RX_radio_payload_prev;
     payload_t RX_radio_payload;
     payload_t RX_radio_payload_max;
     payload_t RX_radio_payload_min;
-    int32_t   num_messages_lost_since_last_success; // May be negative if sender restarts
     int16_t   nowRSSI;
 
     #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG==1)
@@ -208,15 +210,16 @@ typedef struct {
 } display_context_t;
 
 typedef enum {
-    DEBUG_PRINT_TEMPS_ETC,
-    DEBUG_PRINT_RX_NOW_MAX_MIN
+    DEBUG_PRINT_RX_1_SEQCNT_ETC,
+    DEBUG_PRINT_RX_2_TEMPS_ETC,
+    DEBUG_PRINT_RX_2_NOW_MAX_MIN
 } debug_print_state_e;
 
 typedef struct {
-    bool debug_print_rx_1_done;
+    bool debug_print_rx_2_done; // true when DEBUG_PRINT_RX_2_TEMPS_ETC done once
 } debug_print_context_t;
 
-
+// MUST NOT MODIFY ANY STATE VALUES!
 void Debug_print_values (
         const debug_print_state_e state_in,
         debug_print_context_t     &debug_print_context,
@@ -226,9 +229,30 @@ void Debug_print_values (
     dp1_t dp1;
 
     switch (state_in) {
-        case DEBUG_PRINT_TEMPS_ETC: {
+        case DEBUG_PRINT_RX_1_SEQCNT_ETC: {
+            if (not debug_print_context.debug_print_rx_2_done) {
+                debug_print ("numbytes %u, from NODEID %u, RXappSeqCnt %u\n",
+                       RXTX_context.some_rfm69_internals.PACKETLEN,
+                       RX_PACKET_U.u.packet_u3.appNODEID,
+                       RX_PACKET_U.u.packet_u3.appSeqCnt);
+            } else {
+                debug_print ("RXappSeqCnt %u ", RX_PACKET_U.u.packet_u3.appSeqCnt);
+                if (RX_context.num_lost_since_last_success < 0) {
+                    if (RX_context.num_appSeqCnt_notSeen != 0) {
+                        debug_print ("Sender restarted? (RX_context.num_appSeqCnt_notSeen %u kept)\n", RX_context.num_appSeqCnt_notSeen);
+                    } else {
+                        debug_print ("%s", "\n");
+                    }
+                } else if (RX_context.num_lost_since_last_success == 0) {
+                    debug_print ("%s", "\n");
+                } else { // RX_context.num_lost_since_last_success > 0
+                    debug_print ("num_lost_since_last_success %d, RX_context.num_appSeqCnt_notSeen %u\n", RX_context.num_lost_since_last_success, RX_context.num_appSeqCnt_notSeen);
+                }
+            }
+        } break;
+        case DEBUG_PRINT_RX_2_TEMPS_ETC: {
 
-            if (debug_print_context.debug_print_rx_1_done) {
+            if (debug_print_context.debug_print_rx_2_done) {
                 debug_print ("\nRSSI %d, P %u, ",
                         RX_context.nowRSSI,
                         RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
@@ -316,10 +340,10 @@ void Debug_print_values (
                     (RX_context.RX_radio_payload.u.payload_u0.debug == RX_context.RX_radio_payload_prev.u.payload_u0.debug) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
                     RX_context.RX_radio_payload.u.payload_u0.debug);
 
-            debug_print_context.debug_print_rx_1_done = true;
+            debug_print_context.debug_print_rx_2_done = true;
         } break;
 
-        case DEBUG_PRINT_RX_NOW_MAX_MIN: {
+        case DEBUG_PRINT_RX_2_NOW_MAX_MIN: {
             {
                 const dp1_t heater_dp1       = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC);
                 const dp1_t ambient_dp1      = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC);
@@ -371,6 +395,7 @@ void Debug_print_values (
     }
 }
 
+// MUST NOT MODIFY ANY STATE VALUES!
 bool // i2c_ok
     Display_screen (
         display_context_t                 &display_context,
@@ -379,6 +404,8 @@ bool // i2c_ok
         client  i2c_internal_commands_if  i_i2c_internal_commands) {
 
     const char char_aa_str [] = CHAR_AA_STR;
+    const char char_triple_bar_str [] = CHAR_TRIPLE_BAR_STR;
+
     bool i2c_ok;
 
     Clear_All_Pixels_In_Buffer();
@@ -451,13 +478,15 @@ bool // i2c_ok
                 // use enum not necssary to test
 
                 // ..........----------.
-                // #TX(4s)   xx111222333
-                // #MISTET   0
+                // #TX(4s)   x111222333. If char in last pos then line will wrap, so not allowed. This will do: 79 years!
+                // #RX       xx11122233. --"--
+                // #USETT    0
                 // RSSI(dB) -81
-                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "#TX(%us)   %u\n#MISTET   %u\nRSSI(dB) %d",
+                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "#TX(%us)   %u\n#RX       %u\n#USETT    %u\nRSSI(dB) %d",
                         AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
-                        RX_context.lastReceivedAppSeqCnt,
-                        RX_context.num_totLost,
+                        RX_context.appSeqCnt,
+                        RX_context.num_received,
+                        RX_context.num_appSeqCnt_notSeen,
                         RX_context.nowRSSI);
 
                 setTextSize(1);
@@ -491,13 +520,13 @@ bool // i2c_ok
                 const dp1_t min_heater_dp1  = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC);
                 /*
                 ..........----------.
-                    VANN LUFT UNDER
+                    VANN LUFT VARME
                 MAX 25.2 26.1 23.2
                 NA  25.2 26.1 23.2
                 MIN 25.2 26.1 23.2
                 */
                 display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                        "     VANN LUFT UNDER\nMAX  %2d.%1d %2d.%1d %2d.%1d\nN%s%s %2d.%1d %2d.%1d %2d.%1d\nMIN  %2d.%1d %2d.%1d %2d.%1d",
+                        "     VANN LUFT VARME\nMAX  %2d.%1d %2d.%1d %2d.%1d\nN%s%s %2d.%1d %2d.%1d %2d.%1d\nMIN  %2d.%1d %2d.%1d %2d.%1d",
                         max_water_dp1.unary, max_water_dp1.decimal, max_ambient_dp1.unary, max_ambient_dp1.decimal, max_heater_dp1.unary, max_heater_dp1.decimal,
                         char_aa_str, (use == USE_THIS) ? "  " : "..",
                         now_water_dp1.unary, now_water_dp1.decimal, now_ambient_dp1.unary, now_ambient_dp1.decimal, now_heater_dp1.unary, now_heater_dp1.decimal,
@@ -535,13 +564,14 @@ bool // i2c_ok
             const dp1_t               min_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
             /*
             ..........----------.
-                 WATT %   U-SNITT
-            MAX  25   100 25.3
-            NA.. 25   100 25.3
-            MIN  25   100 25.3
+                 WATT %   VARMEâ‰¡
+            MAX  25   060 25.3
+            NA.. 08   058 25.3
+            MIN  00   000 25.3
             */
             display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                    "     WATT %%   U-SNITTMAX  %02d   %03d %2d.%1d\nN%s%s %02d   %03d %2d.%1d\nMIN  %02d   %03d %2d.%1d",
+                    "     WATT %%   VARME%s\nMAX  %02d   %03d %2d.%1d\nN%s%s %02d   %03d %2d.%1d\nMIN  %02d   %03d %2d.%1d",
+                    char_triple_bar_str,
                     max_heater_watt, min_heater_percent, max_heater_mean_dp1.unary, max_heater_mean_dp1.decimal,
                     char_aa_str, (use == USE_THIS) ? "  " : "..",
                     now_heater_watt, now_heater_percent, now_heater_mean_dp1.unary, now_heater_mean_dp1.decimal,
@@ -593,7 +623,7 @@ void RFM69_handle_irq (
 
     i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, high); // For scope
 
-    {RXTX_context.some_rfm69_internals, RX_PACKET_U, interruptAndParsingResult} = i_radio.handleSPIInterrupt();
+    {RXTX_context.some_rfm69_internals, RX_PACKET_U, interruptAndParsingResult} = i_radio.handleSPIInterrupt(); // DO IT and GET DATA
 
     #if (DEBUG_PRINT_BUFFER==1)
         const char char_leading_space_str[] = CHAR_LEADING_SPACE_STR;
@@ -626,8 +656,19 @@ void RFM69_handle_irq (
 
                     RX_context.seconds_since_last_received = 0;
 
-                    RX_context.lastReceivedAppSeqCnt                = RX_PACKET_U.u.packet_u3.appSeqCnt;
-                    RX_context.num_messages_lost_since_last_success = RX_PACKET_U.u.packet_u3.appSeqCnt - RX_context.lastReceivedAppSeqCnt - 1;
+                    RX_context.appSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt; // Now. Probably is a very high number also on the first message we see. So:
+
+                    if (RX_context.num_received == 0) { // First message we see
+                        RX_context.num_lost_since_last_success = 0;
+                    } else {
+                        RX_context.num_lost_since_last_success = RX_context.appSeqCnt - RX_context.appSeqCnt_prev - 1; // So that 123 - 122 - 1 is zero for none lost
+                    }
+                    RX_context.num_received++;
+
+                    if (RX_context.num_lost_since_last_success > 0) {
+                        RX_context.num_appSeqCnt_notSeen += RX_context.num_lost_since_last_success;
+                        // 03Apr2018: one lost in 140, then in 141 (of tenths of thousands!), one in 263
+                    } else {}
 
                     for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
                         RX_context.RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
@@ -639,31 +680,8 @@ void RFM69_handle_irq (
                     } else {}
                     Display_screen (display_context, RX_context, USE_THIS, i_i2c_internal_commands);
 
-                    if (debug_print_context.debug_print_rx_1_done) {
-
-                        debug_print ("RXappSeqCnt %u ", RX_PACKET_U.u.packet_u3.appSeqCnt);
-                        if (RX_context.num_messages_lost_since_last_success < 0) {
-                            if (RX_context.num_totLost != 0) {
-                                debug_print ("Sender restarted? (RX_context.num_totLost %u kept)\n", RX_context.num_totLost);
-                            } else {
-                                debug_print ("%s", "\n");
-                            }
-                        } else if (RX_context.num_messages_lost_since_last_success == 0) {
-                            debug_print ("%s", "\n");
-                        } else { // RX_context.num_messages_lost_since_last_success > 0
-                            RX_context.num_totLost += RX_context.num_messages_lost_since_last_success;
-                            debug_print ("num_messages_lost_since_last_success %d, RX_context.num_totLost %u\n", RX_context.num_messages_lost_since_last_success, RX_context.num_totLost);
-                            // 03Apr2018: one lost in 140, then in 141 (of tenths of thousands!), one in 263
-                        }
-                    } else {
-                        debug_print ("numbytes %u, from NODEID %u, RXappSeqCnt %u\n",
-                               RXTX_context.some_rfm69_internals.PACKETLEN,
-                               RX_PACKET_U.u.packet_u3.appNODEID,
-                               RX_PACKET_U.u.packet_u3.appSeqCnt);
-                        RX_context.num_messages_lost_since_last_success = 0; // Testing on it for diff. To avoid diff both on first and second after start.
-                    }
-
-                    Debug_print_values (DEBUG_PRINT_TEMPS_ETC, debug_print_context, RX_context, RXTX_context);
+                    Debug_print_values (DEBUG_PRINT_RX_1_SEQCNT_ETC, debug_print_context, RX_context, RXTX_context);
+                    Debug_print_values (DEBUG_PRINT_RX_2_TEMPS_ETC, debug_print_context, RX_context, RXTX_context);
 
                     // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
                     // Reinserted RFM69=001
@@ -673,7 +691,7 @@ void RFM69_handle_irq (
                        } else {}
                     #endif
 
-                    if (RX_context.num_messages_lost_since_last_success == 0) {
+                    if (RX_context.num_lost_since_last_success == 0) {
                         // BOTH 40 5Oct2018: debug_print ("sizeof %u, LEN %u\n", sizeof RX_context.RX_radio_payload.u.payload_u1_uint8_arr, _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08);
                         for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
                             // Take a copy of last received into "previous"
@@ -697,7 +715,9 @@ void RFM69_handle_irq (
                     RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = min (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_context.RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
                     RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = min (RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC,           RX_context.RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
 
-                    Debug_print_values (DEBUG_PRINT_RX_NOW_MAX_MIN, debug_print_context, RX_context, RXTX_context);
+                    Debug_print_values (DEBUG_PRINT_RX_2_NOW_MAX_MIN, debug_print_context, RX_context, RXTX_context);
+
+                    RX_context.appSeqCnt_prev = RX_context.appSeqCnt;
 
                 } else {
                     debug_print ("Max %u %u \n", "IRQ but not receiveDone!");
@@ -707,14 +727,14 @@ void RFM69_handle_irq (
             #if (TEST_01_FOLLOW_ADDRESS==1)
                 case messageNotForThisNode_IRQ: {
                     #if (TEST_01_LISTENTOALL==1)
-                        debug_print ("\nStarting to receive on any address, RX_context.num_totLost %u kept, RXappSeqCnt %u\n", RX_context.num_totLost, RX_PACKET_U.u.packet_u1.appSeqCnt);
+                        debug_print ("\nStarting to receive on any address, RX_context.num_appSeqCnt_notSeen %u kept, RXappSeqCnt %u\n", RX_context.num_appSeqCnt_notSeen, RX_PACKET_U.u.packet_u1.appSeqCnt);
                         i_radio.RX_context.doListenToAll (true);
                     #else
                         uint8_t previous_NODEID = i_radio.setNODEID (RXTX_context.some_rfm69_internals.TARGETID); // Follow who sender wants to send to
-                        debug_print ("\nStarting (from #%03u) to receive on address #%03u, RX_context.num_totLost %u, RXappSeqCnt %u\n",
+                        debug_print ("\nStarting (from #%03u) to receive on address #%03u, RX_context.num_appSeqCnt_notSeen %u, RXappSeqCnt %u\n",
                                 previous_NODEID,
                                 RXTX_context.some_rfm69_internals.TARGETID,
-                                RX_context.num_totLost,
+                                RX_context.num_appSeqCnt_notSeen,
                                 RX_PACKET_U.u.packet_u3.appSeqCnt);
                     #endif
                 } break;
@@ -995,7 +1015,7 @@ void RFM69_client (
     debug_print_context_t debug_print_context;
     divTime_t             divTime;
 
-    debug_print_context.debug_print_rx_1_done = false;
+    debug_print_context.debug_print_rx_2_done = false;
 
     RXTX_context.interruptCnt = 0;
     RXTX_context.radio_init.nodeID    = NODEID;
@@ -1023,11 +1043,13 @@ void RFM69_client (
         #define TX_CONTEXT null
 
         RX_context.doListenToAll = false; // Set to 'true' to sniff all packets on the same network
-        RX_context.num_totLost = 0;
+        RX_context.num_appSeqCnt_notSeen = 0;
+        RX_context.num_received = 0;
         RX_context.num_radioCRC16errs = 0;
         RX_context.num_appCRC32errs = 0;
         RX_context.seconds_since_last_received = 0;
-        RX_context.lastReceivedAppSeqCnt = 0;
+        RX_context.appSeqCnt = 0;
+        RX_context.appSeqCnt_prev = 0;
         #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG==1)
             for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
                 RX_context.debug_data_prev[i] = 0;
