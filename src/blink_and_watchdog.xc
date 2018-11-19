@@ -130,7 +130,6 @@ void blink_and_watchdog_task (
                     tmr :> single_pulse_timeout_tics;
                     single_pulse_timeout_tics += (blink_on_ms * XS1_TIMER_KHZ);
                     single_pulse_off_next = true;
-                    do_watchdog_feed_next = true;
                     success = true;
                 }
                 debug_print ("blink_pulse_ok success %u\n", success);
@@ -143,7 +142,6 @@ void blink_and_watchdog_task (
                 } else {
                     port_pins or_eq port_pins_mask;
                     p_port <: port_pins;
-                    do_watchdog_feed_next = true;
                     success = true;
                 }
                 debug_print ("blink_on_ok success %u\n", success);
@@ -157,7 +155,6 @@ void blink_and_watchdog_task (
                     port_pins and_eq (compl port_pins_mask);
                     p_port <: port_pins;
 
-                    do_watchdog_feed_next = true;
                     success = true;
                 }
                 debug_print ("blink_off_ok success %u\n", success);
@@ -189,6 +186,10 @@ void blink_and_watchdog_task (
                 debug_print ("enable_watchdog_ok success %u\n", success);
             } break;
 
+            case i_beep_blink[int index_of_client].feed_watchdog (): {
+                do_watchdog_feed_next = true;
+            } break;
+
             case i_beep_blink[int index_of_client].is_watchdog_blinking () -> bool yes: {
                 yes = does_watchdog_blinking;
             } break;
@@ -199,7 +200,6 @@ void blink_and_watchdog_task (
                     is_watchdog_port_pins_on = false;
                     port_pins and_eq (compl watchdog_port_pins_mask); // LED off no matter what it was
                     p_port <: port_pins;
-                    do_watchdog_feed_next = true;
                 } else {}
                 success = enabled_watchdog;
                 debug_print ("reset_watchdog_ok success %u\n", success);

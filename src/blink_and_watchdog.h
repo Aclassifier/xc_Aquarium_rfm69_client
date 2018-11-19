@@ -42,6 +42,7 @@ typedef interface blink_and_watchdog_if_t {
                                          const unsigned         silent_for_ms,  // Max about 21 seconds
                                          const unsigned         blink_on_ms);   // Max about 21 seconds, off is same time
 
+                void feed_watchdog        (void);
                 bool is_watchdog_blinking (void); // Or test returns on the blink_.. functions
                 bool reset_watchdog_ok    (void); // Also switches off the LED blinking
 } blink_and_watchdog_if_t;

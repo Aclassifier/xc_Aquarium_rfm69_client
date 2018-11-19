@@ -13,7 +13,8 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.6"
+#define RFM69_CLIENT_VERSION_STR "0.8.7"
+    // "0.8.7"  19Nov2018 feed_watchdog is new etc. Plus a blank screen
     // "0.8.6"  19Nov2018 RX_context.appSeqCnt_prev and calculations around this fixed (had been compromised by some code cut and paste)
     // "0.8.5"  18Nov2018 SCREEN_4_MAX_NA_MIN is new (with Watt etc.)
     // "0.8.4"  18Nov2018 Helper functions to convert and print pluss _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=0 again

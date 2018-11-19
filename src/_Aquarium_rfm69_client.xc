@@ -165,6 +165,7 @@ typedef struct {
     unsigned  num_received;
     int32_t   num_lost_since_last_success; // May be negative if sender restarts
     unsigned  num_appSeqCnt_notSeen; // Earlier num_toLost but they are only counted when we see a message again
+    unsigned  num_appSeqCnt_notSeen_of_screen;
     unsigned  num_radioCRC16errs;
     unsigned  num_appCRC32errs;
     unsigned  seconds_since_last_received;
@@ -199,6 +200,7 @@ typedef enum display_screen_name_t {
     SCREEN_2_MISTET_OG_DB,
     SCREEN_3_MAX_NA_MIN,
     SCREEN_4_MAX_NA_MIN,
+    SCREEN_DARK,
     SCREEN_X_NONE // used for mudulo div of size
 } display_screen_name_t;
 
@@ -480,13 +482,14 @@ bool // i2c_ok
                 // ..........----------.
                 // #TX(4s)   x111222333. If char in last pos then line will wrap, so not allowed. This will do: 79 years!
                 // #RX       xx11122233. --"--
-                // #USETT    0
+                // #USETT    12 (9)
                 // RSSI(dB) -81
-                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "#TX(%us)   %u\n#RX       %u\n#USETT    %u\nRSSI(dB) %d",
+                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "#TX(%us)   %u\n#RX       %u\n#USETT    %u (%u)\nRSSI(dB) %d",
                         AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
                         RX_context.appSeqCnt,
                         RX_context.num_received,
                         RX_context.num_appSeqCnt_notSeen,
+                        RX_context.num_appSeqCnt_notSeen_of_screen,
                         RX_context.nowRSSI);
 
                 setTextSize(1);
@@ -583,6 +586,7 @@ bool // i2c_ok
         } break;
 
         default:
+        case SCREEN_DARK:
         case SCREEN_X_NONE: {
             // No code
         } break;
@@ -604,7 +608,11 @@ void RFM69_handle_irq (
          client  i2c_internal_commands_if  i_i2c_internal_commands,
          debug_print_context_t             &debug_print_context)
 {
-    i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 50);
+    if (display_context.display_screen_name != SCREEN_DARK) {
+        i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 50);
+    } else {}
+
+    i_blink_and_watchdog.feed_watchdog();
 
     if (semantics_do_rssi_in_irq_detect_task) {
         RX_context.nowRSSI = RXTX_context.irq_value;
@@ -1044,6 +1052,7 @@ void RFM69_client (
 
         RX_context.doListenToAll = false; // Set to 'true' to sniff all packets on the same network
         RX_context.num_appSeqCnt_notSeen = 0;
+        RX_context.num_appSeqCnt_notSeen_of_screen = 0;
         RX_context.num_received = 0;
         RX_context.num_radioCRC16errs = 0;
         RX_context.num_appCRC32errs = 0;
@@ -1111,7 +1120,6 @@ void RFM69_client (
     {
         Adafruit_GFX_constructor (SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT);
         Adafruit_SSD1306_i2c_begin (i_i2c_internal_commands, p_display_notReset);
-
         display_context.display_screen_name = SCREEN_0_WELCOME;
         Display_screen (display_context, RX_context, USE_NONE, i_i2c_internal_commands);
 
@@ -1250,9 +1258,15 @@ void RFM69_client (
                     } break;
                     case IOF_BUTTON_CENTER: {
                         if (button_action == BUTTON_ACTION_RELEASED) {
+                            display_screen_name_t display_screen_name_prev = display_context.display_screen_name;
+
                             debug_print ("SCREEN NAME %u\n", display_context.display_screen_name);
                             display_context.display_screen_name = (display_context.display_screen_name + 1) % SCREEN_X_NONE;
                             Display_screen (display_context, RX_context, USE_PREV, i_i2c_internal_commands);
+
+                            if (display_screen_name_prev == SCREEN_2_MISTET_OG_DB) {
+                                RX_context.num_appSeqCnt_notSeen_of_screen = RX_context.num_appSeqCnt_notSeen;
+                            } else {}
                         } else {}
                     } break;
                     case IOF_BUTTON_RIGHT: {
