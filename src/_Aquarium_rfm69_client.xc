@@ -609,7 +609,7 @@ void RFM69_handle_irq (
          debug_print_context_t             &debug_print_context)
 {
     if (display_context.display_screen_name != SCREEN_DARK) {
-        i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 50);
+        i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 25);
     } else {}
 
     i_blink_and_watchdog.feed_watchdog();
@@ -660,7 +660,9 @@ void RFM69_handle_irq (
                 // if (i_radio.receiveDone()) {
                 if (RXTX_context.receiveDone) {
 
-                    i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 50); // Looks orange
+                    if (display_context.display_screen_name != SCREEN_DARK) {
+                        i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 25); // Looks orange
+                    } else {}
 
                     RX_context.seconds_since_last_received = 0;
 

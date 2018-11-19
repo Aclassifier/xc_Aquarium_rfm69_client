@@ -13,7 +13,8 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.7"
+#define RFM69_CLIENT_VERSION_STR "0.8.8"
+    // "0.8.8"  19Nov2018 All LEDs are black (except IRQ on board) of screen is black
     // "0.8.7"  19Nov2018 feed_watchdog is new etc. Plus a blank screen
     // "0.8.6"  19Nov2018 RX_context.appSeqCnt_prev and calculations around this fixed (had been compromised by some code cut and paste)
     // "0.8.5"  18Nov2018 SCREEN_4_MAX_NA_MIN is new (with Watt etc.)
