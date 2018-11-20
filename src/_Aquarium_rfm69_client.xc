@@ -1142,7 +1142,6 @@ void RFM69_client (
         display_context.display_screen_name = SCREEN_0_WELCOME;
         Display_screen (display_context, RX_context, USE_NONE, i_i2c_internal_commands);
 
-        delay_milliseconds (5000);
         display_context.allow_auto_switch_to_screen_1_RX_main = true;
     }
 
