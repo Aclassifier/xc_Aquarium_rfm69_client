@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.10"
-#define RFM69_CLIENT_VERSION_NUM    0810
+#define RFM69_CLIENT_VERSION_STR "0.8.11"
+#define RFM69_CLIENT_VERSION_NUM    0811
+    // "0.8.11" 20Nov2018 display_screen_store_values is new
     // "0.8.10" 20Nov2018 Display now toggles on and off with left button etc.
     // "0.8.9"  20Nov2018
     //          RFM69=002 MAX and MIN values now like 100 for % and 99 for temp, to make display nicer

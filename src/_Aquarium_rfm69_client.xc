@@ -210,7 +210,7 @@ typedef struct {
     char                  display_ts1_chars [SSD1306_TS1_DISPLAY_VISIBLE_CHAR_LEN]; // 84 chars for display needs 85 char buffer (with NUL) when sprintf is use (use SSD1306_TS1_DISPLAY_ALL_CHAR_LEN for full flexibility)
     int                   sprintf_numchars;
     display_screen_name_t display_screen_name;
-    display_screen_name_t display_screen_name_prev;
+    display_screen_name_t display_screen_name_last_on;
     bool                  allow_auto_switch_to_screen_1_RX_main;
 } display_context_t;
 
@@ -633,7 +633,7 @@ void RFM69_handle_irq (
          client  i2c_internal_commands_if  i_i2c_internal_commands,
          debug_print_context_t             &debug_print_context)
 {
-    if (display_context.display_screen_name != SCREEN_DARK) {
+    if (display_context.state == is_on) {
         i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 25);
     } else {}
 
@@ -685,7 +685,7 @@ void RFM69_handle_irq (
                 // if (i_radio.receiveDone()) {
                 if (RXTX_context.receiveDone) {
 
-                    if (display_context.display_screen_name != SCREEN_DARK) {
+                    if (display_context.state == is_on) {
                         i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 25); // Looks orange
                     } else {}
 
@@ -1031,6 +1031,15 @@ void RFM69_handle_timeout (
     #endif
 }
 
+void display_screen_store_values (
+        display_context_t &display_context,
+        RX_context_t      &RX_context)
+{
+    if (display_context.display_screen_name_last_on == SCREEN_2_MISTET_OG_DB) {
+        RX_context.num_appSeqCnt_notSeen_of_screen = RX_context.num_appSeqCnt_notSeen;
+    } else {}
+}
+
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
           server  irq_if_t                 i_irq,
@@ -1149,8 +1158,8 @@ void RFM69_client (
         Adafruit_GFX_constructor (SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT);
         Adafruit_SSD1306_i2c_begin (i_i2c_internal_commands, p_display_notReset);
         display_context.state = is_on;
-        display_context.display_screen_name      = SCREEN_5_WELCOME;
-        display_context.display_screen_name_prev = SCREEN_5_WELCOME;
+        display_context.display_screen_name         = SCREEN_5_WELCOME;
+        display_context.display_screen_name_last_on = SCREEN_5_WELCOME;
         Display_screen (display_context, RX_context, USE_NONE, i_i2c_internal_commands);
 
         display_context.allow_auto_switch_to_screen_1_RX_main = true;
@@ -1284,14 +1293,16 @@ void RFM69_client (
                 switch (iof_button) {
                     case IOF_BUTTON_LEFT: { // Toggles display on and off, back with same screen
                         if (button_action == BUTTON_ACTION_RELEASED) {
-                            if (display_context.state == is_on) {
-                                display_context.display_screen_name_prev = display_context.display_screen_name; // PUSH it
-                                display_context.display_screen_name      = SCREEN_DARK;
+                            if (display_context.state == is_on) { // now switch off
+                                display_context.display_screen_name_last_on = display_context.display_screen_name; // PUSH it
+                                display_context.display_screen_name         = SCREEN_DARK;
                                 Display_screen (display_context, RX_context, USE_PREV, i_i2c_internal_commands); // First this so that SCREEN_DARK runs..
-                                display_context.state                    = is_off;                               // ..then is_off
-                            } else { // is_off
-                                display_context.display_screen_name      = display_context.display_screen_name_prev; // PULL it
-                                display_context.state                    = is_on;                                    // First is_on..
+                                display_context.state                       = is_off;                               // ..then is_off
+
+                                display_screen_store_values (display_context, RX_context);
+                            } else { // is_off: now switch on
+                                display_context.display_screen_name         = display_context.display_screen_name_last_on; // PULL it
+                                display_context.state                       = is_on;                                    // First is_on..
                                 Display_screen (display_context, RX_context, USE_PREV, i_i2c_internal_commands);     // ..then this so that screen goes on
                             }
                         } else {}
@@ -1299,19 +1310,18 @@ void RFM69_client (
 
                     case IOF_BUTTON_CENTER: { // Next screen and wraps around
                         if (button_action == BUTTON_ACTION_RELEASED) {
-                            if (display_context.state == is_on) {
-                                display_screen_name_t display_screen_name_prev = display_context.display_screen_name;
+                            if (display_context.state == is_on) { // now switch off
+                                display_context.display_screen_name_last_on = display_context.display_screen_name;
 
                                 debug_print ("SCREEN NAME %u\n", display_context.display_screen_name);
                                 display_context.display_screen_name = (display_context.display_screen_name + 1) % SCREEN_DARK;
                                 Display_screen (display_context, RX_context, USE_PREV, i_i2c_internal_commands);
 
-                                if (display_screen_name_prev == SCREEN_2_MISTET_OG_DB) {
-                                    RX_context.num_appSeqCnt_notSeen_of_screen = RX_context.num_appSeqCnt_notSeen;
-                                } else {}
+                                display_screen_store_values (display_context, RX_context);
                             } else {}
                         } else {}
                     } break;
+
                     case IOF_BUTTON_RIGHT: {
                         i_blink_and_watchdog.reset_watchdog_ok();
                     } break;
