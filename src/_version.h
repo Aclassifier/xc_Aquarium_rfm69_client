@@ -13,7 +13,10 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.8"
+#define RFM69_CLIENT_VERSION_STR "0.8.09"
+#define RFM69_CLIENT_VERSION_NUM    0809
+    // "0.8.9"  20Nov2018
+    //          RFM69=002 MAX and MIN values now like 100 for % and 99 for temp, to make display nicer
     // "0.8.8"  19Nov2018 All LEDs are black (except IRQ on board) of screen is black
     // "0.8.7"  19Nov2018 feed_watchdog is new etc. Plus a blank screen
     // "0.8.6"  19Nov2018 RX_context.appSeqCnt_prev and calculations around this fixed (had been compromised by some code cut and paste)

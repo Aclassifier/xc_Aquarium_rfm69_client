@@ -12,7 +12,7 @@
 #define CHAR_LEFT_ARROW_STR    {CHAR_LEFT_ARROW,0}  // ←
 #define CHAR_SMILEY_STR        {CHAR_SMILEY,0}
 #define CHAR_PLUS_MINUS_STR    {CHAR_PLUS_MINUS,0}  // ±
-#define DEGC_CIRCLE_STR        {CHAR_CIRCLE,0}
+#define DEGC_CIRCLE_STR        {CHAR_CIRCLE,0}      // °
 #define CHAR_AA_STR            {CHAR_AA,0}
 #define CHAR_aa_STR            {CHAR_aa,0}
 #define CHAR_OE_STR            {CHAR_OE,0}
