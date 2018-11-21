@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.12"
-#define RFM69_CLIENT_VERSION_NUM    0812
+#define RFM69_CLIENT_VERSION_STR "0.8.13"
+#define RFM69_CLIENT_VERSION_NUM    0813
+    //  0813    21Nov2108 Error screen and showing when a screen has got new data (with '*' and '+')
     //  0812    21Nov2018 An error in SCREEN_4_MAX_NA_MIN
     // "0.8.11" 20Nov2018 display_screen_store_values is new
     // "0.8.10" 20Nov2018 Display now toggles on and off with left button etc.

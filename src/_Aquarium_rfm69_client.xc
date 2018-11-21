@@ -199,7 +199,8 @@ typedef enum display_screen_name_t {
     SCREEN_2_MISTET_OG_DB,
     SCREEN_3_MAX_NA_MIN,
     SCREEN_4_MAX_NA_MIN,
-    SCREEN_5_WELCOME,
+    SCREEN_5_AQUARIUM_ERROR_BITS,
+    SCREEN_6_WELCOME,
     SCREEN_DARK // Must be last
 } display_screen_name_t;
 
@@ -225,7 +226,6 @@ typedef struct {
 } debug_print_context_t;
 
 
-
 // MUST NOT MODIFY ANY STATE VALUES!
 bool // i2c_ok
     Display_screen (
@@ -238,8 +238,9 @@ bool // i2c_ok
 
     if (display_context.state == is_on) {
 
-        const char char_aa_str [] = CHAR_AA_STR;
+        const char char_aa_str []         = CHAR_AA_STR;
         const char char_triple_bar_str [] = CHAR_TRIPLE_BAR_STR;
+        const bool alive                  = (RX_context.appSeqCnt % 2) == 0;
 
         Clear_All_Pixels_In_Buffer();
 
@@ -252,19 +253,19 @@ bool // i2c_ok
 
         switch (display_context.display_screen_name) {
 
-            case SCREEN_5_WELCOME: {
-                // use enum not necssary to test
+            case SCREEN_6_WELCOME: {
 
                 // ..........----------.
                 // VERSJON 0.8.09
                 //
                 // RX DATA FRA AKVARIET
-                // HVERT 4. SEKUND
+                // HVERT 4. SEKUND (*)
 
                 display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                        "VERSJON %s\n\nRX DATA FRA AKVARIET\nHVERT %u. SEKUND",
+                        "VERSJON %s\n\nRX DATA FRA AKVARIET\nHVERT %u. SEKUND (%s)",
                         RFM69_CLIENT_VERSION_STR,
-                        AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC);
+                        AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
+                        alive ? "." : " ");
 
                 setTextSize(1);
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
@@ -272,7 +273,6 @@ bool // i2c_ok
 
             case SCREEN_1_RX_MAIN_TIME_TEMP_ETC: {
                 #if (IS_MYTARGET_SLAVE == 1)
-                    // use enum not necssary to test
                     if (!isnull(RX_context.RX_radio_payload)) {
 
                         // ##########. ALLsetTextSize(2)
@@ -319,7 +319,6 @@ bool // i2c_ok
 
             case SCREEN_2_MISTET_OG_DB: {
                 #if (IS_MYTARGET_SLAVE == 1)
-                    // use enum not necssary to test
 
                     // ..........----------.
                     // TX   3456789
@@ -368,13 +367,14 @@ bool // i2c_ok
                     const dp1_t min_heater_dp1  = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC);
                     /*
                     ..........----------.
-                         VANN LUFT VARME
+                    *    VANN LUFT VARME
                     MAX  25.2 26.1 23.2
                     NÅ.. 25.2 26.1 23.2   .. when awating data
                     MIN  25.2 26.1 23.2
                     */
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "     VANN LUFT VARME\nMAX  %2d.%1d %2d.%1d %2d.%1d\nN%s%s %2d.%1d %2d.%1d %2d.%1d\nMIN  %2d.%1d %2d.%1d %2d.%1d",
+                            "%s    VANN LUFT VARME\nMAX  %2d.%1d %2d.%1d %2d.%1d\nN%s%s %2d.%1d %2d.%1d %2d.%1d\nMIN  %2d.%1d %2d.%1d %2d.%1d",
+                            alive ? "*" : "+",
                             max_water_dp1.unary, max_water_dp1.decimal, max_ambient_dp1.unary, max_ambient_dp1.decimal, max_heater_dp1.unary, max_heater_dp1.decimal,
                             char_aa_str, (use == USE_THIS) ? "  " : "..",
                             now_water_dp1.unary, now_water_dp1.decimal, now_ambient_dp1.unary, now_ambient_dp1.decimal, now_heater_dp1.unary, now_heater_dp1.decimal,
@@ -387,46 +387,67 @@ bool // i2c_ok
 
             case SCREEN_4_MAX_NA_MIN: {
                 #if (IS_MYTARGET_SLAVE == 1)
+                    const heater_on_watt_r    max_heater_watt     =                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt;
+                    const heater_on_percent_r max_heater_percent  =                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent;
+                    const dp1_t               max_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
 
-                const heater_on_watt_r    max_heater_watt     =                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt;
-                const heater_on_percent_r max_heater_percent  =                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent;
-                const dp1_t               max_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                    heater_on_watt_r    now_heater_watt;
+                    heater_on_percent_r now_heater_percent;
+                    dp1_t               now_heater_mean_dp1;
+                    if (use == USE_THIS) {
+                        now_heater_watt     =                RX_context.RX_radio_payload.u.payload_u0.heater_on_watt;
+                        now_heater_percent  =                RX_context.RX_radio_payload.u.payload_u0.heater_on_percent;
+                        now_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                    } else if (use == USE_PREV) {
+                        now_heater_watt     =                RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_watt;
+                        now_heater_percent  =                RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_percent;
+                        now_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_prev.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                    } else {
+                        fail();
+                    }
 
-                heater_on_watt_r    now_heater_watt;
-                heater_on_percent_r now_heater_percent;
-                dp1_t               now_heater_mean_dp1;
-                if (use == USE_THIS) {
-                    now_heater_watt     =                RX_context.RX_radio_payload.u.payload_u0.heater_on_watt;
-                    now_heater_percent  =                RX_context.RX_radio_payload.u.payload_u0.heater_on_percent;
-                    now_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
-                } else if (use == USE_PREV) {
-                    now_heater_watt     =                RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_watt;
-                    now_heater_percent  =                RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_percent;
-                    now_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_prev.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
-                } else {
-                    fail();
-                }
+                    const heater_on_watt_r    min_heater_watt     =                RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt;
+                    const heater_on_percent_r min_heater_percent  =                RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent;
+                    const dp1_t               min_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                    /*
+                    ..........----------.
+                    *    WATT %   VARME≡  Heater tray mean temp
+                    MAX  25   060 25.3
+                    NÅ.. 08   058 25.3    .. when awating data
+                    MIN  00   000 25.3
+                    */
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s    WATT %%   VARME%s\nMAX  %02d   %03d %2d.%1d\nN%s%s %02d   %03d %2d.%1d\nMIN  %02d   %03d %2d.%1d",
+                            alive ? "*" : "+",
+                            char_triple_bar_str,
+                            max_heater_watt, max_heater_percent, max_heater_mean_dp1.unary, max_heater_mean_dp1.decimal,
+                            char_aa_str, (use == USE_THIS) ? "  " : "..",
+                            now_heater_watt, now_heater_percent, now_heater_mean_dp1.unary, now_heater_mean_dp1.decimal,
+                            min_heater_watt, min_heater_percent, min_heater_mean_dp1.unary, min_heater_mean_dp1.decimal);
 
-                const heater_on_watt_r    min_heater_watt     =                RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt;
-                const heater_on_percent_r min_heater_percent  =                RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent;
-                const dp1_t               min_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
-                /*
-                ..........----------.
-                     WATT %   VARME≡  Heater tray mean temp
-                MAX  25   060 25.3
-                NÅ.. 08   058 25.3    .. when awating data
-                MIN  00   000 25.3
-                */
-                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                        "     WATT %%   VARME%s\nMAX  %02d   %03d %2d.%1d\nN%s%s %02d   %03d %2d.%1d\nMIN  %02d   %03d %2d.%1d",
-                        char_triple_bar_str,
-                        max_heater_watt, max_heater_percent, max_heater_mean_dp1.unary, max_heater_mean_dp1.decimal,
-                        char_aa_str, (use == USE_THIS) ? "  " : "..",
-                        now_heater_watt, now_heater_percent, now_heater_mean_dp1.unary, now_heater_mean_dp1.decimal,
-                        min_heater_watt, min_heater_percent, min_heater_mean_dp1.unary, min_heater_mean_dp1.decimal);
+                    setTextSize(1);
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                #endif
+            } break;
 
-                setTextSize(1);
-                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+            case SCREEN_5_AQUARIUM_ERROR_BITS: {
+                #if (IS_MYTARGET_SLAVE == 1)
+
+                    /*
+                    ..........----------.
+                    *         AKVARIUM
+                    FEIL NÅ   0000
+                    HISTORIE  0000
+                    */
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s         AKVARIUM\nFEIL N%s%s %04X\nHISTORIE  %04X",
+                            alive ? "*" : "+",
+                            char_aa_str, (use == USE_THIS) ? "  " : "..",
+                            RX_context.RX_radio_payload.u.payload_u0.error_bits_now,
+                            RX_context.RX_radio_payload.u.payload_u0.error_bits_history);
+
+                    setTextSize(1);
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
             } break;
 
@@ -1158,14 +1179,14 @@ void RFM69_client (
         Adafruit_GFX_constructor (SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT);
         Adafruit_SSD1306_i2c_begin (i_i2c_internal_commands, p_display_notReset);
         display_context.state = is_on;
-        display_context.display_screen_name         = SCREEN_5_WELCOME;
-        display_context.display_screen_name_last_on = SCREEN_5_WELCOME;
-        Display_screen (display_context, RX_context, USE_NONE, i_i2c_internal_commands);
+        display_context.display_screen_name         = SCREEN_6_WELCOME;
+        display_context.display_screen_name_last_on = SCREEN_6_WELCOME;
+        Display_screen (display_context, RX_context, USE_THIS, i_i2c_internal_commands);
 
         display_context.allow_auto_switch_to_screen_1_RX_main = true;
     }
 
-    // Radio matters (after SCREEN_5_WELCOME, above)
+    // Radio matters
 
     i_radio.do_spi_aux_adafruit_rfm69hcw_RST_pulse (MASKOF_SPI_AUX0_RST);
     i_radio.initialize (RXTX_context.radio_init);
