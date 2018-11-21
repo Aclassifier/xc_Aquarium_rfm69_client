@@ -322,14 +322,14 @@ bool // i2c_ok
                     // use enum not necssary to test
 
                     // ..........----------.
-                    // TX    3456789
-                    // RX    3456
-                    // USETT 12 (+2)
-                    // RSSI  -81 dB          or '0' aligned with '-81'
+                    // TX   3456789
+                    // RX   3456
+                    // RX?  12 (+2)
+                    // RSSI -81 dB          or '0' aligned with '-81'
 
                     const signed diff = RX_context.num_appSeqCnt_notSeen - RX_context.num_appSeqCnt_notSeen_of_screen; // Increasing, so alwasy positive. Still keep signed and %d to detect errors
 
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "TX    %u\nRX    %u\nUSETT %u (%s%d)\nRSSI  %d dB",
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "TX   %u\nRX   %u\nRX?  %u (%s%d)\nRSSI %d dB",
                             RX_context.appSeqCnt,
                             RX_context.num_received,
                             RX_context.num_appSeqCnt_notSeen,
@@ -420,7 +420,7 @@ bool // i2c_ok
                 display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                         "     WATT %%   VARME%s\nMAX  %02d   %03d %2d.%1d\nN%s%s %02d   %03d %2d.%1d\nMIN  %02d   %03d %2d.%1d",
                         char_triple_bar_str,
-                        max_heater_watt, min_heater_percent, max_heater_mean_dp1.unary, max_heater_mean_dp1.decimal,
+                        max_heater_watt, max_heater_percent, max_heater_mean_dp1.unary, max_heater_mean_dp1.decimal,
                         char_aa_str, (use == USE_THIS) ? "  " : "..",
                         now_heater_watt, now_heater_percent, now_heater_mean_dp1.unary, now_heater_mean_dp1.decimal,
                         min_heater_watt, min_heater_percent, min_heater_mean_dp1.unary, min_heater_mean_dp1.decimal);
