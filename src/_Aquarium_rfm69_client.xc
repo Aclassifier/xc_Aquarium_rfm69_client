@@ -265,7 +265,7 @@ bool // i2c_ok
                         "VERSJON %s\n\nRX DATA FRA AKVARIET\nHVERT %u. SEKUND (%s)",
                         RFM69_CLIENT_VERSION_STR,
                         AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
-                        alive ? "." : " ");
+                        alive ? "*" : "+");
 
                 setTextSize(1);
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
@@ -435,12 +435,12 @@ bool // i2c_ok
 
                     /*
                     ..........----------.
-                    *         AKVARIUM
-                    FEIL NÅ   0000
-                    HISTORIE  0000
+                    *           AKVA
+                    FEIL NÅ   0x0000
+                    HISTORIE  0x0000
                     */
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s         AKVARIUM\nFEIL N%s%s %04X\nHISTORIE  %04X",
+                            "%s           AKVA\nFEIL N%s%s 0x%04X\nHISTORIE  0x%04X",
                             alive ? "*" : "+",
                             char_aa_str, (use == USE_THIS) ? "  " : "..",
                             RX_context.RX_radio_payload.u.payload_u0.error_bits_now,
