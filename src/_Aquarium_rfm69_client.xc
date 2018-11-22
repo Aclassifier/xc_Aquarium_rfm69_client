@@ -195,13 +195,13 @@ typedef struct {
 
 typedef enum display_screen_name_t {
     // English-Norwegian here because the screens are in Norwegian
-    SCREEN_1_RX_MAIN_TIME_TEMP_ETC,
-    SCREEN_2_MISTET_OG_DB,
-    SCREEN_3_MAX_NA_MIN,
-    SCREEN_4_MAX_NA_MIN,
-    SCREEN_5_AQUARIUM_ERROR_BITS,
-    SCREEN_6_LIGHT,
-    //     # no number:
+    SCREEN_RX_MAIN_TIME_TEMP_ETC,
+    SCREEN_TEMPS_MAX_MIN_1,
+    SCREEN_TEMPS_MAX_MIN_2,
+    SCREEN_LIGHT,
+    SCREEN_MISTET_OG_DB,
+    SCREEN_AQUARIUM_ERROR_BITS,
+    SCREEN_VOLTAGES,
     SCREEN_WELCOME,
     SCREEN_DARK // Must be last
 } display_screen_name_t;
@@ -240,8 +240,9 @@ bool // i2c_ok
 
     if (display_context.state == is_on) {
 
-        const char char_aa_str []         = CHAR_AA_STR;
-        const char char_triple_bar_str [] = CHAR_TRIPLE_BAR_STR;
+        const char char_aa_str []         = CHAR_AA_STR;          // Å
+        const char char_triple_bar_str [] = CHAR_TRIPLE_BAR_STR;  // ≡
+        const char char_right_arrow_str[] = CHAR_RIGHT_ARROW_STR; // →
         const bool alive                  = (RX_context.appSeqCnt % 2) == 0;
 
         Clear_All_Pixels_In_Buffer();
@@ -273,7 +274,7 @@ bool // i2c_ok
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
-            case SCREEN_1_RX_MAIN_TIME_TEMP_ETC: {
+            case SCREEN_RX_MAIN_TIME_TEMP_ETC: {
                 #if (IS_MYTARGET_SLAVE == 1)
                     if (!isnull(RX_context.RX_radio_payload)) {
 
@@ -319,7 +320,7 @@ bool // i2c_ok
                 #endif
             } break;
 
-            case SCREEN_2_MISTET_OG_DB: {
+            case SCREEN_MISTET_OG_DB: {
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
@@ -342,7 +343,7 @@ bool // i2c_ok
                 #endif
             } break;
 
-            case SCREEN_3_MAX_NA_MIN: {
+            case SCREEN_TEMPS_MAX_MIN_1: {
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     const dp1_t max_water_dp1   = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC);
@@ -387,7 +388,7 @@ bool // i2c_ok
                 #endif
             } break;
 
-            case SCREEN_4_MAX_NA_MIN: {
+            case SCREEN_TEMPS_MAX_MIN_2: {
                 #if (IS_MYTARGET_SLAVE == 1)
                     const heater_on_watt_r    max_heater_watt     =                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt;
                     const heater_on_percent_r max_heater_percent  =                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent;
@@ -411,16 +412,19 @@ bool // i2c_ok
                     const heater_on_watt_r    min_heater_watt     =                RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt;
                     const heater_on_percent_r min_heater_percent  =                RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent;
                     const dp1_t               min_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+
+                    const char now_regulating_at_char[][2] = NOW_REGULATING_AT_CHAR_TEXTS;
                     /*
                     ..........----------.
-                    *    WATT %   VARME≡  Heater tray mean temp
+                    *  H WATT %   VARME≡  Heater tray mean temp
                     MAX  25   060 25.3
                     NÅ.. 08   058 25.3    .. when awating data
                     MIN  00   000 25.3
                     */
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s    WATT %%   VARME%s\nMAX  %02d   %03d %2d.%1d\nN%s%s %02d   %03d %2d.%1d\nMIN  %02d   %03d %2d.%1d",
+                            "%s  %s WATT %%   VARME%s\nMAX  %02d   %03d %2d.%1d\nN%s%s %02d   %03d %2d.%1d\nMIN  %02d   %03d %2d.%1d",
                             alive ? "*" : "+",
+                            now_regulating_at_char[RX_context.RX_radio_payload.u.payload_u0.now_regulating_at],
                             char_triple_bar_str,
                             max_heater_watt, max_heater_percent, max_heater_mean_dp1.unary, max_heater_mean_dp1.decimal,
                             char_aa_str, (use == USE_THIS) ? "  " : "..",
@@ -432,7 +436,7 @@ bool // i2c_ok
                 #endif
             } break;
 
-            case SCREEN_5_AQUARIUM_ERROR_BITS: {
+            case SCREEN_AQUARIUM_ERROR_BITS: {
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     /*
@@ -453,27 +457,55 @@ bool // i2c_ok
                 #endif
             } break;
 
-            case SCREEN_6_LIGHT: {
+            case SCREEN_LIGHT: {
                 #if (IS_MYTARGET_SLAVE == 1)
                     const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS;
+                    const unsigned divisor = NORMAL_LIGHT_THIRDS_OFFSET/10; // 30/10=3
                     /*
                     ..........----------.
-                    *    LYS
-                    NÅ   DAG (2/3)
-                    DAG  10t (10-20)
+                    *      LYS (2/3)
+                    NÅ     DAG @10→
+                    F-M-B  2/3 1/3 0/3
+                    LENGDE 10t (10-20)
                     */
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s    LYS\nN%s%s%s (%u/%u)\nDAG  %ut (%u-%u)",
+                            "%s      LYS (%u/%u)\nN%s%s  %s @%u%s\nF-M-B  %u/%u %u/%u %u/%u\nLENGDE %ut (%u-%u)",
                             alive ? "*" : "+",
+                            RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET, // 32-30=2
+                            divisor,
                             char_aa_str, (use == USE_THIS) ? "  " : "..",
                             light_control_scheme_strings[RX_context.RX_radio_payload.u.payload_u0.light_control_scheme],
-                            RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET, // 32-30=2
-                            NORMAL_LIGHT_THIRDS_OFFSET/10, // 30/10=3
+                            RX_context.RX_radio_payload.u.payload_u0.light_composition,
+                            char_right_arrow_str,
+                            RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_front,  divisor,
+                            RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_center, divisor,
+                            RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_back,   divisor,
                             RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
                             RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
                             RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour
-
                     );
+
+                    setTextSize(1);
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                #endif
+            } break;
+
+            case SCREEN_VOLTAGES: {
+                #if (IS_MYTARGET_SLAVE == 1)
+                    const dp1_t rr_24V_heat_onetenthV     = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV);
+                    const dp1_t rr_12V_LEDlight_onetenthV = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.rr_12V_LEDlight_onetenthV);
+
+                    /*
+                    ..........----------.
+                    *     VOLT
+                    VARME 24.1
+                    LYS   11.9
+                    */
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s     VOLT\nVARME %02u.%u\nLYS   %02u.%u",
+                            alive ? "*" : "+",
+                            rr_24V_heat_onetenthV.unary, rr_24V_heat_onetenthV.decimal,
+                            rr_12V_LEDlight_onetenthV.unary, rr_12V_LEDlight_onetenthV.decimal);
 
                     setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
@@ -761,7 +793,7 @@ void RFM69_handle_irq (
 
                     if (display_context.allow_auto_switch_to_screen_1_RX_main) {
                         display_context.allow_auto_switch_to_screen_1_RX_main = false;
-                        display_context.display_screen_name = SCREEN_1_RX_MAIN_TIME_TEMP_ETC;
+                        display_context.display_screen_name = SCREEN_RX_MAIN_TIME_TEMP_ETC;
                     } else {}
                     Display_screen (display_context, RX_context, USE_THIS, i_i2c_internal_commands);
 
@@ -784,6 +816,8 @@ void RFM69_handle_irq (
                         }
                     } else {} // Don't restore or set to PACKET_INIT_VAL08, I get to many CHAR_CHANGE_STR ('#')
 
+                    // ONLY THOSE PRINTED OR DISPLAYED ARE CALCULATED ON:
+                    //
                     RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,                        RX_context.RX_radio_payload.u.payload_u0.heater_on_percent);
                     RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt                           = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,                           RX_context.RX_radio_payload.u.payload_u0.heater_on_watt);
                     RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_context.RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
@@ -791,7 +825,7 @@ void RFM69_handle_irq (
                     RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_context.RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
                     RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = max (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_context.RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
                     RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = max (RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC,           RX_context.RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
-
+                    //
                     RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent                        = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,                        RX_context.RX_radio_payload.u.payload_u0.heater_on_percent);
                     RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt                           = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,                           RX_context.RX_radio_payload.u.payload_u0.heater_on_watt);
                     RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_context.RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
@@ -1085,7 +1119,7 @@ void display_screen_store_values (
         display_context_t &display_context,
         RX_context_t      &RX_context)
 {
-    if (display_context.display_screen_name_last_on == SCREEN_2_MISTET_OG_DB) {
+    if (display_context.display_screen_name_last_on == SCREEN_MISTET_OG_DB) {
         RX_context.num_appSeqCnt_notSeen_of_screen = RX_context.num_appSeqCnt_notSeen;
     } else {}
 }
