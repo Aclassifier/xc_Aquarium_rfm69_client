@@ -195,13 +195,14 @@ typedef struct {
 
 typedef enum display_screen_name_t {
     // English-Norwegian here because the screens are in Norwegian
+    // Sequence defines NEXT with IOF_BUTTON_CENTER:
     SCREEN_RX_MAIN_TIME_TEMP_ETC,
     SCREEN_TEMPS_MAX_MIN_1,
     SCREEN_TEMPS_MAX_MIN_2,
     SCREEN_LIGHT,
     SCREEN_MISTET_OG_DB,
-    SCREEN_AQUARIUM_ERROR_BITS,
     SCREEN_VOLTAGES,
+    SCREEN_AQUARIUM_ERROR_BITS,
     SCREEN_WELCOME,
     SCREEN_DARK // Must be last
 } display_screen_name_t;
@@ -418,18 +419,45 @@ bool // i2c_ok
                     ..........----------.
                     *  H WATT %   VARME≡  Heater tray mean temp
                     MAX  25   060 25.3
-                    NÅ.. 08   058 25.3    .. when awating data
-                    MIN  00   000 25.3
+                    NÅ.. 8    058 25.3    .. when awating data
+                    MIN  0    000 25.3
                     */
+
+                    #define LEN 2
+                    char max_heater_watt_[LEN+1]; // 99e
+                    int num_chars; // excluding NUL
+                    int num_fill;
+                    num_chars = sprintf (max_heater_watt_, "%u", max_heater_watt); // 9e 99e
+                    num_fill = LEN - num_chars;
+                    xassert (num_fill >= 0);
+
+                    while (num_fill > 0) {
+                        max_heater_watt_[num_chars] = ' ';
+                        num_chars++;
+                        num_fill--;
+                    }
+                    max_heater_watt_[LEN] = 0;
+
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s  %s WATT %%   VARME%s\nMAX  %02d   %03d %2d.%1d\nN%s%s %02d   %03d %2d.%1d\nMIN  %02d   %03d %2d.%1d",
+                            // "%s  %s WATT %%   VARME%s\nMAX  %d%s   %03d %2d.%1d\nN%s%s %d%s   %03d %2d.%1d\nMIN  %d%s   %03d %2d.%1d",
+                            "%s  %s WATT %%   VARME%s\nMAX  %s   %03d %2d.%1d\nN%s%s %d%s   %03d %2d.%1d\nMIN  %d%s   %03d %2d.%1d",
                             alive ? "*" : "+",
                             now_regulating_at_char[RX_context.RX_radio_payload.u.payload_u0.now_regulating_at],
                             char_triple_bar_str,
-                            max_heater_watt, max_heater_percent, max_heater_mean_dp1.unary, max_heater_mean_dp1.decimal,
+                            max_heater_watt_,
+                            //max_heater_watt,
+                            //(max_heater_watt < 10) ? " " : "",
+                            max_heater_percent,
+                            max_heater_mean_dp1.unary, max_heater_mean_dp1.decimal,
                             char_aa_str, (use == USE_THIS) ? "  " : "..",
-                            now_heater_watt, now_heater_percent, now_heater_mean_dp1.unary, now_heater_mean_dp1.decimal,
-                            min_heater_watt, min_heater_percent, min_heater_mean_dp1.unary, min_heater_mean_dp1.decimal);
+                            now_heater_watt,
+                           (now_heater_watt < 10) ? " " : "",
+                            now_heater_percent,
+                            now_heater_mean_dp1.unary, now_heater_mean_dp1.decimal,
+                            min_heater_watt,
+                           (min_heater_watt < 10) ? " " : "",
+                            min_heater_percent,
+                            min_heater_mean_dp1.unary, min_heater_mean_dp1.decimal);
 
                     setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
@@ -438,7 +466,6 @@ bool // i2c_ok
 
             case SCREEN_AQUARIUM_ERROR_BITS: {
                 #if (IS_MYTARGET_SLAVE == 1)
-
                     /*
                     ..........----------.
                     *           FEIL
@@ -459,7 +486,7 @@ bool // i2c_ok
 
             case SCREEN_LIGHT: {
                 #if (IS_MYTARGET_SLAVE == 1)
-                    const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS;
+                    const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LA;
                     const unsigned divisor = NORMAL_LIGHT_THIRDS_OFFSET/10; // 30/10=3
                     /*
                     ..........----------.
@@ -469,7 +496,7 @@ bool // i2c_ok
                     LENGDE 10t (10-20)
                     */
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s      LYS (%u/%u)\nN%s%s  %s @%u%s\nF-M-B  %u/%u %u/%u %u/%u\nLENGDE %ut (%u-%u)",
+                            "%s      LYS (%u/%u)\nN%s%s   %s @%u%s\nF-M-B  %u/%u %u/%u %u/%u\nLENGDE %ut (%u-%u)",
                             alive ? "*" : "+",
                             RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET, // 32-30=2
                             divisor,
@@ -494,7 +521,6 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
                     const dp1_t rr_24V_heat_onetenthV     = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV);
                     const dp1_t rr_12V_LEDlight_onetenthV = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.rr_12V_LEDlight_onetenthV);
-
                     /*
                     ..........----------.
                     *     VOLT
