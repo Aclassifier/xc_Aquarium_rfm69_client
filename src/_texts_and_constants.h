@@ -59,8 +59,8 @@
 
 // Depending of now_regulating_at_t
 #define REGULATING_AT_NUMS          8
-#define REGULATING_AT_NUMS_TEXT_LEN 2 // One char plus NUL at the end
-typedef char now_regulating_at_char_t [REGULATING_AT_NUMS][REGULATING_AT_NUMS_TEXT_LEN];
+#define REGULATING_AT_STRINGS_LENGTH 2 // One char plus NUL at the end
+typedef char now_regulating_at_char_t [REGULATING_AT_NUMS][REGULATING_AT_STRINGS_LENGTH];
 // ? REGULATING_AT_INIT
 // 2 REGULATING_AT_BOILING
 // 1 REGULATING_AT_SIMMERING

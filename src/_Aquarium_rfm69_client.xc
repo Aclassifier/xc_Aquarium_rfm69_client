@@ -200,7 +200,9 @@ typedef enum display_screen_name_t {
     SCREEN_3_MAX_NA_MIN,
     SCREEN_4_MAX_NA_MIN,
     SCREEN_5_AQUARIUM_ERROR_BITS,
-    SCREEN_6_WELCOME,
+    SCREEN_6_LIGHT,
+    //     # no number:
+    SCREEN_WELCOME,
     SCREEN_DARK // Must be last
 } display_screen_name_t;
 
@@ -253,7 +255,7 @@ bool // i2c_ok
 
         switch (display_context.display_screen_name) {
 
-            case SCREEN_6_WELCOME: {
+            case SCREEN_WELCOME: {
 
                 // ..........----------.
                 // VERSJON 0.8.09
@@ -435,16 +437,43 @@ bool // i2c_ok
 
                     /*
                     ..........----------.
-                    *           AKVA
-                    FEIL NÅ   0x0000
+                    *           FEIL
+                    NÅ        0x0000
                     HISTORIE  0x0000
                     */
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s           AKVA\nFEIL N%s%s 0x%04X\nHISTORIE  0x%04X",
+                            "%s           FEIL\nN%s%s      0x%04X\nHISTORIE  0x%04X",
                             alive ? "*" : "+",
                             char_aa_str, (use == USE_THIS) ? "  " : "..",
                             RX_context.RX_radio_payload.u.payload_u0.error_bits_now,
                             RX_context.RX_radio_payload.u.payload_u0.error_bits_history);
+
+                    setTextSize(1);
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                #endif
+            } break;
+
+            case SCREEN_6_LIGHT: {
+                #if (IS_MYTARGET_SLAVE == 1)
+                    const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS;
+                    /*
+                    ..........----------.
+                    *    LYS
+                    NÅ   DAG (2/3)
+                    DAG  10t (10-20)
+                    */
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s    LYS\nN%s%s%s (%u/%u)\nDAG  %ut (%u-%u)",
+                            alive ? "*" : "+",
+                            char_aa_str, (use == USE_THIS) ? "  " : "..",
+                            light_control_scheme_strings[RX_context.RX_radio_payload.u.payload_u0.light_control_scheme],
+                            RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET, // 32-30=2
+                            NORMAL_LIGHT_THIRDS_OFFSET/10, // 30/10=3
+                            RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
+                            RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
+                            RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour
+
+                    );
 
                     setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
@@ -558,7 +587,7 @@ void Debug_print_values (
                      RX_context.RX_radio_payload.u.payload_u0.heater_on_watt);
 
             {
-                const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_TEXT_TOTLEN] = LIGHT_CONTROL_SCHEME_STRINGS;
+                const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS;
                 debug_print ("Light light_control_scheme%s%s with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
                         (RX_context.RX_radio_payload.u.payload_u0.light_control_scheme == RX_context.RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
                          light_control_scheme_strings[RX_context.RX_radio_payload.u.payload_u0.light_control_scheme],
@@ -1179,8 +1208,8 @@ void RFM69_client (
         Adafruit_GFX_constructor (SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT);
         Adafruit_SSD1306_i2c_begin (i_i2c_internal_commands, p_display_notReset);
         display_context.state = is_on;
-        display_context.display_screen_name         = SCREEN_6_WELCOME;
-        display_context.display_screen_name_last_on = SCREEN_6_WELCOME;
+        display_context.display_screen_name         = SCREEN_WELCOME;
+        display_context.display_screen_name_last_on = SCREEN_WELCOME;
         Display_screen (display_context, RX_context, USE_THIS, i_i2c_internal_commands);
 
         display_context.allow_auto_switch_to_screen_1_RX_main = true;
