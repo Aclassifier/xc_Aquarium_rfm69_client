@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.13"
-#define RFM69_CLIENT_VERSION_NUM    0813
+#define RFM69_CLIENT_VERSION_STR "0.8.14"
+#define RFM69_CLIENT_VERSION_NUM    0814
+    //  0814    22Nov2018 New light and heating regulating names of text constants. NŒ change in code size
     //  0813    21Nov2108 Error screen and showing when a screen has got new data (with '*' and '+')
     //  0812    21Nov2018 An error in SCREEN_4_MAX_NA_MIN
     // "0.8.11" 20Nov2018 display_screen_store_values is new
