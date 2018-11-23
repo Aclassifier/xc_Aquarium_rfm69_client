@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <xccompat.h> // REFERENCE_PARAM
+#include <xassert.h>
 #include <string.h>   // memset.
 #include <iso646.h>
 #include <errno.h>
@@ -31,6 +32,25 @@
 #define debug_print(fmt, ...) do { if(DEBUG_PRINT_F_CONVERSIONS_MEAN and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
 
 #define INDEX_VOID (-1)
+
+
+void u_to_str_lm (                 // lm = left margin: 18 should come out as "18 "
+        const unsigned value,      // 18
+        char fill[],               // on return: "18 \0" (4 chars)
+        static const unsigned len) // 18-example: 4 (need space for NUL or '\0')
+{
+    int iof_next_fill = sprintf (fill, "%u", value); // 18-example: iof_next_fill is 2 (index 0,1 filled, no space for any '-')
+
+    xassert (iof_next_fill < len); // 18-example: if len were only 3 (filled already): 2<3
+
+    while (iof_next_fill < (len-1)) { // 18-example: 2<(4-1) -> 2<3 will run once:
+        fill[iof_next_fill] = ' ';    // 18-example: will fill index 2
+        iof_next_fill++;
+    }
+
+    xassert (iof_next_fill == (len-1)); // 18-example: 3==(4-1)
+    fill[len-1] = '\0';                 // 18-example: index 3 filled
+}
 
 version_t Parse_packed_version (const unsigned packed_version) { // 1234 is 1.2.34
 

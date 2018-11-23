@@ -128,6 +128,11 @@ typedef struct {
     unsigned decimal;
 } dp1_t;
 
+void u_to_str_lm (                  // lm = left margin: 18 should come out as "18 "
+        const unsigned value,       // 18
+        char fill[],                // on return: "18 \0" (4 chars)
+        static const unsigned len); // 18-example: 4 (need space for NUL or '\0')
+
 dp1_t                        Parse_i16_dp1                                 (const int16_t val_dp1); // 301 is 30.1 is unary 30 and decimal 1
 version_t                    Parse_packed_version                          (const unsigned packed_version); // 1234 is 1.2.34
 {temp_onetenthDegC_t, bool}  Temp_OnetenthDegC_To_Str                      (const i2c_temp_onetenthDegC_t degC_dp1, char temp_degC_str[EXTERNAL_TEMPERATURE_DEGC_TEXT_LEN]);

@@ -418,45 +418,43 @@ bool // i2c_ok
                     /*
                     ..........----------.
                     *  H WATT %   VARME≡  Heater tray mean temp
-                    MAX  25   060 25.3
-                    NÅ.. 8    058 25.3    .. when awating data
-                    MIN  0    000 25.3
+                    MAX  25   18  25.3
+                    NÅ.. 8    9   25.3    .. when awating data
+                    MIN  0    0   25.3
                     */
 
-                    #define LEN 2
-                    char max_heater_watt_[LEN+1]; // 99e
-                    int num_chars; // excluding NUL
-                    int num_fill;
-                    num_chars = sprintf (max_heater_watt_, "%u", max_heater_watt); // 9e 99e
-                    num_fill = LEN - num_chars;
-                    xassert (num_fill >= 0);
+                    #define WATT_NUMBER_WIDTH 2
+                    char max_heater_watt_str[WATT_NUMBER_WIDTH+1];
+                    char now_heater_watt_str[WATT_NUMBER_WIDTH+1];
+                    char min_heater_watt_str[WATT_NUMBER_WIDTH+1];
 
-                    while (num_fill > 0) {
-                        max_heater_watt_[num_chars] = ' ';
-                        num_chars++;
-                        num_fill--;
-                    }
-                    max_heater_watt_[LEN] = 0;
+                    u_to_str_lm (max_heater_watt, max_heater_watt_str, sizeof max_heater_watt_str);
+                    u_to_str_lm (now_heater_watt, now_heater_watt_str, sizeof now_heater_watt_str);
+                    u_to_str_lm (min_heater_watt, min_heater_watt_str, sizeof min_heater_watt_str);
+
+                    #define PERCENT_NUMBER_WIDTH 3
+                    char max_heater_percent_str[PERCENT_NUMBER_WIDTH+1];
+                    char now_heater_percent_str[PERCENT_NUMBER_WIDTH+1];
+                    char min_heater_percent_str[PERCENT_NUMBER_WIDTH+1];
+
+                    u_to_str_lm (max_heater_percent, max_heater_percent_str, sizeof max_heater_percent_str);
+                    u_to_str_lm (now_heater_percent, now_heater_percent_str, sizeof now_heater_percent_str);
+                    u_to_str_lm (min_heater_percent, min_heater_percent_str, sizeof min_heater_percent_str);
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            // "%s  %s WATT %%   VARME%s\nMAX  %d%s   %03d %2d.%1d\nN%s%s %d%s   %03d %2d.%1d\nMIN  %d%s   %03d %2d.%1d",
-                            "%s  %s WATT %%   VARME%s\nMAX  %s   %03d %2d.%1d\nN%s%s %d%s   %03d %2d.%1d\nMIN  %d%s   %03d %2d.%1d",
+                            "%s  %s WATT %%   VARME%s\nMAX  %s   %s %2d.%1d\nN%s%s %s   %s %2d.%1d\nMIN  %s   %s %2d.%1d",
                             alive ? "*" : "+",
                             now_regulating_at_char[RX_context.RX_radio_payload.u.payload_u0.now_regulating_at],
                             char_triple_bar_str,
-                            max_heater_watt_,
-                            //max_heater_watt,
-                            //(max_heater_watt < 10) ? " " : "",
-                            max_heater_percent,
+                            max_heater_watt_str,
+                            max_heater_percent_str,
                             max_heater_mean_dp1.unary, max_heater_mean_dp1.decimal,
                             char_aa_str, (use == USE_THIS) ? "  " : "..",
-                            now_heater_watt,
-                           (now_heater_watt < 10) ? " " : "",
-                            now_heater_percent,
+                            now_heater_watt_str,
+                            now_heater_percent_str,
                             now_heater_mean_dp1.unary, now_heater_mean_dp1.decimal,
-                            min_heater_watt,
-                           (min_heater_watt < 10) ? " " : "",
-                            min_heater_percent,
+                            min_heater_watt_str,
+                            min_heater_percent_str,
                             min_heater_mean_dp1.unary, min_heater_mean_dp1.decimal);
 
                     setTextSize(1);
@@ -1150,6 +1148,31 @@ void display_screen_store_values (
     } else {}
 }
 
+#if (IS_MYTARGET_SLAVE==1)
+    void reset_min_max (RX_context_t &RX_context) {
+
+        for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+            RX_context.RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
+        }
+                                                                                              // RFM69=002 redefined in _Aquarium_1_x/src/_rfm69_commprot.h
+        RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = HEATER_ON_PERCENT_R_MIN;
+        RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt                           = HEATER_ON_WATT_R_MIN;
+        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = ONETENTHDEGC_R_MIN;
+        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = ONETENTHDEGC_R_MIN;
+        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = ONETENTHDEGC_R_MIN;
+        RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = ONETENTHDEGC_R_MIN;
+        RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = ONETENTHDEGC_R_MIN;
+
+        RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent                        = HEATER_ON_PERCENT_R_MAX;
+        RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt                           = HEATER_ON_WATT_R_MAX;
+        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = ONETENTHDEGC_R_MAX;
+        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = ONETENTHDEGC_R_MAX;
+        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = ONETENTHDEGC_R_MAX;
+        RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = ONETENTHDEGC_R_MAX;
+        RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = ONETENTHDEGC_R_MAX;
+    }
+#endif
+
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
           server  irq_if_t                 i_irq,
@@ -1211,6 +1234,14 @@ void RFM69_client (
                 RX_context.debug_data_prev[i] = 0;
             }
         #endif
+
+        for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+            RX_context.RX_radio_payload.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
+        }
+
+        RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds = NORMAL_LIGHT_THIRDS_OFFSET;
+        reset_min_max (RX_context);
+
     #else
         #error MUST BE ONE of them! To code for both, recode somewhat
     #endif
@@ -1325,29 +1356,6 @@ void RFM69_client (
         debug_print ("RFM69 err1 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
     } else {}
 
-    #if (IS_MYTARGET_SLAVE==1)
-        for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
-            RX_context.RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
-            RX_context.RX_radio_payload     .u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
-        }
-                                                                                              // RFM69=002 redefined in _Aquarium_1_x/src/_rfm69_commprot.h
-        RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = HEATER_ON_PERCENT_R_MIN;
-        RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt                           = HEATER_ON_WATT_R_MIN;
-        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = ONETENTHDEGC_R_MIN;
-        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = ONETENTHDEGC_R_MIN;
-        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = ONETENTHDEGC_R_MIN;
-        RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = ONETENTHDEGC_R_MIN;
-        RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = ONETENTHDEGC_R_MIN;
-
-        RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent                        = HEATER_ON_PERCENT_R_MAX;
-        RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt                           = HEATER_ON_WATT_R_MAX;
-        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = ONETENTHDEGC_R_MAX;
-        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = ONETENTHDEGC_R_MAX;
-        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = ONETENTHDEGC_R_MAX;
-        RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = ONETENTHDEGC_R_MAX;
-        RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = ONETENTHDEGC_R_MAX;
-    #endif
-
     i_blink_and_watchdog.enable_watchdog_ok (
             XCORE_200_EXPLORER_LED_GREEN_BIT_MASK bitor XCORE_200_EXPLORER_LED_RGB_GREEN_BIT_MASK,
             ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC*5)/2) * 1000, // 10 seconds. May lose two ok. Max 21 secs
@@ -1407,13 +1415,13 @@ void RFM69_client (
                                 display_context.display_screen_name_last_on = display_context.display_screen_name; // PUSH it
                                 display_context.display_screen_name         = SCREEN_DARK;
                                 Display_screen (display_context, RX_context, USE_PREV, i_i2c_internal_commands); // First this so that SCREEN_DARK runs..
-                                display_context.state                       = is_off;                               // ..then is_off
+                                display_context.state                       = is_off;                            // ..then is_off
 
                                 display_screen_store_values (display_context, RX_context);
                             } else { // is_off: now switch on
                                 display_context.display_screen_name         = display_context.display_screen_name_last_on; // PULL it
-                                display_context.state                       = is_on;                                    // First is_on..
-                                Display_screen (display_context, RX_context, USE_PREV, i_i2c_internal_commands);     // ..then this so that screen goes on
+                                display_context.state                       = is_on;                             // First is_on..
+                                Display_screen (display_context, RX_context, USE_PREV, i_i2c_internal_commands); // ..then this so that screen goes on
                             }
                         } else {}
                     } break;
@@ -1433,7 +1441,14 @@ void RFM69_client (
                     } break;
 
                     case IOF_BUTTON_RIGHT: {
-                        i_blink_and_watchdog.reset_watchdog_ok();
+
+                        if (button_action == BUTTON_ACTION_RELEASED) {
+                            i_blink_and_watchdog.reset_watchdog_ok();
+                        } else if (button_action == BUTTON_ACTION_PRESSED_FOR_10_SECONDS) {
+                            #if (IS_MYTARGET_SLAVE==1)
+                                reset_min_max (RX_context);
+                            #endif
+                        }
                     } break;
                 }
             } break;

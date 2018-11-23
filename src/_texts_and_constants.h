@@ -35,7 +35,7 @@
 
 #define INNER_RR_12V_24V_MAX_VOLTS     99        // Think of it also as "undefined" (read not successful)
 #define INNER_RR_12V_24V_MIN_VOLTS     0
-#define INNER_RR_12V_24V_TEXT_LEN 5         // "12.0" with space for NUL
+#define INNER_RR_12V_24V_TEXT_LEN      5         // "12.0" with space for NUL
 #define INNER_RR_12V_24V_ERROR_TEXT   "??.?"     // INNER_12V_24V_ERROR_TEXT also includes NUL at the end
 
 #define SSD1306_TS1_LINE_CHAR_NUM     21 // ABCDEFGHIJKLMNOPQRSTU with TextSize 1 (small, 4 lines in the display)
