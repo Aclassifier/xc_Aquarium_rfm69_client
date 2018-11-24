@@ -166,7 +166,6 @@ void blink_and_watchdog_task (
                     const unsigned         blink_on_ms)    // Max about 21 seconds
                     -> bool success: { // off is same time
 
-
                 ASSERT_DELAY_32 (silent_for_ms * XS1_TIMER_KHZ);
                 ASSERT_DELAY_32 (blink_on_ms * XS1_TIMER_KHZ);
 
@@ -198,6 +197,7 @@ void blink_and_watchdog_task (
                 if (enabled_watchdog) {
                     does_watchdog_blinking = false;
                     is_watchdog_port_pins_on = false;
+                    do_watchdog_feed_next = true; // Important, else it will blink again
                     port_pins and_eq (compl watchdog_port_pins_mask); // LED off no matter what it was
                     p_port <: port_pins;
                 } else {}

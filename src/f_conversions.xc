@@ -41,15 +41,15 @@ void u_to_str_lm (                 // lm = left margin: 18 should come out as "1
 {
     int iof_next_fill = sprintf (fill, "%u", value); // 18-example: iof_next_fill is 2 (index 0,1 filled, no space for any '-')
 
-    xassert (iof_next_fill < len); // 18-example: if len were only 3 (filled already): 2<3
+    // xassert (iof_next_fill < len); // 18-example: if len were only 3 (filled already): 2<3
 
     while (iof_next_fill < (len-1)) { // 18-example: 2<(4-1) -> 2<3 will run once:
         fill[iof_next_fill] = ' ';    // 18-example: will fill index 2
         iof_next_fill++;
     }
 
-    xassert (iof_next_fill == (len-1)); // 18-example: 3==(4-1)
-    fill[len-1] = '\0';                 // 18-example: index 3 filled
+    // xassert (iof_next_fill == (len-1)); // 18-example: 3==(4-1)
+    fill[len-1] = '\0';                    // 18-example: index 3 filled
 }
 
 version_t Parse_packed_version (const unsigned packed_version) { // 1234 is 1.2.34

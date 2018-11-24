@@ -200,8 +200,8 @@ typedef enum display_screen_name_t {
     // Sequence defines NEXT with IOF_BUTTON_CENTER:
     SCREEN_RX_MAIN_TIME_TEMP_ETC,
     SCREEN_STATISTICS,
-    SCREEN_TEMPS_MAX_MIN_1,
-    SCREEN_TEMPS_MAX_MIN_2,
+    SCREEN_TEMPS_ETC,
+    SCREEN_WATT_ETC,
     SCREEN_LIGHT,
     SCREEN_TX_SEQ_CNT,
     SCREEN_VOLTAGES,
@@ -282,7 +282,7 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
                     if (!isnull(RX_context.RX_radio_payload)) {
 
-                        // ##########. ALL setTextSize(2)
+                        // ##########. Most setTextSize(2)
                         // 12:43:04 3
                         // 25.3°C 4W
 
@@ -326,9 +326,10 @@ bool // i2c_ok
 
             case SCREEN_STATISTICS: {
                 #if (IS_MYTARGET_SLAVE == 1)
-                    // ..........----------.
-                    // -100dB         -96↑
-                    //                -101↓
+
+                // ..........----------.
+                    // -100dB         ↑ -96
+                    //                ↓ -101
                     // RX? 2 av 300
                     // RX? 1/150 (+2)
 
@@ -343,13 +344,13 @@ bool // i2c_ok
                     setTextSize(1);
 
                     setCursor(80,0);
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%d %s",
-                            RX_context.nowRSSI_strongest, char_up_arrow_str);
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s %d",
+                            char_up_arrow_str, RX_context.nowRSSI_strongest);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
 
                     setCursor(80,7);
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%d %s",
-                            RX_context.nowRSSI_weakest, char_down_arrow_str);
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s %d",
+                            char_down_arrow_str, RX_context.nowRSSI_weakest);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
 
                     setCursor(0,16);
@@ -377,17 +378,23 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
-                    // TX 3456789
+                    // TX    242091
+                    // TIMER 268
+                    // DAGER 11
 
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "TX %u",
-                            RX_context.appSeqCnt);
+                    const unsigned hours = (RX_context.appSeqCnt * AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC) / 3600;
+                    const unsigned days  = hours / 24; // Should be same as RX_context.RX_radio_payload.u.payload_u0.num_days_since_start
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "TX    %u\nTIMER %u\nDAGER %u",
+                            RX_context.appSeqCnt,
+                            hours, days);
 
                     setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
             } break;
 
-            case SCREEN_TEMPS_MAX_MIN_1: {
+            case SCREEN_TEMPS_ETC: {
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     const dp1_t max_water_dp1   = Parse_i16_dp1 (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC);
@@ -412,13 +419,13 @@ bool // i2c_ok
                     const dp1_t min_water_dp1   = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC);
                     const dp1_t min_ambient_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC);
                     const dp1_t min_heater_dp1  = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC);
-                    /*
-                    ..........----------.
-                    *    VANN LUFT VARME
-                    MAX  25.2 26.1 23.2
-                    NÅ.. 25.2 26.1 23.2   .. when awating data
-                    MIN  25.2 26.1 23.2
-                    */
+
+                    // ..........----------.
+                    // *    VANN LUFT VARME
+                    // MAX  25.2 26.1 23.2
+                    // NÅ.. 25.2 26.1 23.2   .. when awating data
+                    // MIN  25.2 26.1 23.2
+
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                             "%s    VANN LUFT VARME\nMAX  %2d.%1d %2d.%1d %2d.%1d\nN%s%s %2d.%1d %2d.%1d %2d.%1d\nMIN  %2d.%1d %2d.%1d %2d.%1d",
                             alive ? "*" : "+",
@@ -432,7 +439,7 @@ bool // i2c_ok
                 #endif
             } break;
 
-            case SCREEN_TEMPS_MAX_MIN_2: {
+            case SCREEN_WATT_ETC: {
                 #if (IS_MYTARGET_SLAVE == 1)
                     const heater_on_watt_r    max_heater_watt     =                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt;
                     const heater_on_percent_r max_heater_percent  =                RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent;
@@ -458,13 +465,12 @@ bool // i2c_ok
                     const dp1_t               min_heater_mean_dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
 
                     const char now_regulating_at_char[][2] = NOW_REGULATING_AT_CHAR_TEXTS;
-                    /*
-                    ..........----------.
-                    *  H WATT %   VARME≡  Heater tray mean temp
-                    MAX  25   18  25.3
-                    NÅ.. 8    9   25.3    .. when awating data
-                    MIN  0    0   25.3
-                    */
+
+                    // ..........----------.
+                    // *    H W  %   VARME≡  Heater tray mean temp
+                    // MAX    25 18  25.3
+                    // NÅ..   8  9   25.3    .. when awating data
+                    // MIN    0  0   25.3
 
                     #define WATT_NUMBER_WIDTH 2
                     char max_heater_watt_str[WATT_NUMBER_WIDTH+1];
@@ -485,7 +491,8 @@ bool // i2c_ok
                     u_to_str_lm (min_heater_percent, min_heater_percent_str, sizeof min_heater_percent_str);
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s  %s WATT %%   VARME%s\nMAX  %s   %s %2d.%1d\nN%s%s %s   %s %2d.%1d\nMIN  %s   %s %2d.%1d",
+                            //  "%s  %s WATT %%   VARME%s\nMAX  %s   %s %2d.%1d\nN%s%s %s   %s %2d.%1d\nMIN  %s   %s %2d.%1d",
+                            "%s %s = W  %%   VARME%s\nMAX   %s %s %2d.%1d\nN%s%s  %s %s %2d.%1d\nMIN   %s %s %2d.%1d",
                             alive ? "*" : "+",
                             now_regulating_at_char[RX_context.RX_radio_payload.u.payload_u0.now_regulating_at],
                             char_triple_bar_str,
@@ -507,12 +514,12 @@ bool // i2c_ok
 
             case SCREEN_AQUARIUM_ERROR_BITS: {
                 #if (IS_MYTARGET_SLAVE == 1)
-                    /*
-                    ..........----------.
-                    *           FEIL
-                    NÅ        0x0000
-                    HISTORIE  0x0000
-                    */
+
+                    // ..........----------.
+                    //  *           FEIL
+                    //  NÅ        0x0000
+                    // HISTORIE  0x0000
+
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                             "%s           FEIL\nN%s%s      0x%04X\nHISTORIE  0x%04X",
                             alive ? "*" : "+",
@@ -529,13 +536,13 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
                     const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LA;
                     const unsigned divisor = NORMAL_LIGHT_THIRDS_OFFSET/10; // 30/10=3
-                    /*
-                    ..........----------.
-                    *      LYS (2/3)
-                    NÅ     DAG @10→
-                    F-M-B  2/3 1/3 0/3
-                    LENGDE 10t (10-20)
-                    */
+
+                    // ..........----------.
+                    // *      LYS (2/3)
+                    // NÅ     DAG @10→
+                    // F-M-B  2/3 1/3 0/3
+                    // LENGDE 10t (10-20)
+
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                             "%s      LYS (%u/%u)\nN%s%s   %s @%u%s\nF-M-B  %u/%u %u/%u %u/%u\nLENGDE %ut (%u-%u)",
                             alive ? "*" : "+",
@@ -562,12 +569,12 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
                     const dp1_t rr_24V_heat_onetenthV     = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV);
                     const dp1_t rr_12V_LEDlight_onetenthV = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.rr_12V_LEDlight_onetenthV);
-                    /*
-                    ..........----------.
-                    *     VOLT
-                    VARME 24.1
-                    LYS   11.9
-                    */
+
+                    // ..........----------.
+                    // *     VOLT
+                    // VARME 24.1
+                    // LYS   11.9
+
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                             "%s     VOLT\nVARME %02u.%u\nLYS   %02u.%u",
                             alive ? "*" : "+",
@@ -1190,9 +1197,7 @@ void display_screen_store_values (
         display_context_t &display_context,
         RX_context_t      &RX_context)
 {
-    if (display_context.display_screen_name_last_on == SCREEN_TX_SEQ_CNT) {
-        RX_context.num_appSeqCnt_notSeen_of_screen = RX_context.num_appSeqCnt_notSeen;
-    } else {}
+    RX_context.num_appSeqCnt_notSeen_of_screen = RX_context.num_appSeqCnt_notSeen;
 }
 
 #if (IS_MYTARGET_SLAVE==1)
