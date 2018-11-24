@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.15"
-#define RFM69_CLIENT_VERSION_NUM    0815
+#define RFM69_CLIENT_VERSION_STR "0.8.16"
+#define RFM69_CLIENT_VERSION_NUM    0816
+    //  0816    24Nov2018 New screen SCREEN_STATISTICS and more statistics
     //  0815    23Nov2018 u_to_str_lm is new
     //  0814    22Nov2018 New light and heating regulating names of text constants
     //  0813    21Nov2108 Error screen and showing when a screen has got new data (with '*' and '+')

@@ -93,6 +93,8 @@ extern unsigned char font[];
 //}}}
 
 #define CHAR_SMILEY        2 // Alternatively 1
+#define CHAR_UP_ARROW     24 // ↑
+#define CHAR_DOWN_ARROW   25 // ↓
 #define CHAR_RIGHT_ARROW  26 // -> but nicer
 #define CHAR_LEFT_ARROW   27 // <- but nicer
 #define CHAR_aa          132 // å MODIFIED, was a-umlaut ä
@@ -111,8 +113,8 @@ extern unsigned char font[];
 /*  0x7C, 0x12, 0x11, 0x12, 0x7C,   143 A-ring (with dot)  */
 /*  0x3A, 0x44, 0x44, 0x44, 0x3A,   148 o-umlaut           */
 
-// Matching setTextSize(1) = one bit is one pixel
-// Matching setTextSize(2) = one bit is four pixels
+// Matching setTextSize(1) = one dot is one pixel
+// Matching setTextSize(2) = one dot is four pixels
 
 // Was downloaded from GitHub as "Standard ASCII 5x7 font", which is correct in a way:
 // the letter "O" has no pixel in the highest bit (lowest pixel pos), meaning it fills 5x7,
