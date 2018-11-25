@@ -1266,6 +1266,7 @@ void display_screen_store_values (
 
         RX_context.num_radioCRC16errs = 0;
         RX_context.num_appCRC32errs = 0;
+        RX_context.num_bothCRCerrs = 0;
     }
 #endif
 
