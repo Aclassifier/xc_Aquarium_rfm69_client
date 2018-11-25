@@ -168,6 +168,7 @@ typedef struct {
     unsigned  num_appSeqCnt_notSeen_of_screen;
     unsigned  num_radioCRC16errs;
     unsigned  num_appCRC32errs;
+    unsigned  num_bothCRCerrs;
     unsigned  seconds_since_last_received;
     uint32_t  appSeqCnt;
     uint32_t  appSeqCnt_prev;
@@ -200,6 +201,7 @@ typedef enum display_screen_name_t {
     // Sequence defines NEXT with IOF_BUTTON_CENTER:
     SCREEN_RX_MAIN_TIME_TEMP_ETC,
     SCREEN_STATISTICS,
+    SCREEN_STATISTICS_2,
     SCREEN_TEMPS_ETC,
     SCREEN_WATT_ETC,
     SCREEN_LIGHT,
@@ -329,7 +331,7 @@ bool // i2c_ok
             case SCREEN_STATISTICS: {
                 #if (IS_MYTARGET_SLAVE == 1)
 
-                // ..........----------.
+                    // ..........----------.
                     // -100dB         ↑ -96
                     //                ↓ -101
                     // RX? 2 av 300
@@ -373,6 +375,26 @@ bool // i2c_ok
                     }
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
 
+                #endif
+            } break;
+
+            case SCREEN_STATISTICS_2: {
+                #if (IS_MYTARGET_SLAVE == 1)
+
+                    // ..........----------.
+                    // *     FEIL
+                    // CRC16 123
+                    // CRC32 123
+                    // BEGGE 123
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s     FEIL\nCRC16 %u\nCRC32 %u\nBEGGE %u",
+                            alive ? "*" : "+",
+                            RX_context.num_radioCRC16errs,
+                            RX_context.num_appCRC32errs,
+                            RX_context.num_bothCRCerrs);
+
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
                 #endif
             } break;
 
@@ -426,7 +448,7 @@ bool // i2c_ok
                     // ..........----------.
                     // *    VANN LUFT VARME
                     // MAX  25.2 26.1 23.2
-                    // NÅ.  25.2 26.1 23.2   . when awating data
+                    // NÅ.  25.2 26.1 23.2   '.' when awating data
                     // MIN  25.2 26.1 23.2
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
@@ -472,7 +494,7 @@ bool // i2c_ok
                     // ..........----------.
                     // *    R W  %   VARME≡  Heater tray mean temp
                     // MAX    48 100 40.4
-                    // NÅ.  = 24 50  25.3    . when awating data
+                    // NÅ.  = 24 50  25.3    '.' when awating data. '=' in a white square
                     // MIN    0  0   24.2
 
                     #define WATT_NUMBER_WIDTH 2
@@ -495,14 +517,13 @@ bool // i2c_ok
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                             //  "%s  %s WATT %%   VARME%s\nMAX  %s   %s %2d.%1d\nN%s%s %s   %s %2d.%1d\nMIN  %s   %s %2d.%1d",
-                            "%s   R W  %%   VARME%s\nMAX   %s %s %2d.%1d\nN%s%s %s %s %s %2d.%1d\nMIN   %s %s %2d.%1d",
+                            "%s   R W  %%   VARME%s\nMAX   %s %s %2d.%1d\nN%s%s   %s %s %2d.%1d\nMIN   %s %s %2d.%1d",
                             alive ? "*" : "+",
                             char_triple_bar_str,
                             max_heater_watt_str,
                             max_heater_percent_str,
                             max_heater_mean_dp1.unary, max_heater_mean_dp1.decimal,
                             char_aa_str, (use == USE_THIS) ? " " : ".",
-                            now_regulating_at_char[RX_context.RX_radio_payload.u.payload_u0.now_regulating_at],
                             now_heater_watt_str,
                             now_heater_percent_str,
                             now_heater_mean_dp1.unary, now_heater_mean_dp1.decimal,
@@ -512,6 +533,18 @@ bool // i2c_ok
 
                     setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
+                    drawRoundRect(20, 14, 11, 11, 1, WHITE); // x,y,w,h,r,color x,y=0,0 is left top BORDERS ONLY
+                    fillRoundRect(20, 14, 11, 11, 1, WHITE); // x,y,w,h,r,color x,y=0,0 is left top FILL ONLY
+
+                    setTextColor(BLACK);
+                    setCursor(23,16);
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s",
+                            now_regulating_at_char[RX_context.RX_radio_payload.u.payload_u0.now_regulating_at]);
+
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+
                 #endif
             } break;
 
@@ -520,7 +553,7 @@ bool // i2c_ok
 
                     // ..........----------.
                     //             FEIL
-                    // NÅ        0x0000     . when awating data
+                    // NÅ        0x0000     '.' when awating data
                     // HISTORIE  0x0000
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
@@ -543,7 +576,7 @@ bool // i2c_ok
                     // ..........----------.
                     // *  LYS 2/3
                     // LEDfmb 2/3 1/3 0/3
-                    // NÅ     DAG @10       . when awating data
+                    // NÅ.    DAG @10       '.' when awating data
                     // TIMER  10t 10-20
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
@@ -949,7 +982,7 @@ void RFM69_handle_irq (
 
                 if (CRC16err) {RX_context.num_radioCRC16errs++;}
                 if (CRC32err) {RX_context.num_appCRC32errs++;}
-                if (bothErr)  {RX_context.num_radioCRC16errs++; RX_context.num_appCRC32errs++;}
+                if (bothErr)  {RX_context.num_bothCRCerrs++;}
 
                 debug_print ("RSSI %d, CRC-fail@%u radioCRC16@%u %u, appCRC32@%u %u with PACKETLEN %u\n",
                         RX_context.nowRSSI,
@@ -1230,6 +1263,9 @@ void display_screen_store_values (
 
         RX_context.num_appSeqCnt_notSeen = 0;
         RX_context.num_received = 0;
+
+        RX_context.num_radioCRC16errs = 0;
+        RX_context.num_appCRC32errs = 0;
     }
 #endif
 

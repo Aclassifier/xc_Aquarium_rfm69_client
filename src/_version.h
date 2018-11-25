@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.17"
-#define RFM69_CLIENT_VERSION_NUM    0817
+#define RFM69_CLIENT_VERSION_STR "0.8.18"
+#define RFM69_CLIENT_VERSION_NUM    0818
+    //  0818    25Nov2018 SCREEN_STATISTICS_2 and compiled with SEMANTICS_DO_CRC_ERR_NO_IRQ=0 in lib_rfm69_xc
     //  0817    24Nov2018 New screen SCREEN_STATISTICS and more statistics
     //  0815    23Nov2018 u_to_str_lm is new
     //  0814    22Nov2018 New light and heating regulating names of text constants
