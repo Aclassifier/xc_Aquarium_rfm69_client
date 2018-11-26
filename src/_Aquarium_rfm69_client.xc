@@ -252,6 +252,7 @@ bool // i2c_ok
     Display_screen (
         display_context_t                 &display_context,
                 RX_context_t              &RX_context,
+                RXTX_context_t            &RXTX_context,
         const   use_t                     use,
         client  i2c_internal_commands_if  i_i2c_internal_commands) {
 
@@ -416,19 +417,20 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
-                    // 0 DEBUG H KNAPP
-                    //
-                    // OM=XX  F1=XX  F2=XX     iof_RegOpMode  iof_RegIrqFlags1             iof_RegIrqFlags2
-                    // RM=XX  IC=XX            iof_radio_mode iof_waitForIRQInterruptCause
+                    // 0 DEBUG H KNAPP         "Standard" values when IRQ not going on:
+                    // OM=90  F1=D8  F2=00     iof_RegOpMode  iof_RegIrqFlags1             iof_RegIrqFlags2
+                    // RM=04  IC=00            iof_radio_mode iof_waitForIRQInterruptCause
+                    // ERR 1  FFFF
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s DEBUG H KNAPP\n\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X",
+                            "%s DEBUG H KNAPP\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X\nERR %u %04X",
                             RX_context.debug_alive ? "1" : "0",
                             RX_context.debug_data[0],  // iof_RegOpMode
                             RX_context.debug_data[1],  // iof_RegIrqFlags1
                             RX_context.debug_data[2],  // iof_RegIrqFlags2
                             RX_context.debug_data[3],  // iof_radio_mode
-                            RX_context.debug_data[4]); // iof_waitForIRQInterruptCause
+                            RX_context.debug_data[4], // iof_waitForIRQInterruptCause
+                            RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
 
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
                 #endif
@@ -976,7 +978,7 @@ void RFM69_handle_irq (
 
                     DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_2_NOW_MAX_MIN, debug_print_context, RX_context, RXTX_context);
 
-                    Display_screen (display_context, RX_context, USE_THIS, i_i2c_internal_commands);
+                    Display_screen (display_context, RX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
 
                     DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_1_SEQCNT_ETC, debug_print_context, RX_context, RXTX_context);
                     DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_2_TEMPS_ETC, debug_print_context, RX_context, RXTX_context);
@@ -1447,7 +1449,7 @@ void RFM69_client (
         display_context.state = is_on;
         display_context.display_screen_name         = SCREEN_WELCOME;
         display_context.display_screen_name_last_on = SCREEN_WELCOME;
-        Display_screen (display_context, RX_context, USE_THIS, i_i2c_internal_commands);
+        Display_screen (display_context, RX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
 
         display_context.allow_auto_switch_to_screen_1_RX_main = true;
     }
@@ -1560,14 +1562,14 @@ void RFM69_client (
                             if (display_context.state == is_on) { // now switch off
                                 display_context.display_screen_name_last_on = display_context.display_screen_name; // PUSH it
                                 display_context.display_screen_name         = SCREEN_DARK;
-                                Display_screen (display_context, RX_context, USE_PREV, i_i2c_internal_commands); // First this so that SCREEN_DARK runs..
+                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands); // First this so that SCREEN_DARK runs..
                                 display_context.state                       = is_off;                            // ..then is_off
 
                                 display_screen_store_values (display_context, RX_context);
                             } else { // is_off: now switch on
                                 display_context.display_screen_name         = display_context.display_screen_name_last_on; // PULL it
                                 display_context.state                       = is_on;                             // First is_on..
-                                Display_screen (display_context, RX_context, USE_PREV, i_i2c_internal_commands); // ..then this so that screen goes on
+                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands); // ..then this so that screen goes on
                             }
                         } else {}
                     } break;
@@ -1579,7 +1581,7 @@ void RFM69_client (
 
                                 debug_print ("SCREEN NAME %u\n", display_context.display_screen_name);
                                 display_context.display_screen_name = (display_context.display_screen_name + 1) % SCREEN_DARK;
-                                Display_screen (display_context, RX_context, USE_PREV, i_i2c_internal_commands);
+                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
 
                                 display_screen_store_values (display_context, RX_context);
                             } else {}
@@ -1595,7 +1597,7 @@ void RFM69_client (
                                     #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
                                         i_radio.getDebug (RX_context.debug_data);
                                         RX_context.debug_alive = not RX_context.debug_alive;
-                                        Display_screen (display_context, RX_context, USE_PREV, i_i2c_internal_commands);
+                                        Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                     #endif
                                 }
                             } else {}
