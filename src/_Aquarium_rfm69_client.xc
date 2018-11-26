@@ -154,6 +154,7 @@ typedef struct {
     uint32_t               interruptCnt;
     some_rfm69_internals_t some_rfm69_internals;
     packet_t               PACKET;
+    error_bits_e           error_bits_history;
     //
 } RXTX_context_t;
 
@@ -417,20 +418,25 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
-                    // 0 DEBUG H KNAPP         "Standard" values when IRQ not going on:
+                    // * ERR 1 FFFF
+                    // 0 DEB H KNAPP→         "Standard" values when IRQ not going on:
                     // OM=90  F1=D8  F2=00     iof_RegOpMode  iof_RegIrqFlags1             iof_RegIrqFlags2
                     // RM=04  IC=00            iof_radio_mode iof_waitForIRQInterruptCause
-                    // ERR 1  FFFF
+
+                    // 0819: 90 D9 44 04 00
+                    // 0819: 90 D9 64 04 00
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s DEBUG H KNAPP\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X\nERR %u %04X",
-                            RX_context.debug_alive ? "1" : "0",
+                            "%s ERR %u %04X\n%s DEB H KNAPP%s\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X",
+                            alive ? "*" : "+",
+                            RXTX_context.is_new_error, RXTX_context.error_bits_history,
+                            RX_context.debug_alive ? "=" : "#",
+                            char_right_arrow_str,
                             RX_context.debug_data[0],  // iof_RegOpMode
                             RX_context.debug_data[1],  // iof_RegIrqFlags1
                             RX_context.debug_data[2],  // iof_RegIrqFlags2
                             RX_context.debug_data[3],  // iof_radio_mode
-                            RX_context.debug_data[4], // iof_waitForIRQInterruptCause
-                            RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
+                            RX_context.debug_data[4]); // iof_waitForIRQInterruptCause
 
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
                 #endif
@@ -1103,6 +1109,8 @@ void RFM69_handle_irq (
     }
 
     {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+    RXTX_context.error_bits_history or_eq RXTX_context.some_rfm69_internals.error_bits;
+
     if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
         debug_print ("RFM69 err2 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
     } else {}
@@ -1285,7 +1293,9 @@ void display_screen_store_values (
 }
 
 #if (IS_MYTARGET_SLAVE==1)
-    void reset_values (RX_context_t &RX_context) {
+    void reset_values (
+            RX_context_t   &RX_context,
+            RXTX_context_t &RXTX_context) {
 
         for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
             RX_context.RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
@@ -1316,6 +1326,8 @@ void display_screen_store_values (
         RX_context.num_radioCRC16errs = 0;
         RX_context.num_appCRC32errs = 0;
         RX_context.num_bothCRCerrs = 0;
+
+        RXTX_context.error_bits_history = 0;
     }
 #endif
 
@@ -1388,7 +1400,7 @@ void RFM69_client (
         }
 
         RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds = NORMAL_LIGHT_THIRDS_OFFSET;
-        reset_values (RX_context);
+        reset_values (RX_context, RXTX_context);
 
     #else
         #error MUST BE ONE of them! To code for both, recode somewhat
@@ -1603,7 +1615,7 @@ void RFM69_client (
                             } else {}
                         } else if (button_action == BUTTON_ACTION_PRESSED_FOR_10_SECONDS) {
                             #if (IS_MYTARGET_SLAVE==1)
-                                reset_values (RX_context);
+                                reset_values (RX_context, RXTX_context);
                             #endif
                         }
                     } break;

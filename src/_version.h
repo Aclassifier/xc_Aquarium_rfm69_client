@@ -15,8 +15,9 @@
 
 #define FLASH_EXPLORER_BOX 1 // 1 basically to remove code building printf strings
 
-#define RFM69_CLIENT_VERSION_STR "0.8.19"
-#define RFM69_CLIENT_VERSION_NUM    0819
+#define RFM69_CLIENT_VERSION_STR "0.8.20"
+#define RFM69_CLIENT_VERSION_NUM    0820
+    //  0820    26Nov2018 SCREEN_DEBUG better
     //  0819    26Nov2018 SCREEN_DEBUG is new
     //                    SEMANTICS_DO_CRC_ERR_NO_IRQ now to be set with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ
     //          RFM69=003 IRQ error aqain, first time seen in with FLASH_EXPLORER_BOX.
