@@ -34,7 +34,8 @@ All text above, and the splash screen below must be included in any redistributi
 #include <string.h>   // memset. TODO Consider safestring. All over the project!
 #include <timer.h>    // For delay_milliseconds (but it compiles without?)
 
-#include "_globals.h"
+#include "_version.h" // First this..
+#include "_globals.h" // ..then this
 #include "param.h"
 #include "button_press.h"
 

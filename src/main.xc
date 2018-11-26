@@ -19,8 +19,8 @@
 #include <xassert.h>
 #include <i2c.h>
 
-#include "_version.h"
-#include "_globals.h"
+#include "_version.h" // First this..
+#include "_globals.h" // ..then this
 #include "blink_and_watchdog.h"
 
 #include "param.h"
@@ -40,7 +40,7 @@
 #endif
 
 #define DEBUG_PRINT_RFM69 1
-#define debug_print(fmt, ...) do { if(DEBUG_PRINT_RFM69 and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
+#define debug_print(fmt, ...) do { if((DEBUG_PRINT_RFM69==1) and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
 
 #define SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK 0 // # chanends ---MEM---  (relative values)
                                                // 1 :     2    700 bytes  Does it faster after IRQ line (good if much logging in RFM69_driver)
@@ -222,16 +222,19 @@ int main() {
     // Observe http://www.teigfam.net/oyvind/home/technology/098-my-xmos-notes/#xtag-3_debug_log_hanging!
 
     par {
+        // RFM69=003 giving the two first their own cores. Basically want i2c not to take cycles from spi (which they didn't do anyhow)
+        //           i2c_master is synchronous and called from RFM69_client so RFM69_client should then not be on some core as spi_master_2 (?)
+
         on tile[0].core[0]: spi_master_2            (i_spi, SPI_NUM_CLIENTS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
-        on tile[0].core[0]: RFM69_driver            (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combineable]]
-        on tile[0].core[0]: RFM69_client            (i_irq, i_radio, i_blink_and_watchdog[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK, i_buttons, i_i2c_internal_commands[0], p_display_notReset);
-        on tile[0].core[1]: blink_and_watchdog_task (i_blink_and_watchdog, p_explorer_leds);
+        on tile[0].core[1]: RFM69_driver            (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combineable]]
+        on tile[0].core[2]: RFM69_client            (i_irq, i_radio, i_blink_and_watchdog[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK, i_buttons, i_i2c_internal_commands[0], p_display_notReset);
+        on tile[0].core[2]: blink_and_watchdog_task (i_blink_and_watchdog, p_explorer_leds);
 
         #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
             // Does not work, see XMOS ticket 31286
             IRQ_detect_task (i_irq, p_spi_irq, null, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
         #else
-            on tile[0].core[0]: IRQ_detect_task (i_irq, p_spi_irq, null, null, SPI_CLIENT_VOID);
+            on tile[0].core[1]: IRQ_detect_task (i_irq, p_spi_irq, null, null, SPI_CLIENT_VOID);
         #endif
 
         on tile[0].core[2]: Button_Task (IOF_BUTTON_LEFT,   inP_button_left,   i_buttons[IOF_BUTTON_LEFT]);   // [[combinable]]

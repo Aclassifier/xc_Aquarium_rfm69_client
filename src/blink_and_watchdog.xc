@@ -18,8 +18,8 @@
 #include <limits.h>   // for ASSERT_DELAY_32 if DO_ASSERTS
 #include <xassert.h>  // for ASSERT_DELAY_32 if DO_ASSERTS
 
-#include "_version.h"
-#include "_globals.h"
+#include "_version.h" // First this..
+#include "_globals.h" // ..then this
 #include "blink_and_watchdog.h"
 #endif
 
@@ -27,7 +27,7 @@
                                                // See http://www.teigfam.net/oyvind/home/technology/098-my-xmos-notes/#xtag-3_debug_log_hanging
                                                // Use is_watchdog_blinking instead!
 //
-#define debug_print(fmt, ...) do { if(DEBUG_PRINT_BLINK_AND_WATCHDOG_RFM69 and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
+#define debug_print(fmt, ...) do { if((DEBUG_PRINT_BLINK_AND_WATCHDOG_RFM69==1) and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
 
 #define BLINK_RESOLUTION_MS 10
 

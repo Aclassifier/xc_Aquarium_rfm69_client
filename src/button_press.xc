@@ -14,13 +14,14 @@
 #include <iso646.h>
 #include <xccompat.h> // REFERENCE_PARAM
 
-#include "_globals.h"
+#include "_version.h" // First this..
+#include "_globals.h" // ..then this
 #include "param.h"
 #include "button_press.h"
 #endif
 
 #define DEBUG_PRINT_BUTTON_PRESS 1
-#define debug_print(fmt, ...) do { if(DEBUG_PRINT_BUTTON_PRESS and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
+#define debug_print(fmt, ...) do { if((DEBUG_PRINT_BUTTON_PRESS==1) and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
 
 
 #define DEBOUNCE_TIMEOUT_50_MS 50

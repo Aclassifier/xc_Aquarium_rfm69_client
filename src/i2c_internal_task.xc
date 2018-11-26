@@ -16,7 +16,8 @@
 #include <string.h>   // memset.
 #include <timer.h>    // For delay_milliseconds (but it compiles without?)
 
-#include "_globals.h"
+#include "_version.h" // First this..
+#include "_globals.h" // ..then this
 #include "param.h"
 #include "button_press.h"
 
@@ -31,7 +32,7 @@
 #endif
 
 #define DEBUG_PRINT_DISPLAY 0
-#define debug_print(fmt, ...) do { if(DEBUG_PRINT_DISPLAY and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
+#define debug_print(fmt, ...) do { if((DEBUG_PRINT_DISPLAY==1) and (DEBUG_PRINT_GLOBAL_APP==1)) printf(fmt, __VA_ARGS__); } while (0)
 
 // Internal i2c matters (not display matters)
 [[combinable]]

@@ -45,7 +45,9 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <stdlib.h>
 #include <stdint.h>
 #include <xccompat.h> // REFERENCE_PARAM
-#include "_globals.h"
+
+#include "_version.h" // First this..
+#include "_globals.h" // ..then this
 #include "param.h"
 #include "defines_adafruit.h"
 //

@@ -13,9 +13,16 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.18"
-#define RFM69_CLIENT_VERSION_NUM    0818
+#define FLASH_EXPLORER_BOX 1 // 1 basically to remove code building printf strings
+
+#define RFM69_CLIENT_VERSION_STR "0.8.19"
+#define RFM69_CLIENT_VERSION_NUM    0819
+    //  0819    26Nov2018 SCREEN_DEBUG is new
+    //                    SEMANTICS_DO_CRC_ERR_NO_IRQ now to be set with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ
+    //          RFM69=003 IRQ error aqain, first time seen in with FLASH_EXPLORER_BOX.
     //  0818    25Nov2018 SCREEN_STATISTICS_2 and compiled with SEMANTICS_DO_CRC_ERR_NO_IRQ=0 in lib_rfm69_xc
+    //                    I did see that the IRQ error with IRQ LED on always happened once when I was using the display (now call this RFM69=003)
+    //                    There were lots of CRC16 and even both CRC16 and CRC32 errors over the night
     //  0817    24Nov2018 New screen SCREEN_STATISTICS and more statistics
     //  0815    23Nov2018 u_to_str_lm is new
     //  0814    22Nov2018 New light and heating regulating names of text constants
