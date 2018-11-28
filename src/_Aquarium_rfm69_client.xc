@@ -190,9 +190,10 @@ typedef struct {
     int16_t   nowRSSI_strongest; // -60  dB
 
     #if ((_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_TIMEOUT==1) or (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1))
-        uint8_t debug_data[NUM_DEBUG_BYTES];
-        uint8_t debug_data_prev[NUM_DEBUG_BYTES];
-        bool    debug_alive;
+        uint8_t       debug_data[NUM_DEBUG_BYTES];
+        uint8_t       debug_data_prev[NUM_DEBUG_BYTES];
+        debug_state_e debug_state;
+        bool          debug_r_button;
     #endif
 } RX_context_t; // RX same as SLAVE same as ISMASTER==0
 
@@ -423,14 +424,18 @@ bool // i2c_ok
                     // OM=90  F1=D8  F2=00     iof_RegOpMode  iof_RegIrqFlags1             iof_RegIrqFlags2
                     // RM=04  IC=00            iof_radio_mode iof_waitForIRQInterruptCause
 
-                    // 0819: 90 D9 44 04 00
-                    // 0819: 90 D9 64 04 00
+                    //       OM F1    F2 RM IC
+                    // 0824: 90 90,D8 00 04 00
+                    // 0823: 90 D9    64 04 00 Feil 0x4000 It did not help to do par differently
+                    // 0819: 90 D9    44 04 00 Feil 0x4000 ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY 200 ms (1000 ms did not help)
+                    // 0819: 90 D9    64 04 00
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s ERR %u %04X\n%s DEB H KNAPP%s\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X",
+                            "%s ERR %u %04X\n%u DEB %s%s\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X",
                             alive ? "*" : "+",
                             RXTX_context.is_new_error, RXTX_context.error_bits_history,
-                            RX_context.debug_alive ? "=" : "#",
+                            RX_context.debug_state,
+                           (RX_context.debug_r_button) ? "H KNAPP" : "GAMLE",
                             char_right_arrow_str,
                             RX_context.debug_data[0],  // iof_RegOpMode
                             RX_context.debug_data[1],  // iof_RegIrqFlags1
@@ -1328,6 +1333,11 @@ void display_screen_store_values (
         RX_context.num_bothCRCerrs = 0;
 
         RXTX_context.error_bits_history = 0;
+
+        #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
+            RX_context.debug_state = debug_void; // So that the debug_none is the initial use
+            RX_context.debug_r_button = false;
+        #endif
     }
 #endif
 
@@ -1392,7 +1402,7 @@ void RFM69_client (
                 RX_context.debug_data[i] = 0;
                 RX_context.debug_data_prev[i] = 0;
             }
-            RX_context.debug_alive = false;
+            RX_context.debug_state = debug_just_read_some_registers;
         #endif
 
         for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
@@ -1607,9 +1617,18 @@ void RFM69_client (
                             if (display_context.state == is_on) {
                                 if (display_context.display_screen_name == SCREEN_DEBUG) {
                                     #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
-                                        i_radio.getDebug (RX_context.debug_data);
-                                        RX_context.debug_alive = not RX_context.debug_alive;
+
+                                        // debug_mode_0_1 SOLVED THE PROBLEM!
+                                        RX_context.debug_r_button = true;
+                                        RX_context.debug_state = (RX_context.debug_state + 1) % debug_void;
+                                        i_radio.getDebug (RX_context.debug_state, RX_context.debug_data);
+
+                                        {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+                                        RXTX_context.error_bits_history or_eq RXTX_context.some_rfm69_internals.error_bits;
+
                                         Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                        RX_context.debug_r_button = false;
+
                                     #endif
                                 }
                             } else {}

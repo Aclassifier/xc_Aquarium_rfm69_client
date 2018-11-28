@@ -15,8 +15,14 @@
 
 #define FLASH_EXPLORER_BOX 1 // 1 basically to remove code building printf strings
 
-#define RFM69_CLIENT_VERSION_STR "0.8.20"
-#define RFM69_CLIENT_VERSION_NUM    0820
+#define RFM69_CLIENT_VERSION_STR "0.8.25"
+#define RFM69_CLIENT_VERSION_NUM    0825
+    //  0825    27Nov2018 debug_state is new. _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0 again
+    //                    RFM69=003 solved with debug_mode_0_1 with IOF_BUTTON_RIGHT. It went on when this was pressed
+    //  0824    26Nov2018 _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=1 again, the only change. Not able to see IRQ error
+    //  0823    26Nov2018 Did not help to MUL by 5 below. Now new par layout in main. Still ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY, but some times that's ok!
+    //  0822    26Nov2018 WAIT_FOR_REGISTER_VALUE_MS * 5 for ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY?
+    //  0821    26Nov2018 Reading error bits also on right button. ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY triggers
     //  0820    26Nov2018 SCREEN_DEBUG better
     //  0819    26Nov2018 SCREEN_DEBUG is new
     //                    SEMANTICS_DO_CRC_ERR_NO_IRQ now to be set with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ
