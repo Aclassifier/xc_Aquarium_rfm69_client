@@ -37,8 +37,8 @@ void Button_Task (
     int      current_val = 0;
     bool     is_stable   = true;
     timer    tmr;
-    unsigned timeout;
-    int      current_time;
+    time32_t timeout;
+    time32_t current_time;
 
     // ¯yvind's matters:
     bool initial_released_stopped = false; // Since it would do BUTTON_ACTION_RELEASED always after start
@@ -64,7 +64,7 @@ void Button_Task (
                 // note that XS1_TIMER_HZ is defined in timer.h
                 timeout = current_time + (DEBOUNCE_TIMEOUT_50_MS * XS1_TIMER_KHZ);
                 // If the button is not stable (i.e. bouncing around) then select
-                // when we the timer reaches the timeout to renter a stable period
+                // when we the timer reaches the timeout to reenter a stable period
             } break;
 
             case (pressed_but_not_released or (is_stable == false)) => tmr when timerafter(timeout) :> void: {
@@ -79,7 +79,7 @@ void Button_Task (
                         timeout = current_time + (DEBOUNCE_TIMEOUT_10000_MS * XS1_TIMER_KHZ);
                     }
                     else {
-                        if (initial_released_stopped == false) {
+                        if (initial_released_stopped == false) { // Also after BUTTON_ACTION_PRESSED_FOR_10_SECONDS
                             initial_released_stopped = true;
                             debug_print(" Button %u filtered away\n", button_n);
                         } else {
@@ -93,6 +93,7 @@ void Button_Task (
                     // xTIMEcomposer 14.2.4 works fine
                     // xTIMEcomposer 14.3.0 does 880997 times in 30 seconds with DEBUG_PRINT_BUTTON_PRESS==0, yields about 30000 per second probably livelocked (but printed in receiver)
                     pressed_but_not_released = false;
+                    initial_released_stopped = false; // To avoid BUTTON_ACTION_RELEASED when it's released (RFM69=003)
                     i_button_out.button (BUTTON_ACTION_PRESSED_FOR_10_SECONDS);
                     debug_print(" BUTTON_ACTION_PRESSED_FOR_10_SECONDS %u sent\n", button_n);
                 }

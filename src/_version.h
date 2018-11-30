@@ -13,10 +13,14 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define FLASH_EXPLORER_BOX 1 // 1 basically to remove code building printf strings
+#define FLASH_EXPLORER_BOX 0 // 1 basically to remove code building printf strings
 
-#define RFM69_CLIENT_VERSION_STR "0.8.25"
-#define RFM69_CLIENT_VERSION_NUM    0825
+#define RFM69_CLIENT_VERSION_STR "0.8.28"
+#define RFM69_CLIENT_VERSION_NUM    0828
+    //  0828    30Nov2018 i_radio.ultimateIRQclear(); is new
+    //  0827    29Nov2018 RFM69=004 Button_Task opdated
+    //  0826    27Nov2018 Just testing with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=1 again to see if IRQ stuck still happens
+    //                    Observe that we treat all messages with IRQ with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0
     //  0825    27Nov2018 debug_state is new. _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0 again
     //                    RFM69=003 solved with debug_mode_0_1 with IOF_BUTTON_RIGHT. It went on when this was pressed
     //  0824    26Nov2018 _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=1 again, the only change. Not able to see IRQ error
@@ -26,7 +30,7 @@
     //  0820    26Nov2018 SCREEN_DEBUG better
     //  0819    26Nov2018 SCREEN_DEBUG is new
     //                    SEMANTICS_DO_CRC_ERR_NO_IRQ now to be set with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ
-    //          RFM69=003 IRQ error aqain, first time seen in with FLASH_EXPLORER_BOX.
+    //                    RFM69=003 IRQ error aqain, first time seen in with FLASH_EXPLORER_BOX.
     //  0818    25Nov2018 SCREEN_STATISTICS_2 and compiled with SEMANTICS_DO_CRC_ERR_NO_IRQ=0 in lib_rfm69_xc
     //                    I did see that the IRQ error with IRQ LED on always happened once when I was using the display (now call this RFM69=003)
     //                    There were lots of CRC16 and even both CRC16 and CRC32 errors over the night
@@ -38,7 +42,7 @@
     // "0.8.11" 20Nov2018 display_screen_store_values is new
     // "0.8.10" 20Nov2018 Display now toggles on and off with left button etc.
     // "0.8.9"  20Nov2018
-    //          RFM69=002 MAX and MIN values now like 100 for % and 99 for temp, to make display nicer
+    //                    RFM69=002 MAX and MIN values now like 100 for % and 99 for temp, to make display nicer
     // "0.8.8"  19Nov2018 All LEDs are black (except IRQ on board) of screen is black
     // "0.8.7"  19Nov2018 feed_watchdog is new etc. Plus a blank screen
     // "0.8.6"  19Nov2018 RX_context.appSeqCnt_prev and calculations around this fixed (had been compromised by some code cut and paste)
@@ -47,8 +51,8 @@
     // "0.8.2"  13Nov2018 IRQ and timeout handling now separate functions in _Aquarium_rfm69_client.xc
     // "0.8.1"  02Nov2018 DEG C and WATT ALSO DISPLAYED
     // "0.7.2"  29Oct2018 THIS VERSION SHOWS AQUARIUM TIME AND WATER TEMP IN THE DISPLAY! YESS!
-    //          RFM69=001 The IRQ line that keeps high after IRQ 7 (messagePacketLenErr_IRQ) is worked on. Testing at the moment
-    //          --"--     This tag is also seen in the "rfm69_commprot.h" code
+    //                    RFM69=001 The IRQ line that keeps high after IRQ 7 (messagePacketLenErr_IRQ) is worked on. Testing at the moment
+    //                    --"--     This tag is also seen in the "rfm69_commprot.h" code
     // "0.7.1"  07Jun2018 _commprot.h -> renamed to rfm69_commprot.h
     //                    _globals.h  -> renamed to rfm69_globals.h and new _globals.h made
     // "0.7.0"  06Jun2018 File changes before moving to lib_fsm69_xc
