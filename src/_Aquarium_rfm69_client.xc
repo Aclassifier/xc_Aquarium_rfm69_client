@@ -178,7 +178,6 @@ typedef struct {
     unsigned  num_appSeqCnt_notSeen_of_screen;
     unsigned  num_radioCRC16errs;
     unsigned  num_appCRC32errs;
-    unsigned  num_bothCRCerrs;
     unsigned  seconds_since_last_received;
     uint32_t  appSeqCnt;
     uint32_t  appSeqCnt_prev;
@@ -402,14 +401,12 @@ bool // i2c_ok
                     // *     FEIL
                     // CRC16 123
                     // CRC32 123
-                    // BEGGE 123
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s     FEIL\nCRC16 %u\nCRC32 %u\nBEGGE %u",
+                            "%s     FEIL\nCRC16 %u\nCRC32 %u",
                             alive ? "*" : "+",
                             RX_context.num_radioCRC16errs,
-                            RX_context.num_appCRC32errs,
-                            RX_context.num_bothCRCerrs);
+                            RX_context.num_appCRC32errs);
 
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
                 #endif
@@ -1036,23 +1033,19 @@ void RFM69_handle_irq (
             #endif
 
             case messageRadioCRC16Err_IRQ:
-            case messageAppCRC32Err_IRQ:
-            case messageRadioCRC16AppCRC32Errs_IRQ:{
+            case messageAppCRC32Err_IRQ: {
 
                 const bool CRC16err = (interruptAndParsingResult == messageRadioCRC16Err_IRQ);
                 const bool CRC32err = (interruptAndParsingResult == messageAppCRC32Err_IRQ);
-                const bool bothErr  = (interruptAndParsingResult == messageRadioCRC16AppCRC32Errs_IRQ);
 
                 if (CRC16err) {RX_context.num_radioCRC16errs++;}
                 if (CRC32err) {RX_context.num_appCRC32errs++;}
-                if (bothErr)  {RX_context.num_bothCRCerrs++;}
 
-                debug_print ("RSSI %d, CRC-fail@%u radioCRC16@%u %u, appCRC32@%u %u with PACKETLEN %u\n",
+                debug_print ("RSSI %d, CRC-fail radioCRC16@%u %u, appCRC32@%u %u with PACKETLEN %u\n",
                         RX_context.nowRSSI,
-                        bothErr,
-                        bothErr ? 1 : CRC16err,
+                        CRC16err,
                         RX_context.num_radioCRC16errs,
-                        bothErr ? 1 : CRC32err,
+                        CRC32err,
                         RX_context.num_appCRC32errs,
                         RXTX_context.some_rfm69_internals.PACKETLEN);
             } break;
@@ -1091,7 +1084,6 @@ void RFM69_handle_irq (
             case messageNotForThisNode_IRQ:
             case messageRadioCRC16Err_IRQ:
             case messageAppCRC32Err_IRQ:
-            case messageRadioCRC16AppCRC32Errs_IRQ:
             {
                 // Just let it pass, not interesting, at least not if only sending
             } break;
@@ -1332,7 +1324,6 @@ void display_screen_store_values (
 
         RX_context.num_radioCRC16errs = 0;
         RX_context.num_appCRC32errs = 0;
-        RX_context.num_bothCRCerrs = 0;
 
         RXTX_context.error_bits_history = 0;
 

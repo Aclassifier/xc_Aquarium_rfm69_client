@@ -15,30 +15,36 @@
 
 #define FLASH_EXPLORER_BOX 0 // 1 basically to remove code building printf strings
 
-#define RFM69_CLIENT_VERSION_STR "0.8.28"
-#define RFM69_CLIENT_VERSION_NUM    0828
-    //  0828    30Nov2018 i_radio.ultimateIRQclear(); is new
-    //  0827    29Nov2018 RFM69=004 Button_Task opdated
-    //  0826    27Nov2018 Just testing with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=1 again to see if IRQ stuck still happens
+#define RFM69_CLIENT_VERSION_STR "0.8.30"
+#define RFM69_CLIENT_VERSION_NUM    0830
+    // 0830     01Dec2018 messageRadioCRC16AppCRC32Errs_IRQ (in LIB), num_bothCRCerrs removed
+    // 0829     01Dec2018 _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=0 just to test FLASHed version!
+    //                    ultimateIRQclear_cnt in this case counts, also when FLASHed. The good thing is that with this solution it's not down to RF69_MODE_STANDBY
+    //                    between every reception and _maybe_ we will see more packages and lose fewer
+    // 0828     30Nov2018 i_radio.ultimateIRQclear(); is new
+    //                    When I run this with the debugger and lots of printouts, ultimateIRQclear_cnt counts a lot!
+    //                    The same code ran as FLASHed shows NO increments over 14 hours at least
+    // 0827     29Nov2018 RFM69=004 Button_Task opdated
+    // 0826     27Nov2018 Just testing with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=1 again to see if IRQ stuck still happens
     //                    Observe that we treat all messages with IRQ with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0
-    //  0825    27Nov2018 debug_state is new. _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0 again
+    // 0825     27Nov2018 debug_state is new. _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0 again
     //                    RFM69=003 solved with debug_mode_0_1 with IOF_BUTTON_RIGHT. It went on when this was pressed
-    //  0824    26Nov2018 _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=1 again, the only change. Not able to see IRQ error
-    //  0823    26Nov2018 Did not help to MUL by 5 below. Now new par layout in main. Still ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY, but some times that's ok!
-    //  0822    26Nov2018 WAIT_FOR_REGISTER_VALUE_MS * 5 for ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY?
-    //  0821    26Nov2018 Reading error bits also on right button. ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY triggers
-    //  0820    26Nov2018 SCREEN_DEBUG better
-    //  0819    26Nov2018 SCREEN_DEBUG is new
+    // 0824     26Nov2018 _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=1 again, the only change. Not able to see IRQ error
+    // 0823     26Nov2018 Did not help to MUL by 5 below. Now new par layout in main. Still ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY, but some times that's ok!
+    // 0822     26Nov2018 WAIT_FOR_REGISTER_VALUE_MS * 5 for ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY?
+    // 0821     26Nov2018 Reading error bits also on right button. ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY triggers
+    // 0820     26Nov2018 SCREEN_DEBUG better
+    // 0819     26Nov2018 SCREEN_DEBUG is new
     //                    SEMANTICS_DO_CRC_ERR_NO_IRQ now to be set with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ
     //                    RFM69=003 IRQ error aqain, first time seen in with FLASH_EXPLORER_BOX.
-    //  0818    25Nov2018 SCREEN_STATISTICS_2 and compiled with SEMANTICS_DO_CRC_ERR_NO_IRQ=0 in lib_rfm69_xc
+    // 0818     25Nov2018 SCREEN_STATISTICS_2 and compiled with SEMANTICS_DO_CRC_ERR_NO_IRQ=0 in lib_rfm69_xc
     //                    I did see that the IRQ error with IRQ LED on always happened once when I was using the display (now call this RFM69=003)
     //                    There were lots of CRC16 and even both CRC16 and CRC32 errors over the night
-    //  0817    24Nov2018 New screen SCREEN_STATISTICS and more statistics
-    //  0815    23Nov2018 u_to_str_lm is new
-    //  0814    22Nov2018 New light and heating regulating names of text constants
-    //  0813    21Nov2108 Error screen and showing when a screen has got new data (with '*' and '+')
-    //  0812    21Nov2018 An error in SCREEN_4_MAX_NA_MIN
+    // 0817     24Nov2018 New screen SCREEN_STATISTICS and more statistics
+    // 0815     23Nov2018 u_to_str_lm is new
+    // 0814     22Nov2018 New light and heating regulating names of text constants
+    // 0813     21Nov2108 Error screen and showing when a screen has got new data (with '*' and '+')
+    // 0812     21Nov2018 An error in SCREEN_4_MAX_NA_MIN
     // "0.8.11" 20Nov2018 display_screen_store_values is new
     // "0.8.10" 20Nov2018 Display now toggles on and off with left button etc.
     // "0.8.9"  20Nov2018
