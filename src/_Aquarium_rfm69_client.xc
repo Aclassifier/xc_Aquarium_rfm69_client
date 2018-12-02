@@ -155,7 +155,6 @@ typedef struct {
     some_rfm69_internals_t some_rfm69_internals;
     packet_t               PACKET;
     error_bits_e           error_bits_history;
-    unsigned               ultimateIRQclear_cnt;
     //
 } RXTX_context_t;
 
@@ -175,7 +174,7 @@ typedef struct {
     unsigned  num_received;
     int32_t   num_lost_since_last_success; // May be negative if sender restarts
     unsigned  num_appSeqCnt_notSeen; // Earlier num_toLost but they are only counted when we see a message again
-    unsigned  num_appSeqCnt_notSeen_of_screen;
+    unsigned  num_appSeqCnt_notSeen_inDisplay;
     unsigned  num_radioCRC16errs;
     unsigned  num_appCRC32errs;
     unsigned  seconds_since_last_received;
@@ -188,6 +187,8 @@ typedef struct {
     int16_t   nowRSSI;           // -80  dB
     int16_t   nowRSSI_weakest;   // -100 dB
     int16_t   nowRSSI_strongest; // -60  dB
+    unsigned  ultimateIRQclearCnt;
+    unsigned  ultimateIRQclearCnt_notSeen_inDisplay;
 
     #if ((_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_TIMEOUT==1) or (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1))
         uint8_t       debug_data[NUM_DEBUG_BYTES];
@@ -381,7 +382,7 @@ bool // i2c_ok
                         } else {
                             lost_one_per = RX_context.num_received / RX_context.num_appSeqCnt_notSeen;
                         }
-                        const signed diff = RX_context.num_appSeqCnt_notSeen - RX_context.num_appSeqCnt_notSeen_of_screen; // Increasing, so alwasy positive. Still keep signed and %d to detect errors
+                        const signed diff = RX_context.num_appSeqCnt_notSeen - RX_context.num_appSeqCnt_notSeen_inDisplay; // Increasing, so alwasy positive. Still keep signed and %d to detect errors
                         display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                                 "RX? %u av %d\nRX? 1/%u (%s%u)",
                                 RX_context.num_appSeqCnt_notSeen,
@@ -397,16 +398,23 @@ bool // i2c_ok
             case SCREEN_STATISTICS_2: {
                 #if (IS_MYTARGET_SLAVE == 1)
 
+                   const char char_up_arrow_str [] = CHAR_UP_ARROW_STR;   // ↑
+
                     // ..........----------.
                     // *     FEIL
                     // CRC16 123
                     // CRC32 123
+                    // IRQ↑  123 (+2)
 
+                    const signed diff = RX_context.ultimateIRQclearCnt - RX_context.ultimateIRQclearCnt_notSeen_inDisplay;
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s     FEIL\nCRC16 %u\nCRC32 %u",
+                            "%s     FEIL\nCRC16 %u\nCRC32 %u\nIRQ%s  %u (%s%d)",
                             alive ? "*" : "+",
                             RX_context.num_radioCRC16errs,
-                            RX_context.num_appCRC32errs);
+                            RX_context.num_appCRC32errs,
+                            char_up_arrow_str,
+                            RX_context.ultimateIRQclearCnt,
+                            (diff > 0) ? "+" : "", diff);
 
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
                 #endif
@@ -417,7 +425,7 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
-                    // * ERR 1 FFFF U=123
+                    // * ERR 1 FFFF
                     // 0 DEB H-KNAPP→          "Standard" values when IRQ not going on:
                     // OM=90  F1=D8  F2=00     iof_RegOpMode  iof_RegIrqFlags1             iof_RegIrqFlags2
                     // RM=04  IC=00            iof_radio_mode iof_waitForIRQInterruptCause
@@ -429,10 +437,9 @@ bool // i2c_ok
                     // 0819: 90 D9    64 04 00
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s ERR %u %04X U=%u\n%u DEB %s%s\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X",
+                            "%s ERR %u %04X\n%u DEB %s%s\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X",
                             alive ? "*" : "+",
                             RXTX_context.is_new_error, RXTX_context.error_bits_history,
-                            RXTX_context.ultimateIRQclear_cnt,
                             RX_context.debug_state,
                            (RX_context.debug_r_button) ? "H-KNAPP" : "GAMLE",
                             char_right_arrow_str,
@@ -1288,7 +1295,8 @@ void display_screen_store_values (
         display_context_t &display_context,
         RX_context_t      &RX_context)
 {
-    RX_context.num_appSeqCnt_notSeen_of_screen = RX_context.num_appSeqCnt_notSeen;
+    RX_context.num_appSeqCnt_notSeen_inDisplay       = RX_context.num_appSeqCnt_notSeen;
+    RX_context.ultimateIRQclearCnt_notSeen_inDisplay = RX_context.ultimateIRQclearCnt;
 }
 
 #if (IS_MYTARGET_SLAVE==1)
@@ -1332,7 +1340,8 @@ void display_screen_store_values (
             RX_context.debug_r_button = false;
         #endif
 
-        RXTX_context.ultimateIRQclear_cnt = 0;
+        RX_context.ultimateIRQclearCnt = 0;
+        RX_context.ultimateIRQclearCnt_notSeen_inDisplay = 0;
     }
 #endif
 
@@ -1384,7 +1393,7 @@ void RFM69_client (
 
         RX_context.doListenToAll = false; // Set to 'true' to sniff all packets on the same network
         RX_context.num_appSeqCnt_notSeen = 0;
-        RX_context.num_appSeqCnt_notSeen_of_screen = 0;
+        RX_context.num_appSeqCnt_notSeen_inDisplay = 0;
         RX_context.num_received = 0;
         RX_context.num_radioCRC16errs = 0;
         RX_context.num_appCRC32errs = 0;
@@ -1532,33 +1541,34 @@ void RFM69_client (
         select {
             case i_irq.irq_pin_state (const irq_t irq) : {
 
-                unsigned ultimateIRQclear_cnt_prev = RXTX_context.ultimateIRQclear_cnt;
+                unsigned ultimateIRQclearCnt_prev = RX_context.ultimateIRQclearCnt;
 
                 if (irq.pin_value == high) {
                     if (irq.time_since_last_change_sec == 0) {
                         RXTX_context.irq_value = irq.RSSI_value;
 
-                                        RFM69_handle_irq (
-                                                RX_CONTEXT,
-                                                TX_CONTEXT,
-                                                RXTX_context,
-                                                display_context,
-                                                i_radio,
-                                                i_blink_and_watchdog,
-                                                semantics_do_rssi_in_irq_detect_task,
-                                                i_i2c_internal_commands,
-                                                debug_print_context);
+                        RFM69_handle_irq (
+                                RX_CONTEXT,
+                                TX_CONTEXT,
+                                RXTX_context,
+                                display_context,
+                                i_radio,
+                                i_blink_and_watchdog,
+                                semantics_do_rssi_in_irq_detect_task,
+                                i_i2c_internal_commands,
+                                debug_print_context);
+
                     } else if (irq.time_since_last_change_sec >= 2) {
                         i_radio.ultimateIRQclear();
-                        RXTX_context.ultimateIRQclear_cnt++;
+                        RX_context.ultimateIRQclearCnt++;
                     }
                 } else {}
 
-                debug_print ("IRQ %u for %u sek ULT%s%u\n",
+                debug_print ("IRQ %u for %u sek ULT%s%u\n", // ULT= or ULT#
                         irq.pin_value,
                         irq.time_since_last_change_sec,
-                        (ultimateIRQclear_cnt_prev == RXTX_context.ultimateIRQclear_cnt) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                        RXTX_context.ultimateIRQclear_cnt);
+                        (ultimateIRQclearCnt_prev == RX_context.ultimateIRQclearCnt) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                        RX_context.ultimateIRQclearCnt);
 
             } break;
 
