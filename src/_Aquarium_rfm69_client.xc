@@ -891,11 +891,7 @@ void RFM69_handle_irq (
          client  i2c_internal_commands_if  i_i2c_internal_commands,
          debug_print_context_t             &debug_print_context)
 {
-    if (display_context.state == is_on) {
-        i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 25);
-    } else {}
-
-    i_blink_and_watchdog.feed_watchdog();
+    // IRQ LED mounted RFM69 board's IRQ/G0 pin will lit now (via a transistor). Same as SPI_IRQ port
 
     if (semantics_do_rssi_in_irq_detect_task) {
         RX_context.nowRSSI = RXTX_context.irq_value;
@@ -942,6 +938,12 @@ void RFM69_handle_irq (
             case messageReceivedOk_IRQ: {
                 // if (i_radio.receiveDone()) {
                 if (RXTX_context.receiveDone) {
+
+                    if (display_context.state == is_on) {
+                        i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 25);
+                    } else {}
+
+                    i_blink_and_watchdog.feed_watchdog();
 
                     if (display_context.state == is_on) {
                         i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 25); // Looks orange

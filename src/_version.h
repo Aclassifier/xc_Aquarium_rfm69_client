@@ -15,8 +15,9 @@
 
 #define FLASH_EXPLORER_BOX 0 // 1 basically to remove code building printf strings
 
-#define RFM69_CLIENT_VERSION_STR "0.8.31"
-#define RFM69_CLIENT_VERSION_NUM    0831
+#define RFM69_CLIENT_VERSION_STR "0.8.32"
+#define RFM69_CLIENT_VERSION_NUM    0832
+    // 0832     03Dec2018 i_blink_and_watchdog.blink_pulse_ok only when RXTX_context.receiveDone sin IRQ has separate LED
     // 0831     02Dec2018 Just a new number after two important logs with different settings
     // 0830     01Dec2018 messageRadioCRC16AppCRC32Errs_IRQ (in LIB), num_bothCRCerrs removed
     // 0829     01Dec2018 _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=0 just to test FLASHed version!
