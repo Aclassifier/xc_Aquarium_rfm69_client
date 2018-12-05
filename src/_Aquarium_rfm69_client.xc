@@ -194,7 +194,6 @@ typedef struct {
         uint8_t       debug_data[NUM_DEBUG_BYTES];
         uint8_t       debug_data_prev[NUM_DEBUG_BYTES];
         debug_state_e debug_state;
-        bool          debug_r_button;
     #endif
 } RX_context_t; // RX same as SLAVE same as ISMASTER==0
 
@@ -215,9 +214,6 @@ typedef enum display_screen_name_t {
     SCREEN_RX_MAIN_TIME_TEMP_ETC,
     SCREEN_STATISTICS,
     SCREEN_STATISTICS_2,
-    #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
-        SCREEN_DEBUG,
-    #endif
     SCREEN_TEMPS_ETC,
     SCREEN_WATT_ETC,
     SCREEN_LIGHT,
@@ -225,6 +221,9 @@ typedef enum display_screen_name_t {
     SCREEN_VOLTAGES,
     SCREEN_AQUARIUM_ERROR_BITS,
     SCREEN_WELCOME,
+    #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
+        SCREEN_DEBUG,
+    #endif
     SCREEN_DARK // Must be last
 } display_screen_name_t;
 
@@ -237,6 +236,9 @@ typedef struct {
     display_screen_name_t display_screen_name;
     display_screen_name_t display_screen_name_last_on;
     bool                  allow_auto_switch_to_screen_1_RX_main;
+    bool                  display_screen_direction_up;
+    bool                  debug_r_button;
+    button_state_t        buttons_state [BUTTONS_NUM_CLIENTS];
 } display_context_t;
 
 typedef enum {
@@ -254,7 +256,7 @@ typedef struct {
 bool // i2c_ok
     Display_screen (
         display_context_t                 &display_context,
-                RX_context_t              &RX_context,
+                RX_context_t             &?RX_context,  // #if (IS_MYTARGET_SLAVE == 1)
                 RXTX_context_t            &RXTX_context,
         const   use_t                     use,
         client  i2c_internal_commands_if  i_i2c_internal_commands) {
@@ -266,7 +268,16 @@ bool // i2c_ok
         const char char_aa_str []         = CHAR_AA_STR;          // Å
         const char char_triple_bar_str [] = CHAR_TRIPLE_BAR_STR;  // ≡
         const char char_right_arrow_str[] = CHAR_RIGHT_ARROW_STR; // →
-        const bool alive                  = (RX_context.appSeqCnt % 2) == 0;
+
+        #define SCREEN_NUMBER_WIDTH 2
+        char display_screen_name_str [SCREEN_NUMBER_WIDTH+1];
+        u_to_str_lm (display_context.display_screen_name, display_screen_name_str, sizeof display_screen_name_str); // "5 "
+
+        #if (IS_MYTARGET_SLAVE == 1)
+            const bool alive = (RX_context.appSeqCnt % 2) == 0;
+        #else
+            const bool alive = false;
+        #endif
 
         Clear_All_Pixels_In_Buffer();
 
@@ -276,24 +287,25 @@ bool // i2c_ok
 
         setTextColor(WHITE);
         setCursor(0,0);
+        setTextSize(1);
 
         switch (display_context.display_screen_name) {
 
             case SCREEN_WELCOME: {
 
                 // ..........----------.
-                // VERSJON 0.8.09
+                // xx VERSJON 0.8.09
                 //
                 // RX DATA FRA AKVARIET
                 // HVERT 4. SEKUND (*)
 
                 display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                        "VERSJON %s\n\nRX DATA FRA AKVARIET\nHVERT %u. SEKUND (%s)",
+                        "%s VERSJON %s\n\nRX DATA FRA AKVARIET\nHVERT %u. SEKUND (%s)",
+                        display_screen_name_str,
                         RFM69_CLIENT_VERSION_STR,
                         AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
                         alive ? "*" : "+");
 
-                setTextSize(1);
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
@@ -401,14 +413,15 @@ bool // i2c_ok
                    const char char_up_arrow_str [] = CHAR_UP_ARROW_STR;   // ↑
 
                     // ..........----------.
-                    // *     FEIL
+                    // xx *  FEIL
                     // CRC16 123
-                    // CRC32 123
+                    // CRC32 0
                     // IRQ↑  123 (+2)
 
                     const signed diff = RX_context.ultimateIRQclearCnt - RX_context.ultimateIRQclearCnt_notSeen_inDisplay;
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s     FEIL\nCRC16 %u\nCRC32 %u\nIRQ%s  %u (%s%d)",
+                            "%s %s  FEIL\nCRC16 %u\nCRC32 %u\nIRQ%s  %u (%s%d)",
+                            display_screen_name_str,
                             alive ? "*" : "+",
                             RX_context.num_radioCRC16errs,
                             RX_context.num_appCRC32errs,
@@ -425,7 +438,7 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
-                    // * ERR 1 FFFF
+                    // xx * ERR 1 FFFF
                     // 0 DEB H-KNAPP→          "Standard" values when IRQ not going on:
                     // OM=90  F1=D8  F2=00     iof_RegOpMode  iof_RegIrqFlags1             iof_RegIrqFlags2
                     // RM=04  IC=00            iof_radio_mode iof_waitForIRQInterruptCause
@@ -437,11 +450,12 @@ bool // i2c_ok
                     // 0819: 90 D9    64 04 00
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s ERR %u %04X\n%u DEB %s%s\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X",
+                            "%s %s ERR %u %04X\n%u DEB %s%s\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X",
+                            display_screen_name_str,
                             alive ? "*" : "+",
                             RXTX_context.is_new_error, RXTX_context.error_bits_history,
                             RX_context.debug_state,
-                           (RX_context.debug_r_button) ? "H-KNAPP" : "GAMLE",
+                           (display_context.debug_r_button) ? "H-KNAPP" : "GAMLE",
                             char_right_arrow_str,
                             RX_context.debug_data[0],  // iof_RegOpMode
                             RX_context.debug_data[1],  // iof_RegIrqFlags1
@@ -459,19 +473,20 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
-                    // *  TX 242091
-                    // TIMER 268
-                    // DAGER 11
+                    // xx * TX 242091
+                    // TIMER   268
+                    // DAGER   11
 
                     const unsigned hours = (RX_context.appSeqCnt * AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC) / 3600;
                     const unsigned days  = hours / 24; // Also shown in SCREEN_RX_MAIN_TIME_TEMP_ETC (as payload num_days_since_start)
 
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s  TX %u\nTIMER %u\nDAGER %u",
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s %s TX %u\nTIMER   %u\nDAGER   %u",
+                            display_screen_name_str,
                             alive ? "*" : "+",
                             RX_context.appSeqCnt,
                             hours, days);
 
-                    setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
             } break;
@@ -503,20 +518,20 @@ bool // i2c_ok
                     const dp1_t min_heater_dp1  = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC);
 
                     // ..........----------.
-                    // *    VANN LUFT VARME
+                    // xx * VANN LUFT VARME
                     // MAX  25.2 26.1 23.2
                     // NÅ.  25.2 26.1 23.2   '.' when awating data
                     // MIN  25.2 26.1 23.2
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s    VANN LUFT VARME\nMAX  %2d.%1d %2d.%1d %2d.%1d\nN%s%s  %2d.%1d %2d.%1d %2d.%1d\nMIN  %2d.%1d %2d.%1d %2d.%1d",
+                            "%s %s VANN LUFT VARME\nMAX  %2d.%1d %2d.%1d %2d.%1d\nN%s%s  %2d.%1d %2d.%1d %2d.%1d\nMIN  %2d.%1d %2d.%1d %2d.%1d",
+                            display_screen_name_str,
                             alive ? "*" : "+",
                             max_water_dp1.unary, max_water_dp1.decimal, max_ambient_dp1.unary, max_ambient_dp1.decimal, max_heater_dp1.unary, max_heater_dp1.decimal,
                             char_aa_str, (use == USE_THIS) ? " " : ".",
                             now_water_dp1.unary, now_water_dp1.decimal, now_ambient_dp1.unary, now_ambient_dp1.decimal, now_heater_dp1.unary, now_heater_dp1.decimal,
                             min_water_dp1.unary, min_water_dp1.decimal, min_ambient_dp1.unary, min_ambient_dp1.decimal, min_heater_dp1.unary, min_heater_dp1.decimal);
 
-                    setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
             } break;
@@ -549,7 +564,7 @@ bool // i2c_ok
                     const char now_regulating_at_char[][2] = NOW_REGULATING_AT_CHAR_TEXTS;
 
                     // ..........----------.
-                    // *    R W  %   VARME≡  Heater tray mean temp
+                    // xx * R W  %   VARME≡  Heater tray mean temp
                     // MAX    48 100 40.4
                     // NÅ.  = 24 50  25.3    '.' when awating data. '=' in a white square
                     // MIN    0  0   24.2
@@ -573,8 +588,8 @@ bool // i2c_ok
                     u_to_str_lm (min_heater_percent, min_heater_percent_str, sizeof min_heater_percent_str);
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            //  "%s  %s WATT %%   VARME%s\nMAX  %s   %s %2d.%1d\nN%s%s %s   %s %2d.%1d\nMIN  %s   %s %2d.%1d",
-                            "%s   R W  %%   VARME%s\nMAX   %s %s %2d.%1d\nN%s%s   %s %s %2d.%1d\nMIN   %s %s %2d.%1d",
+                            "%s %s R W  %%   VARME%s\nMAX    %s %s %2d.%1d\nN%s%s    %s %s %2d.%1d\nMIN    %s %s %2d.%1d",
+                            display_screen_name_str,
                             alive ? "*" : "+",
                             char_triple_bar_str,
                             max_heater_watt_str,
@@ -588,14 +603,14 @@ bool // i2c_ok
                             min_heater_percent_str,
                             min_heater_mean_dp1.unary, min_heater_mean_dp1.decimal);
 
-                    setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
 
-                    drawRoundRect(20, 14, 11, 11, 1, WHITE); // x,y,w,h,r,color x,y=0,0 is left top BORDERS ONLY
-                    fillRoundRect(20, 14, 11, 11, 1, WHITE); // x,y,w,h,r,color x,y=0,0 is left top FILL ONLY
+                    #define POS_X 27
+                    drawRoundRect(POS_X, 14, 11, 11, 1, WHITE); // x,y,w,h,r,color x,y=0,0 is left top BORDERS ONLY
+                    fillRoundRect(POS_X, 14, 11, 11, 1, WHITE); // x,y,w,h,r,color x,y=0,0 is left top FILL ONLY
 
                     setTextColor(BLACK);
-                    setCursor(23,16);
+                    setCursor(POS_X+3,16);
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s",
                             now_regulating_at_char[RX_context.RX_radio_payload.u.payload_u0.now_regulating_at]);
@@ -609,18 +624,18 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
-                    //             FEIL
+                    // xx *        FEIL
                     // NÅ        0x0000     '.' when awating data
                     // HISTORIE  0x0000
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s           FEIL\nN%s%s       0x%04X\nHISTORIE  0x%04X",
+                            "%s %s       FEIL\nN%s%s      0x%04X\nHISTORIE 0x%04X",
+                            display_screen_name_str,
                             alive ? "*" : "+",
                             char_aa_str, (use == USE_THIS) ? " " : ".",
                             RX_context.RX_radio_payload.u.payload_u0.error_bits_now,
                             RX_context.RX_radio_payload.u.payload_u0.error_bits_history);
 
-                    setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
             } break;
@@ -631,13 +646,14 @@ bool // i2c_ok
                     const unsigned divisor = NORMAL_LIGHT_THIRDS_OFFSET/10; // 30/10=3
 
                     // ..........----------.
-                    // *  LYS 2/3
-                    // LEDfmb 2/3 1/3 0/3
-                    // NÅ.    DAG @10       '.' when awating data
-                    // TIMER  10t 10-20
+                    // xx * LYS 2/3
+                    // LEDfmb   2/3 1/3 0/3
+                    // NÅ.      DAG @10       '.' when awating data
+                    // TIMER    10t 10-20
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s  LYS %u/%u\nLEDfmb %u/%u %u/%u %u/%u\nN%s%s    %s @%u\nTIMER  %ut %u-%u",
+                            "%s %s LYS %u/%u\nLEDfmb   %u/%u %u/%u %u/%u\nN%s%s      %s @%u\nTIMER    %ut %u-%u",
+                            display_screen_name_str,
                             alive ? "*" : "+",
                             RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET, // 32-30=2
                             divisor,
@@ -652,7 +668,6 @@ bool // i2c_ok
                             RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour
                     );
 
-                    setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
             } break;
@@ -663,17 +678,17 @@ bool // i2c_ok
                     const dp1_t rr_12V_LEDlight_onetenthV = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.rr_12V_LEDlight_onetenthV);
 
                     // ..........----------.
-                    // *     VOLT
+                    // xx *  VOLT
                     // VARME 24.1
                     // LYS   11.9
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s     VOLT\nVARME %02u.%u\nLYS   %02u.%u",
+                            "%s %s  VOLT\nVARME %02u.%u\nLYS   %02u.%u",
+                            display_screen_name_str,
                             alive ? "*" : "+",
                             rr_24V_heat_onetenthV.unary, rr_24V_heat_onetenthV.decimal,
                             rr_12V_LEDlight_onetenthV.unary, rr_12V_LEDlight_onetenthV.decimal);
 
-                    setTextSize(1);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
             } break;
@@ -1293,19 +1308,22 @@ void RFM69_handle_timeout (
     #endif
 }
 
-void display_screen_store_values (
+void display_screen_store_RX_context_values (
         display_context_t &display_context,
-        RX_context_t      &RX_context)
+        RX_context_t      &?RX_context)
 {
-    RX_context.num_appSeqCnt_notSeen_inDisplay       = RX_context.num_appSeqCnt_notSeen;
-    RX_context.ultimateIRQclearCnt_notSeen_inDisplay = RX_context.ultimateIRQclearCnt;
+    #if (IS_MYTARGET_SLAVE==1)
+        RX_context.num_appSeqCnt_notSeen_inDisplay       = RX_context.num_appSeqCnt_notSeen;
+        RX_context.ultimateIRQclearCnt_notSeen_inDisplay = RX_context.ultimateIRQclearCnt;
+    #endif
 }
 
-#if (IS_MYTARGET_SLAVE==1)
-    void reset_values (
-            RX_context_t   &RX_context,
-            RXTX_context_t &RXTX_context) {
+void reset_values (
+        display_context_t &display_context,
+        RX_context_t      &?RX_context,
+        RXTX_context_t    &RXTX_context) {
 
+    #if (IS_MYTARGET_SLAVE==1)
         for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
             RX_context.RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
         }
@@ -1335,17 +1353,17 @@ void display_screen_store_values (
         RX_context.num_radioCRC16errs = 0;
         RX_context.num_appCRC32errs = 0;
 
-        RXTX_context.error_bits_history = 0;
-
         #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
             RX_context.debug_state = debug_void; // So that the debug_none is the initial use
-            RX_context.debug_r_button = false;
+            display_context.debug_r_button = false;
         #endif
 
         RX_context.ultimateIRQclearCnt = 0;
         RX_context.ultimateIRQclearCnt_notSeen_inDisplay = 0;
-    }
-#endif
+    #endif
+
+    RXTX_context.error_bits_history = 0;
+}
 
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
@@ -1416,11 +1434,13 @@ void RFM69_client (
         }
 
         RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds = NORMAL_LIGHT_THIRDS_OFFSET;
-        reset_values (RX_context, RXTX_context);
+
 
     #else
         #error MUST BE ONE of them! To code for both, recode somewhat
     #endif
+
+    reset_values (display_context, RX_CONTEXT, RXTX_context);
 
     divTime.max_diffTime_ms = 0;
     divTime.sum_diffTime_ms = 0;
@@ -1477,7 +1497,13 @@ void RFM69_client (
         display_context.state = is_on;
         display_context.display_screen_name         = SCREEN_WELCOME;
         display_context.display_screen_name_last_on = SCREEN_WELCOME;
-        Display_screen (display_context, RX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
+        display_context.display_screen_direction_up = true;
+
+        for (int iof_button = 0; iof_button < BUTTONS_NUM_CLIENTS; iof_button++) {
+            display_context.buttons_state[iof_button].inhibit_released_once = false;
+        }
+
+        Display_screen (display_context, RX_CONTEXT, RXTX_context, USE_THIS, i_i2c_internal_commands);
 
         display_context.allow_auto_switch_to_screen_1_RX_main = true;
     }
@@ -1543,7 +1569,10 @@ void RFM69_client (
         select {
             case i_irq.irq_pin_state (const irq_t irq) : {
 
-                unsigned ultimateIRQclearCnt_prev = RX_context.ultimateIRQclearCnt;
+                #if (IS_MYTARGET_SLAVE == 1)
+                    unsigned ultimateIRQclearCnt_prev = RX_context.ultimateIRQclearCnt;
+                #endif
+
 
                 if (irq.pin_value == high) {
                     if (irq.time_since_last_change_sec == 0) {
@@ -1561,16 +1590,24 @@ void RFM69_client (
                                 debug_print_context);
 
                     } else if (irq.time_since_last_change_sec >= 2) {
-                        i_radio.ultimateIRQclear();
-                        RX_context.ultimateIRQclearCnt++;
+                        #if (IS_MYTARGET_SLAVE == 1)
+                            i_radio.ultimateIRQclear();
+                            RX_context.ultimateIRQclearCnt++;
+                        #endif
                     }
                 } else {}
 
-                debug_print ("IRQ %u for %u sek ULT%s%u\n", // ULT= or ULT#
+                debug_print ("IRQ %u for %u sek",
                         irq.pin_value,
-                        irq.time_since_last_change_sec,
-                        (ultimateIRQclearCnt_prev == RX_context.ultimateIRQclearCnt) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                        RX_context.ultimateIRQclearCnt);
+                        irq.time_since_last_change_sec);
+
+                #if (IS_MYTARGET_SLAVE == 1)
+                    debug_print (" ULT%s%u", // ULT= or ULT#
+                            (ultimateIRQclearCnt_prev == RX_context.ultimateIRQclearCnt) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                            RX_context.ultimateIRQclearCnt);
+                #endif
+
+                debug_print ("%s", "\n");
 
             } break;
 
@@ -1600,21 +1637,35 @@ void RFM69_client (
             } break;
 
             case i_button_in[int iof_button].button (const button_action_t button_action) : {
+
+                display_context.buttons_state[iof_button].pressed_now =            (button_action == BUTTON_ACTION_PRESSED);
+                display_context.buttons_state[iof_button].pressed_for_10_seconds = (button_action == BUTTON_ACTION_PRESSED_FOR_10_SECONDS);
+
                 switch (iof_button) {
                     case IOF_BUTTON_LEFT: { // Toggles display on and off, back with same screen
-                        if (button_action == BUTTON_ACTION_RELEASED) {
+                        if (display_context.buttons_state[iof_button].inhibit_released_once) {
+                            display_context.buttons_state[iof_button].inhibit_released_once = false;
+                        } else if (button_action == BUTTON_ACTION_RELEASED) {
                             if (display_context.state == is_on) { // now switch off
                                 display_context.display_screen_name_last_on = display_context.display_screen_name; // PUSH it
                                 display_context.display_screen_name         = SCREEN_DARK;
-                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands); // First this so that SCREEN_DARK runs..
+                                Display_screen (display_context, RX_CONTEXT, RXTX_context, USE_PREV, i_i2c_internal_commands); // First this so that SCREEN_DARK runs..
                                 display_context.state                       = is_off;                            // ..then is_off
 
-                                display_screen_store_values (display_context, RX_context);
+                                display_screen_store_RX_context_values (display_context, RX_CONTEXT);
                             } else { // is_off: now switch on
                                 display_context.display_screen_name         = display_context.display_screen_name_last_on; // PULL it
                                 display_context.state                       = is_on;                             // First is_on..
-                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands); // ..then this so that screen goes on
+                                Display_screen (display_context, RX_CONTEXT, RXTX_context, USE_PREV, i_i2c_internal_commands); // ..then this so that screen goes on
                             }
+                        } else if (button_action == BUTTON_ACTION_PRESSED) {
+                            if (display_context.buttons_state[IOF_BUTTON_CENTER].pressed_now) {
+                                if (display_context.state == is_on) {
+                                    display_context.buttons_state[iof_button].inhibit_released_once = true;
+                                    display_context.display_screen_direction_up = not display_context.display_screen_direction_up;
+                                } else {}
+                            } else {}
+
                         } else {}
                     } break;
 
@@ -1623,12 +1674,23 @@ void RFM69_client (
                             if (display_context.state == is_on) { // now switch off
                                 display_context.display_screen_name_last_on = display_context.display_screen_name;
 
-                                debug_print ("SCREEN NAME %u\n", display_context.display_screen_name);
-                                display_context.display_screen_name = (display_context.display_screen_name + 1) % SCREEN_DARK;
-                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                if (display_context.display_screen_direction_up) {
+                                    display_context.display_screen_name = (display_context.display_screen_name + 1) % SCREEN_DARK;
+                                } else {
+                                    if (display_context.display_screen_name == 0) {
+                                        display_context.display_screen_name = SCREEN_DARK - 1;
+                                    } else {
+                                        display_context.display_screen_name = (display_context.display_screen_name - 1);
+                                    }
+                                }
 
-                                display_screen_store_values (display_context, RX_context);
+                                debug_print ("SCREEN NAME %u\n", display_context.display_screen_name);
+                                Display_screen (display_context, RX_CONTEXT, RXTX_context, USE_PREV, i_i2c_internal_commands);
+
+                                display_screen_store_RX_context_values (display_context, RX_CONTEXT);
                             } else {}
+                        } else if (button_action == BUTTON_ACTION_PRESSED) {
+                            //
                         } else {}
                     } break;
 
@@ -1638,26 +1700,26 @@ void RFM69_client (
                             i_blink_and_watchdog.reset_watchdog_ok();
                             if (display_context.state == is_on) {
                                 if (display_context.display_screen_name == SCREEN_DEBUG) {
-                                    #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
+                                    #if (IS_MYTARGET_SLAVE == 1)
+                                        #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
 
-                                        // debug_mode_0_1 SOLVED THE PROBLEM!
-                                        RX_context.debug_r_button = true;
-                                        RX_context.debug_state = (RX_context.debug_state + 1) % debug_void;
-                                        i_radio.getDebug (RX_context.debug_state, RX_context.debug_data);
+                                            // debug_mode_0_1 SOLVED THE PROBLEM!
+                                            display_context.debug_r_button = true;
+                                            RX_context.debug_state = (RX_context.debug_state + 1) % debug_void;
+                                            i_radio.getDebug (RX_context.debug_state, RX_context.debug_data);
 
-                                        {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
-                                        RXTX_context.error_bits_history or_eq RXTX_context.some_rfm69_internals.error_bits;
+                                            {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+                                            RXTX_context.error_bits_history or_eq RXTX_context.some_rfm69_internals.error_bits;
 
-                                        Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
-                                        RX_context.debug_r_button = false;
+                                            Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                            display_context.debug_r_button = false;
 
+                                        #endif
                                     #endif
                                 }
                             } else {}
                         } else if (button_action == BUTTON_ACTION_PRESSED_FOR_10_SECONDS) {
-                            #if (IS_MYTARGET_SLAVE==1)
-                                reset_values (RX_context, RXTX_context);
-                            #endif
+                            reset_values (display_context, RX_CONTEXT, RXTX_context);
                         }
                     } break;
                 }

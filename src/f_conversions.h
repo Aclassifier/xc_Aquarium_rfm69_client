@@ -91,8 +91,6 @@ typedef struct temp_onetenthDegC_mean_t {
     temp_onetenthDegC_t temps_sum_mten_previous;   // 0 (init) or the value
 } temp_onetenthDegC_mean_t;
 
-
-
 // http://stackoverflow.com/questions/111928/is-there-a-printf-converter-to-print-in-binary-format
 #define BYTE_TO_BINARY(byte) \
     ((byte bitand 0x80) ? '1' : '0'), \
@@ -135,7 +133,7 @@ void u_to_str_lm (                  // lm = left margin: 18 should come out as "
 
 dp1_t                        Parse_i16_dp1                                 (const int16_t val_dp1); // 301 is 30.1 is unary 30 and decimal 1
 version_t                    Parse_packed_version                          (const unsigned packed_version); // 1234 is 1.2.34
-{temp_onetenthDegC_t, bool}  Temp_OnetenthDegC_To_Str                      (const i2c_temp_onetenthDegC_t degC_dp1, char temp_degC_str[EXTERNAL_TEMPERATURE_DEGC_TEXT_LEN]);
+{temp_onetenthDegC_t, bool}  Temp_OnetenthDegC_To_String                   (const i2c_temp_onetenthDegC_t degC_dp1, char temp_degC_str[EXTERNAL_TEMPERATURE_DEGC_TEXT_LEN]);
 {temp_onetenthDegC_t, bool}  TC1047_Raw_DegC_To_String_Ok                  (const unsigned int adc_val_mean_i,      char (&?temp_degC_str)[EXTERNAL_TEMPERATURE_DEGC_TEXT_LEN]);
 {light_sensor_range_t, bool} Ambient_Light_Sensor_ALS_PDIC243_To_String_Ok (const unsigned int adc_val_mean_i,      char (&?lux_str)[INNER_LUX_TEXT_LEN]);
 {voltage_onetenthV_t, bool}  RR_12V_24V_To_String_Ok                       (const unsigned int adc_val_mean_i,      char (&?rr_12V_24V_str)[INNER_RR_12V_24V_TEXT_LEN]);

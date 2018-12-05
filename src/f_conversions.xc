@@ -205,7 +205,7 @@ Do_Arithmetic_Mean_Temp_OnetenthDegC (
 // Convert to a signed value with one decimal, seen as an integer
 //
 {temp_onetenthDegC_t, bool}
-Temp_OnetenthDegC_To_Str (
+Temp_OnetenthDegC_To_String (
     const i2c_temp_onetenthDegC_t degC_dp1,
     char temp_degC_str[EXTERNAL_TEMPERATURE_DEGC_TEXT_LEN]) {
 
