@@ -15,8 +15,9 @@
 
 #define FLASH_EXPLORER_BOX 0 // 1 basically to remove code building printf strings
 
-#define RFM69_CLIENT_VERSION_STR "0.8.33"
-#define RFM69_CLIENT_VERSION_NUM    0833
+#define RFM69_CLIENT_VERSION_STR "0.8.34"
+#define RFM69_CLIENT_VERSION_NUM    0834
+    // 0834     05Dec2018 SCREEN_HJELP is new
     // 0833     05Dec2018 Direction of next screen now "up" or "down". Changes with keys: Hold center in while left is pushed in and out
     // 0832     03Dec2018 i_blink_and_watchdog.blink_pulse_ok only when RXTX_context.receiveDone sin IRQ has separate LED
     // 0831     02Dec2018 Just a new number after two important logs with different settings

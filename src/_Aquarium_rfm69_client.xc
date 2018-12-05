@@ -211,18 +211,19 @@ typedef struct {
 typedef enum display_screen_name_t {
     // English-Norwegian here because the screens are in Norwegian
     // Sequence defines NEXT with IOF_BUTTON_CENTER:
-    SCREEN_RX_MAIN_TIME_TEMP_ETC,
-    SCREEN_STATISTICS_DB_ETC,
-    SCREEN_STATISTICS_OBS,
-    SCREEN_TEMPS_ETC,
-    SCREEN_WATT_ETC,
-    SCREEN_LIGHT,
-    SCREEN_TX_SEQ_CNT,
-    SCREEN_VOLTAGES,
-    SCREEN_AQUARIUM_ERROR_BITS,
-    SCREEN_WELCOME,
+    SCREEN_RX_MAIN_TIME_TEMP_ETC, // Keep as first  since  display_screen_name_str "1 " is not shown
+    SCREEN_STATISTICS_DB_ETC,     // Keep as second since  display_screen_name_str "2 " is not shown
+    SCREEN_STATISTICS_OBS,                              // display_screen_name_str "3 "
+    SCREEN_TEMPS_ETC,                                   // display_screen_name_str "4 "
+    SCREEN_WATT_ETC,                                    // display_screen_name_str "5 "
+    SCREEN_LIGHT,                                       // display_screen_name_str "6 "
+    SCREEN_TX_SEQ_CNT,                                  // display_screen_name_str "7 "
+    SCREEN_VOLTAGES,                                    // display_screen_name_str "8 "
+    SCREEN_AQUARIUM_ERROR_BITS,                         // display_screen_name_str "9 "
+    SCREEN_WELCOME,                                     // display_screen_name_str "10"
+    SCREEN_HJELP,                                       // display_screen_name_str "11"
     #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
-        SCREEN_DEBUG,
+        SCREEN_DEBUG,                                   // display_screen_name_str "12"
     #endif
     SCREEN_DARK // Must be last
 } display_screen_name_t;
@@ -265,13 +266,16 @@ bool // i2c_ok
 
     if (display_context.state == is_on) {
 
-        const char char_aa_str []         = CHAR_AA_STR;          // Å
+        const char char_aa_str         [] = CHAR_AA_STR;          // Å
         const char char_triple_bar_str [] = CHAR_TRIPLE_BAR_STR;  // ≡
         const char char_right_arrow_str[] = CHAR_RIGHT_ARROW_STR; // →
+        const char char_up_arrow_str   [] = CHAR_UP_ARROW_STR;    // ↑
+        const char char_down_arrow_str [] = CHAR_DOWN_ARROW_STR;  // ↓
+        const char char_degC_circle_str[] = DEGC_CIRCLE_STR;      // °
 
         #define SCREEN_NUMBER_WIDTH 2
         char display_screen_name_str [SCREEN_NUMBER_WIDTH+1];
-        u_to_str_lm (display_context.display_screen_name, display_screen_name_str, sizeof display_screen_name_str); // "5 "
+        u_to_str_lm (display_context.display_screen_name + 1, display_screen_name_str, sizeof display_screen_name_str); // Starts at "1 "
 
         #if (IS_MYTARGET_SLAVE == 1)
             const bool alive = (RX_context.appSeqCnt % 2) == 0;
@@ -291,33 +295,15 @@ bool // i2c_ok
 
         switch (display_context.display_screen_name) {
 
-            case SCREEN_WELCOME: {
-
-                // ..........----------.
-                // xx VERSJON 0.8.09
-                //
-                // RX DATA FRA AKVARIET
-                // HVERT 4. SEKUND (*)
-
-                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                        "%s VERSJON %s\n\nRX DATA FRA AKVARIET\nHVERT %u. SEKUND (%s)",
-                        display_screen_name_str,
-                        RFM69_CLIENT_VERSION_STR,
-                        AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
-                        alive ? "*" : "+");
-
-                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-            } break;
-
             case SCREEN_RX_MAIN_TIME_TEMP_ETC: {
                 #if (IS_MYTARGET_SLAVE == 1)
                     if (!isnull(RX_context.RX_radio_payload)) {
 
+                        // display_screen_name_str "1 " is not shown
+
                         // ##########. Most setTextSize(2)
                         // 12:43:04 3
                         // 25.3°C 4W
-
-                        const char char_degC_circle_str[] = DEGC_CIRCLE_STR; // °
 
                         display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%02u:%02u:%02u",
                                 RX_context.RX_radio_payload.u.payload_u0.hour,
@@ -360,14 +346,13 @@ bool // i2c_ok
             case SCREEN_STATISTICS_DB_ETC: {
                 #if (IS_MYTARGET_SLAVE == 1)
 
+                    // display_screen_name_str "2 " is not shown
+
                     // ..........----------. Some setTextSize(2)
                     // -100dB         ↑ -96
                     //                ↓ -101
                     // RX? 2 av 300
                     // RX? 1/150 (+2)
-
-                    const char char_up_arrow_str []   = CHAR_UP_ARROW_STR;   // ↑
-                    const char char_down_arrow_str [] = CHAR_DOWN_ARROW_STR; // ↓
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%ddB", RX_context.nowRSSI);
 
@@ -410,10 +395,8 @@ bool // i2c_ok
             case SCREEN_STATISTICS_OBS: {
                 #if (IS_MYTARGET_SLAVE == 1)
 
-                   const char char_up_arrow_str [] = CHAR_UP_ARROW_STR;   // ↑
-
                     // ..........----------.
-                    // xx *  OBS
+                    // 3  *  OBS
                     // CRC16 123
                     // CRC32 0
                     // IRQ↑  123 (+2)
@@ -430,64 +413,6 @@ bool // i2c_ok
                             (diff > 0) ? "+" : "", diff);
 
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
-                #endif
-            } break;
-
-            #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
-            case SCREEN_DEBUG: {
-                #if (IS_MYTARGET_SLAVE == 1)
-
-                    // ..........----------.
-                    // xx * ERR 1 FFFF
-                    // 0 DEB H-KNAPP→          "Standard" values when IRQ not going on:
-                    // OM=90  F1=D8  F2=00     iof_RegOpMode  iof_RegIrqFlags1             iof_RegIrqFlags2
-                    // RM=04  IC=00            iof_radio_mode iof_waitForIRQInterruptCause
-
-                    //       OM F1    F2 RM IC
-                    // 0824: 90 90,D8 00 04 00
-                    // 0823: 90 D9    64 04 00 Feil 0x4000 It did not help to do par differently
-                    // 0819: 90 D9    44 04 00 Feil 0x4000 ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY 200 ms (1000 ms did not help)
-                    // 0819: 90 D9    64 04 00
-
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s ERR %u %04X\n%u DEB %s%s\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X",
-                            display_screen_name_str,
-                            alive ? "*" : "+",
-                            RXTX_context.is_new_error, RXTX_context.error_bits_history,
-                            RX_context.debug_state,
-                           (display_context.debug_r_button) ? "H-KNAPP" : "GAMLE",
-                            char_right_arrow_str,
-                            RX_context.debug_data[0],  // iof_RegOpMode
-                            RX_context.debug_data[1],  // iof_RegIrqFlags1
-                            RX_context.debug_data[2],  // iof_RegIrqFlags2
-                            RX_context.debug_data[3],  // iof_radio_mode
-                            RX_context.debug_data[4]); // iof_waitForIRQInterruptCause
-
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
-                #endif
-
-            } break;
-            #endif
-
-            case SCREEN_TX_SEQ_CNT: {
-                #if (IS_MYTARGET_SLAVE == 1)
-
-                    // ..........----------.
-                    // xx * TX 242091
-                    // TIMER   268
-                    // DAGER   11
-
-                    const unsigned hours = (RX_context.appSeqCnt * AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC) / 3600;
-                    const unsigned days  = hours / 24; // Also shown in SCREEN_RX_MAIN_TIME_TEMP_ETC (as payload num_days_since_start)
-
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s TX %u\nTIMER   %u\nDAGER   %u",
-                            display_screen_name_str,
-                            alive ? "*" : "+",
-                            RX_context.appSeqCnt,
-                            hours, days);
-
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
             } break;
 
@@ -518,7 +443,7 @@ bool // i2c_ok
                     const dp1_t min_heater_dp1  = Parse_i16_dp1 (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC);
 
                     // ..........----------.
-                    // xx * VANN LUFT VARME
+                    // 4  * VANN LUFT VARME
                     // MAX  25.2 26.1 23.2
                     // NÅ.  25.2 26.1 23.2   '.' when awating data
                     // MIN  25.2 26.1 23.2
@@ -564,7 +489,7 @@ bool // i2c_ok
                     const char now_regulating_at_char[][2] = NOW_REGULATING_AT_CHAR_TEXTS;
 
                     // ..........----------.
-                    // xx * R W  %   VARME≡  Heater tray mean temp
+                    // 5  * R W  %   VARME≡  Heater tray mean temp
                     // MAX    48 100 40.4
                     // NÅ.  = 24 50  25.3    '.' when awating data. '=' in a white square
                     // MIN    0  0   24.2
@@ -620,33 +545,13 @@ bool // i2c_ok
                 #endif
             } break;
 
-            case SCREEN_AQUARIUM_ERROR_BITS: {
-                #if (IS_MYTARGET_SLAVE == 1)
-
-                    // ..........----------.
-                    // xx *        FEIL
-                    // NÅ        0x0000     '.' when awating data
-                    // HISTORIE  0x0000
-
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s       FEIL\nN%s%s      0x%04X\nHISTORIE 0x%04X",
-                            display_screen_name_str,
-                            alive ? "*" : "+",
-                            char_aa_str, (use == USE_THIS) ? " " : ".",
-                            RX_context.RX_radio_payload.u.payload_u0.error_bits_now,
-                            RX_context.RX_radio_payload.u.payload_u0.error_bits_history);
-
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-                #endif
-            } break;
-
             case SCREEN_LIGHT: {
                 #if (IS_MYTARGET_SLAVE == 1)
                     const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LA;
                     const unsigned divisor = NORMAL_LIGHT_THIRDS_OFFSET/10; // 30/10=3
 
                     // ..........----------.
-                    // xx * LYS 2/3
+                    // 6  * LYS 2/3
                     // LEDfmb   2/3 1/3 0/3
                     // NÅ.      DAG @10       '.' when awating data
                     // TIMER    10t 10-20
@@ -672,13 +577,35 @@ bool // i2c_ok
                 #endif
             } break;
 
+            case SCREEN_TX_SEQ_CNT: {
+                #if (IS_MYTARGET_SLAVE == 1)
+
+                    // ..........----------.
+                    // 7  * TX 242091
+                    // TIMER   268
+                    // DAGER   11
+
+                    const unsigned hours = (RX_context.appSeqCnt * AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC) / 3600;
+                    const unsigned days  = hours / 24; // Also shown in SCREEN_RX_MAIN_TIME_TEMP_ETC (as payload num_days_since_start)
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s %s TX %u\nTIMER   %u\nDAGER   %u",
+                            display_screen_name_str,
+                            alive ? "*" : "+",
+                            RX_context.appSeqCnt,
+                            hours, days);
+
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                #endif
+            } break;
+
             case SCREEN_VOLTAGES: {
                 #if (IS_MYTARGET_SLAVE == 1)
                     const dp1_t rr_24V_heat_onetenthV     = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV);
                     const dp1_t rr_12V_LEDlight_onetenthV = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.rr_12V_LEDlight_onetenthV);
 
                     // ..........----------.
-                    // xx *  VOLT
+                    // 8  *  VOLT
                     // VARME 24.1
                     // LYS   11.9
 
@@ -692,6 +619,98 @@ bool // i2c_ok
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
             } break;
+
+            case SCREEN_AQUARIUM_ERROR_BITS: {
+                #if (IS_MYTARGET_SLAVE == 1)
+
+                    // ..........----------.
+                    // 9  *        FEIL
+                    // NÅ        0x0000     '.' when awating data
+                    // HISTORIE  0x0000
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s %s       FEIL\nN%s%s      0x%04X\nHISTORIE 0x%04X",
+                            display_screen_name_str,
+                            alive ? "*" : "+",
+                            char_aa_str, (use == USE_THIS) ? " " : ".",
+                            RX_context.RX_radio_payload.u.payload_u0.error_bits_now,
+                            RX_context.RX_radio_payload.u.payload_u0.error_bits_history);
+
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                #endif
+            } break;
+
+            case SCREEN_WELCOME: {
+
+                // ..........----------.
+                // 10 VERSJON 0.8.09
+                //
+                // RX DATA FRA AKVARIET
+                // HVERT 4. SEKUND (*)
+
+                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                        "%s VERSJON %s\n\nRX DATA FRA AKVARIET\nHVERT %u. SEKUND (%s)",
+                        display_screen_name_str,
+                        RFM69_CLIENT_VERSION_STR,
+                        AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
+                        alive ? "*" : "+");
+
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+            } break;
+
+            case SCREEN_HJELP: {
+
+                // ..........----------.
+                // 11 H: AVSTILL P/10S   Høyre knapp:   Avstill feil-blinking (puls) eller nullstill statistikkdata (10 sekunder)
+                //    S: SKJERM ↑↓       Senterknapp:   Neste eller forrige skjermbilde
+                //    V: SKJERM AV/PÅ    Venstre knapp: Skjerm av eller på
+                //  S+V: SNU ↑↓          Hold inne senterknapp og trykk venstre knapp inn og ut toggler til neste eller forrige skjermbilde
+
+                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                        "%s H: AVSTILL P/10S\n   S: SKJERM %s%s\n   V: SKJERM AV/P%s\n S+V: SNU %s%s",
+                        display_screen_name_str,
+                        char_up_arrow_str, char_down_arrow_str,
+                        char_aa_str,
+                        char_up_arrow_str, char_down_arrow_str);
+
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+            } break;
+
+            #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
+                case SCREEN_DEBUG: {
+                    #if (IS_MYTARGET_SLAVE == 1)
+
+                        // ..........----------.
+                        // 12 * ERR 1 FFFF
+                        // 0 DEB H-KNAPP→          "Standard" values when IRQ not going on:
+                        // OM=90  F1=D8  F2=00     iof_RegOpMode  iof_RegIrqFlags1             iof_RegIrqFlags2
+                        // RM=04  IC=00            iof_radio_mode iof_waitForIRQInterruptCause
+
+                        //       OM F1    F2 RM IC
+                        // 0824: 90 90,D8 00 04 00
+                        // 0823: 90 D9    64 04 00 Feil 0x4000 It did not help to do par differently
+                        // 0819: 90 D9    44 04 00 Feil 0x4000 ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY 200 ms (1000 ms did not help)
+                        // 0819: 90 D9    64 04 00
+
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                                "%s %s ERR %u %04X\n%u DEB %s%s\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X",
+                                display_screen_name_str,
+                                alive ? "*" : "+",
+                                RXTX_context.is_new_error, RXTX_context.error_bits_history,
+                                RX_context.debug_state,
+                               (display_context.debug_r_button) ? "H-KNAPP" : "GAMLE",
+                                char_right_arrow_str,
+                                RX_context.debug_data[0],  // iof_RegOpMode
+                                RX_context.debug_data[1],  // iof_RegIrqFlags1
+                                RX_context.debug_data[2],  // iof_RegIrqFlags2
+                                RX_context.debug_data[3],  // iof_radio_mode
+                                RX_context.debug_data[4]); // iof_waitForIRQInterruptCause
+
+                        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
+                    #endif
+
+                } break;
+            #endif
 
             default:
             case SCREEN_DARK: {
