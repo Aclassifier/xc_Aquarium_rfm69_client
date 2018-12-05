@@ -212,8 +212,8 @@ typedef enum display_screen_name_t {
     // English-Norwegian here because the screens are in Norwegian
     // Sequence defines NEXT with IOF_BUTTON_CENTER:
     SCREEN_RX_MAIN_TIME_TEMP_ETC,
-    SCREEN_STATISTICS,
-    SCREEN_STATISTICS_2,
+    SCREEN_STATISTICS_DB_ETC,
+    SCREEN_STATISTICS_OBS,
     SCREEN_TEMPS_ETC,
     SCREEN_WATT_ETC,
     SCREEN_LIGHT,
@@ -357,10 +357,10 @@ bool // i2c_ok
                 #endif
             } break;
 
-            case SCREEN_STATISTICS: {
+            case SCREEN_STATISTICS_DB_ETC: {
                 #if (IS_MYTARGET_SLAVE == 1)
 
-                    // ..........----------.
+                    // ..........----------. Some setTextSize(2)
                     // -100dB         ↑ -96
                     //                ↓ -101
                     // RX? 2 av 300
@@ -407,20 +407,20 @@ bool // i2c_ok
                 #endif
             } break;
 
-            case SCREEN_STATISTICS_2: {
+            case SCREEN_STATISTICS_OBS: {
                 #if (IS_MYTARGET_SLAVE == 1)
 
                    const char char_up_arrow_str [] = CHAR_UP_ARROW_STR;   // ↑
 
                     // ..........----------.
-                    // xx *  FEIL
+                    // xx *  OBS
                     // CRC16 123
                     // CRC32 0
                     // IRQ↑  123 (+2)
 
                     const signed diff = RX_context.ultimateIRQclearCnt - RX_context.ultimateIRQclearCnt_notSeen_inDisplay;
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s  FEIL\nCRC16 %u\nCRC32 %u\nIRQ%s  %u (%s%d)",
+                            "%s %s  OBS\nCRC16 %u\nCRC32 %u\nIRQ%s  %u (%s%d)",
                             display_screen_name_str,
                             alive ? "*" : "+",
                             RX_context.num_radioCRC16errs,
