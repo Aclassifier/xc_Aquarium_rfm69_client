@@ -211,19 +211,19 @@ typedef struct {
 typedef enum display_screen_name_t {
     // English-Norwegian here because the screens are in Norwegian
     // Sequence defines NEXT with IOF_BUTTON_CENTER:
-    SCREEN_RX_MAIN_TIME_TEMP_ETC, // Keep as first  since  display_screen_name_str "1 " is not shown
-    SCREEN_STATISTICS_DB_ETC,     // Keep as second since  display_screen_name_str "2 " is not shown
-    SCREEN_STATISTICS_OBS,                              // display_screen_name_str "3 "
-    SCREEN_TEMPS_ETC,                                   // display_screen_name_str "4 "
-    SCREEN_WATT_ETC,                                    // display_screen_name_str "5 "
-    SCREEN_LIGHT,                                       // display_screen_name_str "6 "
-    SCREEN_TX_SEQ_CNT,                                  // display_screen_name_str "7 "
-    SCREEN_VOLTAGES,                                    // display_screen_name_str "8 "
-    SCREEN_AQUARIUM_ERROR_BITS,                         // display_screen_name_str "9 "
-    SCREEN_WELCOME,                                     // display_screen_name_str "10"
-    SCREEN_HJELP,                                       // display_screen_name_str "11"
+    SCREEN_RX_MAIN_TIME_TEMP_ETC, // Keep as first  since   0 display_screen_name_str "1 " is not shown (allow_auto_switch_to_screen_rx_main_time_temp_etc)
+    SCREEN_STATISTICS_DB_ETC,     // Keep as second since   1 display_screen_name_str "2 " is not shown
+    SCREEN_STATISTICS_OBS,                              //  2 display_screen_name_str "3 "
+    SCREEN_TEMPS_ETC,                                   //  3 display_screen_name_str "4 "
+    SCREEN_WATT_ETC,                                    //  4 display_screen_name_str "5 "
+    SCREEN_LIGHT,                                       //  5 display_screen_name_str "6 "
+    SCREEN_TX_SEQ_CNT,                                  //  6 display_screen_name_str "7 "
+    SCREEN_VOLTAGES,                                    //  7 display_screen_name_str "8 "
+    SCREEN_AQUARIUM_ERROR_BITS,                         //  8 display_screen_name_str "9 "
+    SCREEN_WELCOME,                                     //  9 display_screen_name_str "10"
+    SCREEN_HJELP,                                       // 10 display_screen_name_str "11"
     #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
-        SCREEN_DEBUG,                                   // display_screen_name_str "12"
+        SCREEN_DEBUG,                                   // 11 display_screen_name_str "12"
     #endif
     SCREEN_DARK // Must be last
 } display_screen_name_t;
@@ -236,7 +236,7 @@ typedef struct {
     int                   sprintf_numchars;
     display_screen_name_t display_screen_name;
     display_screen_name_t display_screen_name_last_on;
-    bool                  allow_auto_switch_to_screen_1_RX_main;
+    bool                  allow_auto_switch_to_screen_rx_main_time_temp_etc; // SCREEN_RX_MAIN_TIME_TEMP_ETC
     bool                  display_screen_direction_up;
     bool                  debug_r_button;
     button_state_t        buttons_state [BUTTONS_NUM_CLIENTS];
@@ -288,6 +288,8 @@ bool // i2c_ok
         for (int index_of_char = 0; index_of_char < NUM_ELEMENTS(display_context.display_ts1_chars); index_of_char++) {
             display_context.display_ts1_chars [index_of_char] = ' ';
         }
+
+        debug_print ("display %u\n", display_context.display_screen_name);
 
         setTextColor(WHITE);
         setCursor(0,0);
@@ -1003,8 +1005,8 @@ void RFM69_handle_irq (
                         RX_context.RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
                     }
 
-                    if (display_context.allow_auto_switch_to_screen_1_RX_main) {
-                        display_context.allow_auto_switch_to_screen_1_RX_main = false;
+                    if (display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc) {
+                        display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc = false; // Once
                         display_context.display_screen_name = SCREEN_RX_MAIN_TIME_TEMP_ETC;
                     } else {}
 
@@ -1519,12 +1521,14 @@ void RFM69_client (
         display_context.display_screen_direction_up = true;
 
         for (int iof_button = 0; iof_button < BUTTONS_NUM_CLIENTS; iof_button++) {
+            display_context.buttons_state[iof_button].pressed_now = false;
+            display_context.buttons_state[iof_button].pressed_for_10_seconds = false;
             display_context.buttons_state[iof_button].inhibit_released_once = false;
         }
 
         Display_screen (display_context, RX_CONTEXT, RXTX_context, USE_THIS, i_i2c_internal_commands);
 
-        display_context.allow_auto_switch_to_screen_1_RX_main = true;
+        display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc = true;
     }
 
     // Radio matters
@@ -1669,7 +1673,7 @@ void RFM69_client (
                                 display_context.display_screen_name_last_on = display_context.display_screen_name; // PUSH it
                                 display_context.display_screen_name         = SCREEN_DARK;
                                 Display_screen (display_context, RX_CONTEXT, RXTX_context, USE_PREV, i_i2c_internal_commands); // First this so that SCREEN_DARK runs..
-                                display_context.state                       = is_off;                            // ..then is_off
+                                display_context.state                       = is_off;                                          // ..then is_off
 
                                 display_screen_store_RX_context_values (display_context, RX_CONTEXT);
                             } else { // is_off: now switch on
@@ -1684,7 +1688,6 @@ void RFM69_client (
                                     display_context.display_screen_direction_up = not display_context.display_screen_direction_up;
                                 } else {}
                             } else {}
-
                         } else {}
                     } break;
 
