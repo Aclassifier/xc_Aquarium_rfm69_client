@@ -37,14 +37,14 @@ typedef interface blink_and_watchdog_if_t {
                                      const port_pins_mask_t port_pins_mask);
 
                 // If none of the above not called within silent_for_ms then port_pins_mask will continuously blink off and on
-                bool enable_watchdog_ok ( // returns success if called fir the first time (can only be called once)
+                bool init_watchdog_ok ( // returns success if called fir the first time (can only be called once)
                                          const port_pins_mask_t port_pins_mask, // May overlap pins above
                                          const unsigned         silent_for_ms,  // Max about 21 seconds
                                          const unsigned         blink_on_ms);   // Max about 21 seconds, off is same time
-
+                void enable_watchdog      (const bool enable); // false is disable. init_watchdog_ok does implicit enable_watchdog
                 void feed_watchdog        (void);
                 bool is_watchdog_blinking (void); // Or test returns on the blink_.. functions
-                bool reset_watchdog_ok    (void); // Also switches off the LED blinking
+                bool reset_watchdog_ok    (void); // Also switches off the LED blinking only
 } blink_and_watchdog_if_t;
 
 #define BEEP_BLINK_TASK_NUM_CLIENTS 1 // Making it multi-client cost 120 bytes

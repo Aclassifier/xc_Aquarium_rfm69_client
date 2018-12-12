@@ -13,10 +13,11 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define FLASH_EXPLORER_BOX 0 // 1 basically to remove code building printf strings
+#define FLASH_EXPLORER_BOX 1 // 1 basically to remove code building printf strings
 
-#define RFM69_CLIENT_VERSION_STR "0.8.35"
-#define RFM69_CLIENT_VERSION_NUM    0835
+#define RFM69_CLIENT_VERSION_STR "0.8.36"
+#define RFM69_CLIENT_VERSION_NUM    0836
+    // 0836     12Dec2018 RX_context.allow_10_sek_timeout is new
     // 0835     07Dec2018 buttons_state was not init enough, so first left button to dark did not work
     // 0834     05Dec2018 SCREEN_HJELP is new
     // 0833     05Dec2018 Direction of next screen now "up" or "down". Changes with keys: Hold center in while left is pushed in and out

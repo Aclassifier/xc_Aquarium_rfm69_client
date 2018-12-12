@@ -160,7 +160,7 @@ void blink_and_watchdog_task (
                 debug_print ("blink_off_ok success %u\n", success);
             } break;
 
-            case i_beep_blink[int index_of_client].enable_watchdog_ok (
+            case i_beep_blink[int index_of_client].init_watchdog_ok (
                     const port_pins_mask_t port_pins_mask, // May overlap other pins
                     const unsigned         silent_for_ms,  // Max about 21 seconds
                     const unsigned         blink_on_ms)    // Max about 21 seconds
@@ -182,7 +182,22 @@ void blink_and_watchdog_task (
                     enabled_watchdog = true;
                     success = true;
                 }
-                debug_print ("enable_watchdog_ok success %u\n", success);
+                debug_print ("init_watchdog_ok success %u\n", success);
+            } break;
+
+            case i_beep_blink[int index_of_client].enable_watchdog (const bool enable) : { // false is disable
+                enabled_watchdog = enable;
+                if (enabled_watchdog) {
+                    do_watchdog_feed_next = true; // Important, else it will blink again
+                } else {
+                    do_watchdog_feed_next = false; // Important too!
+                }
+
+                // SAME stub as with reset_watchdog_ok below:
+                does_watchdog_blinking = false;
+                is_watchdog_port_pins_on = false;
+                port_pins and_eq (compl watchdog_port_pins_mask); // LED off no matter what it was
+                p_port <: port_pins;
             } break;
 
             case i_beep_blink[int index_of_client].feed_watchdog (): {
@@ -195,9 +210,11 @@ void blink_and_watchdog_task (
 
             case i_beep_blink[int index_of_client].reset_watchdog_ok () -> bool success: {
                 if (enabled_watchdog) {
+                    do_watchdog_feed_next = true; // Important, else it will blink again
+
+                    // SAME stub as with enable_watchdog above:
                     does_watchdog_blinking = false;
                     is_watchdog_port_pins_on = false;
-                    do_watchdog_feed_next = true; // Important, else it will blink again
                     port_pins and_eq (compl watchdog_port_pins_mask); // LED off no matter what it was
                     p_port <: port_pins;
                 } else {}

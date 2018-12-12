@@ -189,6 +189,8 @@ typedef struct {
     int16_t   nowRSSI_strongest; // -60  dB
     unsigned  ultimateIRQclearCnt;
     unsigned  ultimateIRQclearCnt_notSeen_inDisplay;
+    bool      allow_10_sek_timeout; // AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC or none
+    bool      is_watchdog_blinking;
 
     #if ((_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_TIMEOUT==1) or (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1))
         uint8_t       debug_data[NUM_DEBUG_BYTES];
@@ -196,6 +198,8 @@ typedef struct {
         debug_state_e debug_state;
     #endif
 } RX_context_t; // RX same as SLAVE same as ISMASTER==0
+
+#define AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2) // 10 or 4 times 2.5 (test with 3 secs)
 
 typedef enum {USE_NONE, USE_THIS, USE_PREV} use_t;
 
@@ -646,16 +650,23 @@ bool // i2c_ok
 
                 // ..........----------.
                 // 10 VERSJON 0.8.09
-                //
                 // RX DATA FRA AKVARIET
                 // HVERT 4. SEKUND (*)
+                // MED TIMEOUT 10 SEK     eller "UTEN TIMEOUT" or "TIMET UT 10 SEK" or "TIMEUT UT" a short period
+
+                char timeout_str [3];
+                sprintf (timeout_str, "%u", AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC);
 
                 display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                        "%s VERSJON %s\n\nRX DATA FRA AKVARIET\nHVERT %u. SEKUND (%s)",
+                        "%s VERSJON %s\nRX DATA FRA AKVARIET\nHVERT %u. SEKUND (%s)\n%s %s %s",
                         display_screen_name_str,
                         RFM69_CLIENT_VERSION_STR,
                         AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
-                        alive ? "*" : "+");
+                        alive ? "*" : "+",
+                        RX_context.is_watchdog_blinking ?     "TIMET UT"    :
+                            RX_context.allow_10_sek_timeout ? "MED TIMEOUT" : "UTEN TIMEOUT",
+                        RX_context.allow_10_sek_timeout ? timeout_str : "",
+                        RX_context.allow_10_sek_timeout ? "SEK"       : "");
 
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
@@ -1189,7 +1200,9 @@ void RFM69_handle_timeout (
             RX_context.seconds_since_last_received = 0;
         } else {}
 
-        if (i_blink_and_watchdog.is_watchdog_blinking()) {
+        RX_context.is_watchdog_blinking = i_blink_and_watchdog.is_watchdog_blinking();
+
+        if (RX_context.is_watchdog_blinking) {
             debug_print ("WATCHDOG BLINKING T %u ", RX_context.seconds_since_last_received); // no nl, added below
         } else {
             debug_print ("T %u ", RX_context.seconds_since_last_received);  // no nl, added below
@@ -1455,7 +1468,8 @@ void RFM69_client (
         }
 
         RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds = NORMAL_LIGHT_THIRDS_OFFSET;
-
+        RX_context.allow_10_sek_timeout = true;
+        RX_context.is_watchdog_blinking = false;
 
     #else
         #error MUST BE ONE of them! To code for both, recode somewhat
@@ -1581,9 +1595,9 @@ void RFM69_client (
         debug_print ("RFM69 err1 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
     } else {}
 
-    i_blink_and_watchdog.enable_watchdog_ok (
+    i_blink_and_watchdog.init_watchdog_ok (
             XCORE_200_EXPLORER_LED_GREEN_BIT_MASK bitor XCORE_200_EXPLORER_LED_RGB_GREEN_BIT_MASK,
-            ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC*5)/2) * 1000, // 10 seconds. May lose two ok. Max 21 secs
+            AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC * 1000, // 10 seconds. May lose two ok. Max 21 secs
             200);
 
     tmr :> divTime.time_ticks; // First sending now
@@ -1738,7 +1752,11 @@ void RFM69_client (
 
                                         #endif
                                     #endif
-                                }
+                                } else if (display_context.display_screen_name == SCREEN_WELCOME) {
+                                    RX_context.allow_10_sek_timeout = not RX_context.allow_10_sek_timeout;
+                                    i_blink_and_watchdog.enable_watchdog (RX_context.allow_10_sek_timeout);
+                                    Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                } else {}
                             } else {}
                         } else if (button_action == BUTTON_ACTION_PRESSED_FOR_10_SECONDS) {
                             reset_values (display_context, RX_CONTEXT, RXTX_context);
