@@ -197,6 +197,8 @@ typedef struct {
         uint8_t       debug_data_prev[NUM_DEBUG_BYTES];
         debug_state_e debug_state;
     #endif
+    uint8_t  senderid_rejected;     // New RFM69=005
+    unsigned senderid_rejected_cnt; // New RFM69=005. Typically if received from MASTER_ID_BLACK_BOX
 } RX_context_t; // RX same as SLAVE same as ISMASTER==0
 
 #define AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2) // 10 or 4 times 2.5 (test with 3 secs)
@@ -226,8 +228,9 @@ typedef enum display_screen_name_t {
     SCREEN_AQUARIUM_ERROR_BITS,                         //  8 display_screen_name_str "9 "
     SCREEN_WELCOME,                                     //  9 display_screen_name_str "10"
     SCREEN_HJELP,                                       // 10 display_screen_name_str "11"
+    SCREEN_RX_ANDRE,                                    // 11 display_screen_name_str "12"
     #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
-        SCREEN_DEBUG,                                   // 11 display_screen_name_str "12"
+        SCREEN_DEBUG,                                   // 12 display_screen_name_str "13"
     #endif
     SCREEN_DARK // Must be last
 } display_screen_name_t;
@@ -689,12 +692,30 @@ bool // i2c_ok
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
+            case SCREEN_RX_ANDRE: {
+                #if (IS_MYTARGET_SLAVE == 1)
+                    // MASTER_ID_BLACK_BOARD 99 // SENDFROM_ADDRESS
+                    // MASTER_ID_AQUARIUM    98 // SENDFROM_ADDRESS
+
+                    // ..........----------.
+                    // 12 RX ANDRE (99)
+                    // #RX 123
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s RX ANDRE (%u)\n#RX %u",
+                            display_screen_name_str,
+                            RX_context.senderid_rejected,
+                            RX_context.senderid_rejected_cnt);
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                #endif
+            } break;
+
             #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
                 case SCREEN_DEBUG: {
                     #if (IS_MYTARGET_SLAVE == 1)
 
                         // ..........----------.
-                        // 12 * ERR 1 FFFF
+                        // 13 * ERR 1 FFFF
                         // 0 DEB H-KNAPP→          "Standard" values when IRQ not going on:
                         // OM=90  F1=D8  F2=00     iof_RegOpMode  iof_RegIrqFlags1             iof_RegIrqFlags2
                         // RM=04  IC=00            iof_radio_mode iof_waitForIRQInterruptCause
@@ -789,7 +810,7 @@ bool // i2c_ok
                             RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
                 } else {
                     debug_print ("\nSENDERID %d, RSSI %d, P %u, ",
-                           RXTX_context.some_rfm69_internals.SENDERID,
+                           RXTX_context.some_rfm69_internals.SENDERID, // Received here
                            RX_context.nowRSSI,
                            RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
                 }
@@ -958,6 +979,7 @@ void RFM69_handle_irq (
     i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, high); // For scope
 
     {RXTX_context.some_rfm69_internals, RX_PACKET_U, interruptAndParsingResult} = i_radio.handleSPIInterrupt(); // DO IT and GET DATA
+    // Now values like RXTX_context.some_rfm69_internals.SENDERID has a value
 
     #if (DEBUG_PRINT_BUFFER==1)
         const char char_leading_space_str[] = CHAR_LEADING_SPACE_STR;
@@ -986,86 +1008,92 @@ void RFM69_handle_irq (
                 // if (i_radio.receiveDone()) {
                 if (RXTX_context.receiveDone) {
 
-                    if (display_context.state == is_on) {
-                        i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 25);
-                    } else {}
+                    if (RXTX_context.some_rfm69_internals.SENDERID == MASTER_ID_AQUARIUM) { // From this address
 
-                    i_blink_and_watchdog.feed_watchdog();
+                        if (display_context.state == is_on) {
+                            i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 25);
+                        } else {}
 
-                    if (display_context.state == is_on) {
-                        i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 25); // Looks orange
-                    } else {}
+                        i_blink_and_watchdog.feed_watchdog();
 
-                    RX_context.seconds_since_last_received = 0;
+                        if (display_context.state == is_on) {
+                            i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_RED_BIT_MASK, 25); // Looks orange
+                        } else {}
 
-                    RX_context.appSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt; // Now. Probably is a very high number also on the first message we see. So:
+                        RX_context.seconds_since_last_received = 0;
 
-                    if (RX_context.num_received == 0) { // First message we see
-                        RX_context.num_lost_since_last_success = 0;
-                    } else {
-                        RX_context.num_lost_since_last_success = RX_context.appSeqCnt - RX_context.appSeqCnt_prev - 1; // So that 123 - 122 - 1 is zero for none lost
-                    }
-                    RX_context.num_received++;
+                        RX_context.appSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt; // Now. Probably is a very high number also on the first message we see. So:
 
-                    if (RX_context.num_lost_since_last_success > 0) {
-                        RX_context.num_appSeqCnt_notSeen += RX_context.num_lost_since_last_success;
-                        // 03Apr2018: one lost in 140, then in 141 (of tenths of thousands!), one in 263
-                    } else {}
-
-                    for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
-                        RX_context.RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
-                    }
-
-                    if (display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc) {
-                        display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc = false; // Once
-                        display_context.display_screen_name = SCREEN_RX_MAIN_TIME_TEMP_ETC;
-                    } else {}
-
-                    // ONLY THOSE PRINTED OR DISPLAYED ARE CALCULATED ON:
-                    //
-                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,                        RX_context.RX_radio_payload.u.payload_u0.heater_on_percent);
-                    RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt                           = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,                           RX_context.RX_radio_payload.u.payload_u0.heater_on_watt);
-                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_context.RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_context.RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_context.RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = max (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_context.RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
-                    RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = max (RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC,           RX_context.RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
-                    //
-                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent                        = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,                        RX_context.RX_radio_payload.u.payload_u0.heater_on_percent);
-                    RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt                           = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,                           RX_context.RX_radio_payload.u.payload_u0.heater_on_watt);
-                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_context.RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_context.RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_context.RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = min (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_context.RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
-                    RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = min (RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC,           RX_context.RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
-
-                    RX_context.nowRSSI_weakest   = min (RX_context.nowRSSI_weakest,   RX_context.nowRSSI); // Not in DEBUG_PRINT_RX_2_NOW_MAX_MIN
-                    RX_context.nowRSSI_strongest = max (RX_context.nowRSSI_strongest, RX_context.nowRSSI); // Not in DEBUG_PRINT_RX_2_NOW_MAX_MIN
-
-                    DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_2_NOW_MAX_MIN, debug_print_context, RX_context, RXTX_context);
-
-                    Display_screen (display_context, RX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
-
-                    DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_1_SEQCNT_ETC, debug_print_context, RX_context, RXTX_context);
-                    DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_2_TEMPS_ETC, debug_print_context, RX_context, RXTX_context);
-
-                    // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
-                    // Reinserted RFM69=001
-                    #if (SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE == 1) // TODO remove
-                       if (i_radio.receiveDone()) {                          // This is needed even if..
-                           debug_print ("%s\n", "receiveDone in polling!");  // ..it never gets here! (TODO?)
-                       } else {}
-                    #endif
-
-                    if (RX_context.num_lost_since_last_success == 0) {
-                        // BOTH 40 5Oct2018: debug_print ("sizeof %u, LEN %u\n", sizeof RX_context.RX_radio_payload.u.payload_u1_uint8_arr, _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08);
-                        for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
-                            // Take a copy of last received into "previous"
-                            RX_context.RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = RX_context.RX_radio_payload.u.payload_u1_uint8_arr [index]; // Received last
+                        if (RX_context.num_received == 0) { // First message we see
+                            RX_context.num_lost_since_last_success = 0;
+                        } else {
+                            RX_context.num_lost_since_last_success = RX_context.appSeqCnt - RX_context.appSeqCnt_prev - 1; // So that 123 - 122 - 1 is zero for none lost
                         }
-                    } else {} // Don't restore or set to PACKET_INIT_VAL08, I get to many CHAR_CHANGE_STR ('#')
+                        RX_context.num_received++;
 
-                    RX_context.appSeqCnt_prev = RX_context.appSeqCnt;
+                        if (RX_context.num_lost_since_last_success > 0) {
+                            RX_context.num_appSeqCnt_notSeen += RX_context.num_lost_since_last_success;
+                            // 03Apr2018: one lost in 140, then in 141 (of tenths of thousands!), one in 263
+                        } else {}
+
+                        for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+                            RX_context.RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
+                        }
+
+                        if (display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc) {
+                            display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc = false; // Once
+                            display_context.display_screen_name = SCREEN_RX_MAIN_TIME_TEMP_ETC;
+                        } else {}
+
+                        // ONLY THOSE PRINTED OR DISPLAYED ARE CALCULATED ON:
+                        //
+                        RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent,                        RX_context.RX_radio_payload.u.payload_u0.heater_on_percent);
+                        RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt                           = max (RX_context.RX_radio_payload_max.u.payload_u0.heater_on_watt,                           RX_context.RX_radio_payload.u.payload_u0.heater_on_watt);
+                        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC             = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_context.RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC            = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_context.RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                        RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC              = max (RX_context.RX_radio_payload_max.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_context.RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                        RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = max (RX_context.RX_radio_payload_max.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_context.RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                        RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC           = max (RX_context.RX_radio_payload_max.u.payload_u0.internal_box_temp_onetenthDegC,           RX_context.RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+                        //
+                        RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent                        = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_percent,                        RX_context.RX_radio_payload.u.payload_u0.heater_on_percent);
+                        RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt                           = min (RX_context.RX_radio_payload_min.u.payload_u0.heater_on_watt,                           RX_context.RX_radio_payload.u.payload_u0.heater_on_watt);
+                        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC             = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_heater_onetenthDegC,             RX_context.RX_radio_payload.u.payload_u0.i2c_temp_heater_onetenthDegC);
+                        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC            = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_ambient_onetenthDegC,            RX_context.RX_radio_payload.u.payload_u0.i2c_temp_ambient_onetenthDegC);
+                        RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC              = min (RX_context.RX_radio_payload_min.u.payload_u0.i2c_temp_water_onetenthDegC,              RX_context.RX_radio_payload.u.payload_u0.i2c_temp_water_onetenthDegC);
+                        RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC = min (RX_context.RX_radio_payload_min.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC, RX_context.RX_radio_payload.u.payload_u0.temp_heater_mean_last_cycle_onetenthDegC);
+                        RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC           = min (RX_context.RX_radio_payload_min.u.payload_u0.internal_box_temp_onetenthDegC,           RX_context.RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
+
+                        RX_context.nowRSSI_weakest   = min (RX_context.nowRSSI_weakest,   RX_context.nowRSSI); // Not in DEBUG_PRINT_RX_2_NOW_MAX_MIN
+                        RX_context.nowRSSI_strongest = max (RX_context.nowRSSI_strongest, RX_context.nowRSSI); // Not in DEBUG_PRINT_RX_2_NOW_MAX_MIN
+
+                        DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_2_NOW_MAX_MIN, debug_print_context, RX_context, RXTX_context);
+
+                        Display_screen (display_context, RX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
+
+                        DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_1_SEQCNT_ETC, debug_print_context, RX_context, RXTX_context);
+                        DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_2_TEMPS_ETC, debug_print_context, RX_context, RXTX_context);
+
+                        // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
+                        // Reinserted RFM69=001
+                        #if (SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE == 1) // TODO remove
+                           if (i_radio.receiveDone()) {                          // This is needed even if..
+                               debug_print ("%s\n", "receiveDone in polling!");  // ..it never gets here! (TODO?)
+                           } else {}
+                        #endif
+
+                        if (RX_context.num_lost_since_last_success == 0) {
+                            // BOTH 40 5Oct2018: debug_print ("sizeof %u, LEN %u\n", sizeof RX_context.RX_radio_payload.u.payload_u1_uint8_arr, _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08);
+                            for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
+                                // Take a copy of last received into "previous"
+                                RX_context.RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = RX_context.RX_radio_payload.u.payload_u1_uint8_arr [index]; // Received last
+                            }
+                        } else {} // Don't restore or set to PACKET_INIT_VAL08, I get to many CHAR_CHANGE_STR ('#')
+
+                        RX_context.appSeqCnt_prev = RX_context.appSeqCnt;
+                    } else { // From MASTER_ID_BLACK_BOX
+                        RX_context.senderid_rejected = RXTX_context.some_rfm69_internals.SENDERID;
+                        RX_context.senderid_rejected_cnt++;
+                    }
 
                 } else {
                     debug_print ("Max %u %u \n", "IRQ but not receiveDone!");
@@ -1073,7 +1101,7 @@ void RFM69_handle_irq (
             } break;
 
             #if (TEST_01_FOLLOW_ADDRESS==1)
-                case messageNotForThisNode_IRQ: {
+                case messageNotForThisNode_IRQ: { // Both MASTER_ID_AQUARIUM and MASTER_ID_BLACK_BOX may send TO this address
                     #if (TEST_01_LISTENTOALL==1)
                         debug_print ("\nStarting to receive on any address, RX_context.num_appSeqCnt_notSeen %u kept, RXappSeqCnt %u\n", RX_context.num_appSeqCnt_notSeen, RX_PACKET_U.u.packet_u1.appSeqCnt);
                         i_radio.RX_context.doListenToAll (true);
@@ -1285,7 +1313,7 @@ void RFM69_handle_timeout (
             TX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_01;
             TX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload  = NUM_OF_THIS_APP_PAYLOAD_01;
 
-            TX_PACKET_U.u.packet_u3.appNODEID = NODEID;
+            TX_PACKET_U.u.packet_u3.appNODEID = NODEID; // Comes from MASTER_ID
             TX_PACKET_U.u.packet_u3.appPowerLevel_dBm = TX_context.TX_appPowerLevel_dBm;
 
             TX_PACKET_U.u.packet_u3.appSeqCnt = TX_context.TX_appSeqCnt;
@@ -1394,6 +1422,8 @@ void reset_values (
 
         RX_context.ultimateIRQclearCnt = 0;
         RX_context.ultimateIRQclearCnt_notSeen_inDisplay = 0;
+        RX_context.senderid_rejected = 0;
+        RX_context.senderid_rejected_cnt = 0;
     #endif
 
     RXTX_context.error_bits_history = 0;
@@ -1421,7 +1451,7 @@ void RFM69_client (
     debug_print_context.debug_print_rx_2_done = false;
 
     RXTX_context.interruptCnt = 0;
-    RXTX_context.radio_init.nodeID    = NODEID;
+    RXTX_context.radio_init.nodeID    = NODEID; // Comes from SHARED_ID from _Aquarium. Will cause messageReceivedOk_IRQ if received this or RF69_BROADCAST_ADDR
     RXTX_context.radio_init.RegFrf    = MY_RFM69_FREQ_REGS;
     RXTX_context.radio_init.isRFM69HW = IS_RFM69HW_HCW; // Must be true or else my Adafruit high power module won't work!
     //
@@ -1470,6 +1500,8 @@ void RFM69_client (
         RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds = NORMAL_LIGHT_THIRDS_OFFSET;
         RX_context.allow_10_sek_timeout = true;
         RX_context.is_watchdog_blinking = false;
+        RX_context.senderid_rejected = 0;
+        RX_context.senderid_rejected_cnt = 0;
 
     #else
         #error MUST BE ONE of them! To code for both, recode somewhat
@@ -1502,7 +1534,7 @@ void RFM69_client (
     //
     #if (IS_MYTARGET_MASTER==1)
         debug_print ("\n%s as MASTER[%u] sendsto [%d] every %u sec: RFM69-driver[%s], RFM69-client[%s]\n",
-                (IS_MYTARGET == IS_MYTARGET_STARTKIT)           ? "startKIT"              :
+                (IS_MYTARGET == IS_MYTARGET_STARTKIT)           ? "startKIT" :
                 (IS_MYTARGET == IS_MYTARGET_XCORE_200_EXPLORER) ? "xplorKIT" : "none!",
                 NODEID,
                 GATEWAYID,
@@ -1510,8 +1542,9 @@ void RFM69_client (
                 RFM69_DRIVER_VERSION_STR,
                 RFM69_CLIENT_VERSION_STR);
     #elif (IS_MYTARGET_SLAVE==1)
+        // xplorKIT as SLAVE[90]: RFM69-driver[0.8.4], RFM69-client[0.8.36]
         debug_print ("\n%s as SLAVE[%u]: RFM69-driver[%s], RFM69-client[%s]\n",
-                (IS_MYTARGET == IS_MYTARGET_STARTKIT)           ? "startKIT"              :
+                (IS_MYTARGET == IS_MYTARGET_STARTKIT)           ? "startKIT" :
                 (IS_MYTARGET == IS_MYTARGET_XCORE_200_EXPLORER) ? "xplorKIT" : "none!",
                 NODEID,
                 RFM69_DRIVER_VERSION_STR,
@@ -1609,7 +1642,6 @@ void RFM69_client (
                 #if (IS_MYTARGET_SLAVE == 1)
                     unsigned ultimateIRQclearCnt_prev = RX_context.ultimateIRQclearCnt;
                 #endif
-
 
                 if (irq.pin_value == high) {
                     if (irq.time_since_last_change_sec == 0) {

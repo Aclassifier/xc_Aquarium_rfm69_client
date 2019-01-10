@@ -72,6 +72,7 @@
     // The MASTER/SLAVE role rationale is also to avoid application level deadlock or oscillation,
     // we would not want both parts to spontaneously send
     #define NODEID SHARED_ID // RECEIVER_ADDRESS is MASTER'S SENDTO_ADDRESS
+                             // defined in ... /_Aquarium_1_x/src/_rfm69_commprot.h
     // ANY SENDTO/RETURNTO address picked out of message
 #else
     #error NO ROLE DEFINED

@@ -14,7 +14,7 @@
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
-				<configuration buildProperties="" description="" id="com.xmos.cdt.toolchain.900693129" name="Default" parent="org.eclipse.cdt.build.core.emptycfg">
+				<configuration artifactName="_Aquarium_rfm69_client" buildProperties="" description="" id="com.xmos.cdt.toolchain.900693129" name="Default" parent="org.eclipse.cdt.build.core.emptycfg">
 					<folderInfo id="com.xmos.cdt.toolchain.900693129.256031017" name="/" resourcePath="">
 						<toolChain id="com.xmos.cdt.toolchain.1088635934" name="com.xmos.cdt.toolchain" superClass="com.xmos.cdt.toolchain">
 							<targetPlatform archList="all" binaryParser="com.xmos.cdt.core.XEBinaryParser;org.eclipse.cdt.core.GNU_ELF" id="com.xmos.cdt.core.platform.795194848" isAbstract="false" osList="linux,win32,macosx" superClass="com.xmos.cdt.core.platform"/>
@@ -862,8 +862,9 @@
 							</tool>
 						</toolChain>
 					</folderInfo>
+					<fileInfo id="com.xmos.cdt.toolchain.900693129.65784639" name="_notes.txt" rcbsApplicability="disable" resourcePath="src/_notes.txt" toolsToInvoke=""/>
 					<sourceEntries>
-						<entry excluding=".build*" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry excluding="src/_notes.txt|.build*" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
