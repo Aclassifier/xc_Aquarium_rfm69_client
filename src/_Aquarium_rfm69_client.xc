@@ -158,9 +158,6 @@ typedef struct {
     //
 } RXTX_context_t;
 
-#define RX_PACKET_U RXTX_context.PACKET
-#define TX_PACKET_U RXTX_context.PACKET // Same
-
 #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG)
     #if ((_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_TIMEOUT==1) or (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1))
         // OK
@@ -565,11 +562,14 @@ bool // i2c_ok
                     // NÅ.      DAG @10       '.' when awating data
                     // TIMER    10t 10-20
 
-                    if (RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_01) {
+                    if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_01) {
                         const unsigned divisor = NORMAL_LIGHT_THIRDS_OFFSET/10; // 30/10=3
                         if (RX_context.num_received == 0) {
                             RX_context.RX_radio_payload.u.payload_u0.light_amount.u.with_offset_30 = NORMAL_LIGHT_THIRDS_OFFSET;
-                        } else {}
+                        } else {
+                            // For this test always receives (from AQUARIUM) 32d which means "2/3"
+                        }
+
                         display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                                 "%s %s LYS %u/%u\nLEDfmb   %u/%u %u/%u %u/%u\nN%s%s      %s @%u\nTIMER    %ut %u-%u",
                                 display_screen_name_str,
@@ -586,26 +586,21 @@ bool // i2c_ok
                                 RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
                                 RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour
                         );
-                    } else if (RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_02) {
+                    } else if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_02) {
                         if (RX_context.num_received == 0) {
                             RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles = 0x11; // "1/1"
                         } else {
-                            // For this test it's always 0x12
+                            // For this test it always receives (from BLACK_BAORD) 0x12 which means "1/2"
                         }
-                        // XMOS COMPILER ERROR:(?)
                         const unsigned num_light_amount = GET_NUMERATOR   (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles); // [1..9]
                         const unsigned den_light_amount = GET_DENOMINATOR (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles); // [1..9]
-                        // Always prints "fraction_2_nibbles 0x12 1 2"
-                        debug_print ("fraction_2_nibbles 0x%0x %u %u\n",
-                                RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles,
-                                num_light_amount,
-                                den_light_amount);
-                        // Some times prints 4294967284/4, but not always. (4294967284=0xFFFFFFF4=-12decimal)
+
                         display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                                "%s %s LYS %u/%u\nLEDfmb   %u/3 %u/3 %u/3\nN%s%s      %s @%u\nTIMER    %ut %u-%u",
+                                "%s %s LYS %u/%u (%u)\nLEDfmb   %u/3 %u/3 %u/3\nN%s%s      %s @%u\nTIMER    %ut %u-%u",
                                 display_screen_name_str,
                                 alive ? "*" : "+",
                                 num_light_amount, den_light_amount,
+                                RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload,
                                 RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
                                 RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
                                 RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
@@ -828,10 +823,10 @@ bool // i2c_ok
                 if (not debug_print_context.debug_print_rx_2_done) {
                     debug_print ("numbytes %u, from NODEID %u, RXappSeqCnt %u\n",
                            RXTX_context.some_rfm69_internals.PACKETLEN,
-                           RX_PACKET_U.u.packet_u3.appNODEID,
-                           RX_PACKET_U.u.packet_u3.appSeqCnt);
+                           RXTX_context.PACKET.u.packet_u3.appNODEID,
+                           RXTX_context.PACKET.u.packet_u3.appSeqCnt);
                 } else {
-                    debug_print ("RXappSeqCnt %u ", RX_PACKET_U.u.packet_u3.appSeqCnt);
+                    debug_print ("RXappSeqCnt %u ", RXTX_context.PACKET.u.packet_u3.appSeqCnt);
                     if (RX_context.num_lost_since_last_success < 0) {
                         if (RX_context.num_appSeqCnt_notSeen != 0) {
                             debug_print ("Sender restarted? (RX_context.num_appSeqCnt_notSeen %u kept)\n", RX_context.num_appSeqCnt_notSeen);
@@ -850,12 +845,12 @@ bool // i2c_ok
                 if (debug_print_context.debug_print_rx_2_done) {
                     debug_print ("\nRSSI %d, P %u, ",
                             RX_context.nowRSSI,
-                            RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
+                            RXTX_context.PACKET.u.packet_u3.appPowerLevel_dBm);
                 } else {
                     debug_print ("\nSENDERID %d, RSSI %d, P %u, ",
                            RXTX_context.some_rfm69_internals.SENDERID, // Received here
                            RX_context.nowRSSI,
-                           RX_PACKET_U.u.packet_u3.appPowerLevel_dBm);
+                           RXTX_context.PACKET.u.packet_u3.appPowerLevel_dBm);
                 }
 
                 if (RX_context.doListenToAll) {
@@ -868,9 +863,9 @@ bool // i2c_ok
                 }
 
                 debug_print ("version_of_full_payload %u (0x%0x), num_of_this_app_payload %u\n",
-                        RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload,
+                        RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload,
                         RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles,
-                        RX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload);
+                        RXTX_context.PACKET.u.packet_u3.appHeading.num_of_this_app_payload);
 
                 debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
                         (RX_context.RX_radio_payload.u.payload_u0.num_days_since_start == RX_context.RX_radio_payload_prev.u.payload_u0.num_days_since_start) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
@@ -905,7 +900,7 @@ bool // i2c_ok
                         (RX_context.RX_radio_payload.u.payload_u0.heater_on_watt == RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
                          RX_context.RX_radio_payload.u.payload_u0.heater_on_watt);
 
-                if (RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_01) {
+                if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_01) {
                     const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS;
                     debug_print ("Light light_control_scheme%s%s with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
                             (RX_context.RX_radio_payload.u.payload_u0.light_control_scheme == RX_context.RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
@@ -922,7 +917,7 @@ bool // i2c_ok
                              RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
                              RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
                              RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour);
-                } else if (RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_02) {
+                } else if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_02) {
                     const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS;
                     const unsigned num_light_amount = GET_NUMERATOR   (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles ); // [1..9]
                     const unsigned den_light_amount = GET_DENOMINATOR (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles ); // [1..9]
@@ -1042,7 +1037,7 @@ void RFM69_handle_irq (
 
     i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, high); // For scope
 
-    {RXTX_context.some_rfm69_internals, RX_PACKET_U, interruptAndParsingResult} = i_radio.handleSPIInterrupt(); // DO IT and GET DATA
+    {RXTX_context.some_rfm69_internals, RXTX_context.PACKET, interruptAndParsingResult} = i_radio.handleSPIInterrupt(); // DO IT and GET DATA
     // Now values like RXTX_context.some_rfm69_internals.SENDERID has a value
 
     #if (DEBUG_PRINT_BUFFER==1)
@@ -1052,7 +1047,7 @@ void RFM69_handle_irq (
         #endif
 
         for (unsigned index = 0; index < PACKET_LEN32; index++) {
-            unsigned value = RX_PACKET_U.u.packet_u2_uint32_arr[index];
+            unsigned value = RXTX_context.PACKET.u.packet_u2_uint32_arr[index];
             debug_print ("%s[%u]: %08X\n",
                     (interruptAndParsingResult == messageReceivedOk_IRQ)   ? "RX" :
                     (interruptAndParsingResult == messagePacketSentOk_IRQ) ? "TX" : "?X",
@@ -1086,7 +1081,7 @@ void RFM69_handle_irq (
 
                         RX_context.seconds_since_last_received = 0;
 
-                        RX_context.appSeqCnt = RX_PACKET_U.u.packet_u3.appSeqCnt; // Now. Probably is a very high number also on the first message we see. So:
+                        RX_context.appSeqCnt = RXTX_context.PACKET.u.packet_u3.appSeqCnt; // Now. Probably is a very high number also on the first message we see. So:
 
                         if (RX_context.num_received == 0) { // First message we see
                             RX_context.num_lost_since_last_success = 0;
@@ -1101,7 +1096,7 @@ void RFM69_handle_irq (
                         } else {}
 
                         for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
-                            RX_context.RX_radio_payload.u.payload_u1_uint8_arr [index] = RX_PACKET_U.u.packet_u3.appPayload_uint8_arr[index]; // Received now
+                            RX_context.RX_radio_payload.u.payload_u1_uint8_arr [index] = RXTX_context.PACKET.u.packet_u3.appPayload_uint8_arr[index]; // Received now
                         }
 
                         if (display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc) {
@@ -1156,7 +1151,9 @@ void RFM69_handle_irq (
                         RX_context.appSeqCnt_prev = RX_context.appSeqCnt;
                     } else {
                         RX_context.senderid_not_displayed_cnt++;
-                        Display_screen (display_context, RX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
+                        if (display_context.display_screen_name == SCREEN_RX_DISPLAY_OVERSIKT) {
+                            Display_screen (display_context, RX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
+                        } else {}
                     }
 
                 } else {
@@ -1164,10 +1161,13 @@ void RFM69_handle_irq (
                 }
             } break;
 
+            // No unconditional Display_screen after this point in this function! Then it may show the wrong data set
+            // When a button is pressed it's fine, but then with USE_PREV
+
             #if (TEST_01_FOLLOW_ADDRESS==1)
                 case messageNotForThisNode_IRQ: { // Both MASTER_ID_AQUARIUM and MASTER_ID_BLACK_BOX may send TO this address
                     #if (TEST_01_LISTENTOALL==1)
-                        debug_print ("\nStarting to receive on any address, RX_context.num_appSeqCnt_notSeen %u kept, RXappSeqCnt %u\n", RX_context.num_appSeqCnt_notSeen, RX_PACKET_U.u.packet_u1.appSeqCnt);
+                        debug_print ("\nStarting to receive on any address, RX_context.num_appSeqCnt_notSeen %u kept, RXappSeqCnt %u\n", RX_context.num_appSeqCnt_notSeen, RXTX_context.PACKET.u.packet_u1.appSeqCnt);
                         i_radio.RX_context.doListenToAll (true);
                     #else
                         uint8_t previous_NODEID = i_radio.setNODEID (RXTX_context.some_rfm69_internals.TARGETID); // Follow who sender wants to send to
@@ -1175,7 +1175,7 @@ void RFM69_handle_irq (
                                 previous_NODEID,
                                 RXTX_context.some_rfm69_internals.TARGETID,
                                 RX_context.num_appSeqCnt_notSeen,
-                                RX_PACKET_U.u.packet_u3.appSeqCnt);
+                                RXTX_context.PACKET.u.packet_u3.appSeqCnt);
                     #endif
                 } break;
             #endif
@@ -1370,23 +1370,23 @@ void RFM69_handle_timeout (
             #endif
 
             for (unsigned index = 0; index < PACKET_LEN32; index++) {
-                 TX_PACKET_U.u.packet_u2_uint32_arr[index] = PACKET_INIT_VAL32;
+                 RXTX_context.PACKET_U.u.packet_u2_uint32_arr[index] = PACKET_INIT_VAL32;
             }
 
-            TX_PACKET_U.u.packet_u3.appHeading.numbytes_of_full_payload = PACKET_LEN08;
-            TX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_02;
-            TX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload  = NUM_OF_THIS_APP_PAYLOAD_01;
+            RXTX_context.PACKET_U.u.packet_u3.appHeading.numbytes_of_full_payload = PACKET_LEN08;
+            RXTX_context.PACKET_U.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_02;
+            RXTX_context.PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload  = NUM_OF_THIS_APP_PAYLOAD_01;
 
-            TX_PACKET_U.u.packet_u3.appNODEID = NODEID; // Comes from MASTER_ID
-            TX_PACKET_U.u.packet_u3.appPowerLevel_dBm = TX_context.TX_appPowerLevel_dBm;
+            RXTX_context.PACKET_U.u.packet_u3.appNODEID = NODEID; // Comes from MASTER_ID
+            RXTX_context.PACKET_U.u.packet_u3.appPowerLevel_dBm = TX_context.TX_appPowerLevel_dBm;
 
-            TX_PACKET_U.u.packet_u3.appSeqCnt = TX_context.TX_appSeqCnt;
+            RXTX_context.PACKET_U.u.packet_u3.appSeqCnt = TX_context.TX_appSeqCnt;
 
             debug_print("TXappSeqCnt %u\n", TX_context.TX_appSeqCnt);
 
             TX_context.waitForIRQInterruptCause = i_radio.send (
                     TX_context.TX_gatewayid,
-                    TX_PACKET_U); // element CommHeaderRFM69 is not taken from here, so don't fill it in
+                    RXTX_context.PACKET_U); // element CommHeaderRFM69 is not taken from here, so don't fill it in
 
             // delay_milliseconds(500); // I can hear the sending in my speakers when high power since delays time to IRQ
 

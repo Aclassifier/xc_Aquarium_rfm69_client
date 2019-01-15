@@ -15,9 +15,9 @@
 
 // #define FLASH_EXPLORER_BOX 1 // 1 basically to remove code building printf strings
 
-#define RFM69_CLIENT_VERSION_STR "0.8.40"
-#define RFM69_CLIENT_VERSION_NUM    0840
-    // 0840     15Jan2019           VERSION_OF_APP_PAYLOAD_01 and VERSION_OF_APP_PAYLOAD_02 handled separately
+#define RFM69_CLIENT_VERSION_STR "0.8.41"
+#define RFM69_CLIENT_VERSION_NUM    0841
+    // 0841     15Jan2019           VERSION_OF_APP_PAYLOAD_01 and VERSION_OF_APP_PAYLOAD_02 handled separately
     // 0839     12Jan2019 RFM69=006 More advanced reception from both from MASTER_ID_AQUARIUM and MASTER_ID_BLACK_BOARD
     // 0838     10Jan2019           Display_screen forgotten
     // 0837     10Jan2019 RFM69=005 Allowing reception from both from MASTER_ID_AQUARIUM and MASTER_ID_BLACK_BOARD
