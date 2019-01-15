@@ -556,62 +556,55 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
                     const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LA;
 
+                    unsigned num_light_amount = 0;
+                    unsigned den_light_amount = 0;
+
                     // ..........----------.
                     // 6  * LYS 1/2
                     // LEDfmb   2/3 1/3 1/3
                     // NÅ.      DAG @10       '.' when awating data
                     // TIMER    10t 10-20
 
-                    if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_01) {
-                        const unsigned divisor = NORMAL_LIGHT_THIRDS_OFFSET/10; // 30/10=3
+                    if (use == USE_PREV) {
+                        // Wait for valid data. TODO have I copied enough over, is this filter necessary?
+                    } else if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_01) {
+
                         if (RX_context.num_received == 0) {
                             RX_context.RX_radio_payload.u.payload_u0.light_amount.u.with_offset_30 = NORMAL_LIGHT_THIRDS_OFFSET;
                         } else {
                             // For this test always receives (from AQUARIUM) 32d which means "2/3"
                         }
 
-                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                                "%s %s LYS %u/%u\nLEDfmb   %u/%u %u/%u %u/%u\nN%s%s      %s @%u\nTIMER    %ut %u-%u",
-                                display_screen_name_str,
-                                alive ? "*" : "+",
-                                RX_context.RX_radio_payload.u.payload_u0.light_amount.u.with_offset_30 - NORMAL_LIGHT_THIRDS_OFFSET, // 32-30=2
-                                divisor,
-                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_front,  divisor,
-                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_center, divisor,
-                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_back,   divisor,
-                                char_aa_str, (use == USE_THIS) ? " " : ".",
-                                light_control_scheme_strings[RX_context.RX_radio_payload.u.payload_u0.light_control_scheme],
-                                RX_context.RX_radio_payload.u.payload_u0.light_composition,
-                                RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
-                                RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
-                                RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour
-                        );
+                        num_light_amount = RX_context.RX_radio_payload.u.payload_u0.light_amount.u.with_offset_30 - NORMAL_LIGHT_THIRDS_OFFSET; // 32-30=2
+                        den_light_amount = NORMAL_LIGHT_THIRDS_OFFSET/10; // 30/10=3
+
                     } else if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_02) {
                         if (RX_context.num_received == 0) {
                             RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles = 0x11; // "1/1"
                         } else {
                             // For this test it always receives (from BLACK_BAORD) 0x12 which means "1/2"
                         }
-                        const unsigned num_light_amount = GET_NUMERATOR   (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles); // [1..9]
-                        const unsigned den_light_amount = GET_DENOMINATOR (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles); // [1..9]
 
-                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                                "%s %s LYS %u/%u (%u)\nLEDfmb   %u/3 %u/3 %u/3\nN%s%s      %s @%u\nTIMER    %ut %u-%u",
-                                display_screen_name_str,
-                                alive ? "*" : "+",
-                                num_light_amount, den_light_amount,
-                                RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload,
-                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
-                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
-                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
-                                char_aa_str, (use == USE_THIS) ? " " : ".",
-                                light_control_scheme_strings[RX_context.RX_radio_payload.u.payload_u0.light_control_scheme],
-                                RX_context.RX_radio_payload.u.payload_u0.light_composition,
-                                RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
-                                RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
-                                RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour
-                        );
+                        num_light_amount = GET_NUMERATOR   (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles); // [1..9]
+                        den_light_amount = GET_DENOMINATOR (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles); // [1..9]
+
                     } else {} // Should not happen
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s %s LYS %u/%u\nLEDfmb   %u/3 %u/3 %u/3\nN%s%s      %s @%u\nTIMER    %ut %u-%u",
+                            display_screen_name_str,
+                            alive ? "*" : "+",
+                            num_light_amount, den_light_amount,
+                            RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
+                            RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
+                            RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
+                            char_aa_str, (use == USE_THIS) ? " " : ".",
+                            light_control_scheme_strings[RX_context.RX_radio_payload.u.payload_u0.light_control_scheme],
+                            RX_context.RX_radio_payload.u.payload_u0.light_composition,
+                            RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
+                            RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
+                            RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour
+                    );
 
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
@@ -708,7 +701,7 @@ bool // i2c_ok
             case SCREEN_HJELP: {
 
                 // ..........----------.
-                // 11 H: AVSTILL P/10S   Høyre knapp:   Avstill feil-blinking (puls) eller nullstill statistikkdata (10 sekunder)
+                // 11 H: AVSTILL P/10S   Høyre knapp:   Avstill feil-blinking (puls) eller nullstill statistikkdata (10 sekunder) eller neste verdi
                 //    S: SKJERM ↑↓       Senterknapp:   Neste eller forrige skjermbilde
                 //    V: SKJERM AV/PÅ    Venstre knapp: Skjerm av eller på
                 //  S+V: SNU ↑↓          Hold inne senterknapp og trykk venstre knapp inn og ut toggler til neste eller forrige skjermbilde
@@ -727,20 +720,19 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
-                    // 12 * DISPLAY
-                    // VISES AKVA ADR 98      VISES KORT ADR 99
-                    // IKKE  KORT ADR 99 →    IKKE  AKVA ADR 98 →
-                    //   #RX 1234
+                    // 12 * DISPLAY: AKVA   12 * DISPLAY: KORT
+                    // VISES ADR 98         VISES ADR 99
+                    // IKKE  ADR 99→        IKKE  ADR 98→
+                    //       #RX 1234             #RX 1234
 
                     const bool is_aquarium = (RX_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s DISPLAY\nVISES %s ADR %u\nIKKE  %s ADR %u %s\n  #RX %u",
+                            "%s %s DISPLAY: %s\nVISES ADR %u\nIKKE  ADR %u%s\n      #RX %u",
                             display_screen_name_str,
                             alive ? "*" : "+",
                             (is_aquarium) ? "AKVA" : "KORT", // Displayed now
                             RX_context.senderid_displayed_now,
-                            (is_aquarium) ? "KORT" : "AKVA", // Not displayed now
                             RX_context.senderid_not_displayed_now,
                             char_right_arrow_str,
                             RX_context.senderid_not_displayed_cnt);
