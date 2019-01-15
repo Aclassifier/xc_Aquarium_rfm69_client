@@ -197,8 +197,9 @@ typedef struct {
         uint8_t       debug_data_prev[NUM_DEBUG_BYTES];
         debug_state_e debug_state;
     #endif
-    uint8_t  senderid_rejected;     // New RFM69=005
-    unsigned senderid_rejected_cnt; // New RFM69=005. Typically if received from MASTER_ID_BLACK_BOX
+    unsigned senderid_not_displayed_cnt;  // New RFM69=005. Typically if received from MASTER_ID_BLACK_BOX
+    uint8_t  senderid_not_displayed_now;  // New RFM69=006
+    uint8_t  senderid_displayed_now;      // New RFM69=006
 } RX_context_t; // RX same as SLAVE same as ISMASTER==0
 
 #define AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2) // 10 or 4 times 2.5 (test with 3 secs)
@@ -228,7 +229,7 @@ typedef enum display_screen_name_t {
     SCREEN_AQUARIUM_ERROR_BITS,                         //  8 display_screen_name_str "9 "
     SCREEN_WELCOME,                                     //  9 display_screen_name_str "10"
     SCREEN_HJELP,                                       // 10 display_screen_name_str "11"
-    SCREEN_RX_ANDRE,                                    // 11 display_screen_name_str "12"
+    SCREEN_RX_DISPLAY_OVERSIKT,                         // 11 display_screen_name_str "12"
     #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
         SCREEN_DEBUG,                                   // 12 display_screen_name_str "13"
     #endif
@@ -264,7 +265,7 @@ typedef struct {
 bool // i2c_ok
     Display_screen (
         display_context_t                 &display_context,
-                RX_context_t             &?RX_context,  // #if (IS_MYTARGET_SLAVE == 1)
+                RX_context_t              &?RX_context,  // #if (IS_MYTARGET_SLAVE == 1)
                 RXTX_context_t            &RXTX_context,
         const   use_t                     use,
         client  i2c_internal_commands_if  i_i2c_internal_commands) {
@@ -557,30 +558,65 @@ bool // i2c_ok
             case SCREEN_LIGHT: {
                 #if (IS_MYTARGET_SLAVE == 1)
                     const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LA;
-                    const unsigned divisor = NORMAL_LIGHT_THIRDS_OFFSET/10; // 30/10=3
 
                     // ..........----------.
-                    // 6  * LYS 2/3
-                    // LEDfmb   2/3 1/3 0/3
+                    // 6  * LYS 1/2
+                    // LEDfmb   2/3 1/3 1/3
                     // NÅ.      DAG @10       '.' when awating data
                     // TIMER    10t 10-20
 
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s LYS %u/%u\nLEDfmb   %u/%u %u/%u %u/%u\nN%s%s      %s @%u\nTIMER    %ut %u-%u",
-                            display_screen_name_str,
-                            alive ? "*" : "+",
-                            RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET, // 32-30=2
-                            divisor,
-                            RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_front,  divisor,
-                            RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_center, divisor,
-                            RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_back,   divisor,
-                            char_aa_str, (use == USE_THIS) ? " " : ".",
-                            light_control_scheme_strings[RX_context.RX_radio_payload.u.payload_u0.light_control_scheme],
-                            RX_context.RX_radio_payload.u.payload_u0.light_composition,
-                            RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
-                            RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
-                            RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour
-                    );
+                    if (RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_01) {
+                        const unsigned divisor = NORMAL_LIGHT_THIRDS_OFFSET/10; // 30/10=3
+                        if (RX_context.num_received == 0) {
+                            RX_context.RX_radio_payload.u.payload_u0.light_amount.u.with_offset_30 = NORMAL_LIGHT_THIRDS_OFFSET;
+                        } else {}
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                                "%s %s LYS %u/%u\nLEDfmb   %u/%u %u/%u %u/%u\nN%s%s      %s @%u\nTIMER    %ut %u-%u",
+                                display_screen_name_str,
+                                alive ? "*" : "+",
+                                RX_context.RX_radio_payload.u.payload_u0.light_amount.u.with_offset_30 - NORMAL_LIGHT_THIRDS_OFFSET, // 32-30=2
+                                divisor,
+                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_front,  divisor,
+                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_center, divisor,
+                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_back,   divisor,
+                                char_aa_str, (use == USE_THIS) ? " " : ".",
+                                light_control_scheme_strings[RX_context.RX_radio_payload.u.payload_u0.light_control_scheme],
+                                RX_context.RX_radio_payload.u.payload_u0.light_composition,
+                                RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
+                                RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
+                                RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour
+                        );
+                    } else if (RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_02) {
+                        if (RX_context.num_received == 0) {
+                            RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles = 0x11; // "1/1"
+                        } else {
+                            // For this test it's always 0x12
+                        }
+                        // XMOS COMPILER ERROR:(?)
+                        const unsigned num_light_amount = GET_NUMERATOR   (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles); // [1..9]
+                        const unsigned den_light_amount = GET_DENOMINATOR (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles); // [1..9]
+                        // Always prints "fraction_2_nibbles 0x12 1 2"
+                        debug_print ("fraction_2_nibbles 0x%0x %u %u\n",
+                                RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles,
+                                num_light_amount,
+                                den_light_amount);
+                        // Some times prints 4294967284/4, but not always. (4294967284=0xFFFFFFF4=-12decimal)
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                                "%s %s LYS %u/%u\nLEDfmb   %u/3 %u/3 %u/3\nN%s%s      %s @%u\nTIMER    %ut %u-%u",
+                                display_screen_name_str,
+                                alive ? "*" : "+",
+                                num_light_amount, den_light_amount,
+                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
+                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
+                                RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
+                                char_aa_str, (use == USE_THIS) ? " " : ".",
+                                light_control_scheme_strings[RX_context.RX_radio_payload.u.payload_u0.light_control_scheme],
+                                RX_context.RX_radio_payload.u.payload_u0.light_composition,
+                                RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
+                                RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
+                                RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour
+                        );
+                    } else {} // Should not happen
 
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
@@ -692,20 +728,27 @@ bool // i2c_ok
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
-            case SCREEN_RX_ANDRE: {
+            case SCREEN_RX_DISPLAY_OVERSIKT: {
                 #if (IS_MYTARGET_SLAVE == 1)
-                    // MASTER_ID_BLACK_BOARD 99 // SENDFROM_ADDRESS
-                    // MASTER_ID_AQUARIUM    98 // SENDFROM_ADDRESS
 
                     // ..........----------.
-                    // 12 RX ANDRE (99)
-                    // #RX 123
+                    // 12 * DISPLAY
+                    // VISES AKVA ADR 98      VISES KORT ADR 99
+                    // IKKE  KORT ADR 99 →    IKKE  AKVA ADR 98 →
+                    //   #RX 1234
+
+                    const bool is_aquarium = (RX_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s RX ANDRE (%u)\n#RX %u",
+                            "%s %s DISPLAY\nVISES %s ADR %u\nIKKE  %s ADR %u %s\n  #RX %u",
                             display_screen_name_str,
-                            RX_context.senderid_rejected,
-                            RX_context.senderid_rejected_cnt);
+                            alive ? "*" : "+",
+                            (is_aquarium) ? "AKVA" : "KORT", // Displayed now
+                            RX_context.senderid_displayed_now,
+                            (is_aquarium) ? "KORT" : "AKVA", // Not displayed now
+                            RX_context.senderid_not_displayed_now,
+                            char_right_arrow_str,
+                            RX_context.senderid_not_displayed_cnt);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #endif
             } break;
@@ -824,8 +867,9 @@ bool // i2c_ok
                     debug_print ("Version %01u.%01u.%02u\n", version.major, version.minor, version.build); // 1110 -> 1.1.10
                 }
 
-                debug_print ("version_of_full_payload %u, num_of_this_app_payload %u\n",
+                debug_print ("version_of_full_payload %u (0x%0x), num_of_this_app_payload %u\n",
                         RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload,
+                        RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles,
                         RX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload);
 
                 debug_print ("num_days_since_start%s%04u at %02u:%02u:%02u\n",
@@ -861,7 +905,7 @@ bool // i2c_ok
                         (RX_context.RX_radio_payload.u.payload_u0.heater_on_watt == RX_context.RX_radio_payload_prev.u.payload_u0.heater_on_watt) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
                          RX_context.RX_radio_payload.u.payload_u0.heater_on_watt);
 
-                {
+                if (RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_01) {
                     const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS;
                     debug_print ("Light light_control_scheme%s%s with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/3 day%s%uh (%u-%u)\n",
                             (RX_context.RX_radio_payload.u.payload_u0.light_control_scheme == RX_context.RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
@@ -871,13 +915,33 @@ bool // i2c_ok
                              RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
                              RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
                              RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
-                            (RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds == RX_context.RX_radio_payload_prev.u.payload_u0.light_amount_full_or_two_thirds) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                             RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds - NORMAL_LIGHT_THIRDS_OFFSET,
+                            (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.with_offset_30 ==
+                                    RX_context.RX_radio_payload_prev.u.payload_u0.light_amount.u.with_offset_30) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_context.RX_radio_payload.u.payload_u0.light_amount.u.with_offset_30 - NORMAL_LIGHT_THIRDS_OFFSET,
                             (RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours == RX_context.RX_radio_payload_prev.u.payload_u0.light_daytime_hours) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
                              RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
                              RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
                              RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour);
-                }
+                } else if (RX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_02) {
+                    const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS;
+                    const unsigned num_light_amount = GET_NUMERATOR   (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles ); // [1..9]
+                    const unsigned den_light_amount = GET_DENOMINATOR (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles ); // [1..9]
+                    debug_print ("Light light_control_scheme%s%s with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/%u day%s%uh (%u-%u)\n",
+                            (RX_context.RX_radio_payload.u.payload_u0.light_control_scheme == RX_context.RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             light_control_scheme_strings[RX_context.RX_radio_payload.u.payload_u0.light_control_scheme],
+                            (RX_context.RX_radio_payload.u.payload_u0.light_composition == RX_context.RX_radio_payload_prev.u.payload_u0.light_composition) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_context.RX_radio_payload.u.payload_u0.light_composition,
+                             RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
+                             RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
+                             RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
+                            (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles ==
+                             RX_context.RX_radio_payload_prev.u.payload_u0.light_amount.u.fraction_2_nibbles) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             num_light_amount, den_light_amount,
+                            (RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours == RX_context.RX_radio_payload_prev.u.payload_u0.light_daytime_hours) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
+                             RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
+                             RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
+                             RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour);
+                } else {} // Should not happen
 
                 dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.rr_24V_heat_onetenthV);
                 debug_print ("Voltage at heater %02u.%uV, ",  dp1.unary, dp1.decimal);
@@ -1008,7 +1072,7 @@ void RFM69_handle_irq (
                 // if (i_radio.receiveDone()) {
                 if (RXTX_context.receiveDone) {
 
-                    if (RXTX_context.some_rfm69_internals.SENDERID == MASTER_ID_AQUARIUM) { // From this address
+                    if (RXTX_context.some_rfm69_internals.SENDERID == RX_context.senderid_displayed_now) { // From this address
 
                         if (display_context.state == is_on) {
                             i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 25);
@@ -1090,9 +1154,9 @@ void RFM69_handle_irq (
                         } else {} // Don't restore or set to PACKET_INIT_VAL08, I get to many CHAR_CHANGE_STR ('#')
 
                         RX_context.appSeqCnt_prev = RX_context.appSeqCnt;
-                    } else { // From MASTER_ID_BLACK_BOX
-                        RX_context.senderid_rejected = RXTX_context.some_rfm69_internals.SENDERID;
-                        RX_context.senderid_rejected_cnt++;
+                    } else {
+                        RX_context.senderid_not_displayed_cnt++;
+                        Display_screen (display_context, RX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
                     }
 
                 } else {
@@ -1310,7 +1374,7 @@ void RFM69_handle_timeout (
             }
 
             TX_PACKET_U.u.packet_u3.appHeading.numbytes_of_full_payload = PACKET_LEN08;
-            TX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_01;
+            TX_PACKET_U.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_02;
             TX_PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload  = NUM_OF_THIS_APP_PAYLOAD_01;
 
             TX_PACKET_U.u.packet_u3.appNODEID = NODEID; // Comes from MASTER_ID
@@ -1422,8 +1486,7 @@ void reset_values (
 
         RX_context.ultimateIRQclearCnt = 0;
         RX_context.ultimateIRQclearCnt_notSeen_inDisplay = 0;
-        RX_context.senderid_rejected = 0;
-        RX_context.senderid_rejected_cnt = 0;
+        RX_context.senderid_not_displayed_cnt = 0;
     #endif
 
     RXTX_context.error_bits_history = 0;
@@ -1497,11 +1560,11 @@ void RFM69_client (
             RX_context.RX_radio_payload.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
         }
 
-        RX_context.RX_radio_payload.u.payload_u0.light_amount_full_or_two_thirds = NORMAL_LIGHT_THIRDS_OFFSET;
         RX_context.allow_10_sek_timeout = true;
         RX_context.is_watchdog_blinking = false;
-        RX_context.senderid_rejected = 0;
-        RX_context.senderid_rejected_cnt = 0;
+        RX_context.senderid_not_displayed_cnt = 0;
+        RX_context.senderid_displayed_now = MASTER_ID_AQUARIUM;
+        RX_context.senderid_not_displayed_now = MASTER_ID_BLACK_BOARD;
 
     #else
         #error MUST BE ONE of them! To code for both, recode somewhat
@@ -1784,6 +1847,10 @@ void RFM69_client (
 
                                         #endif
                                     #endif
+                                } else if (display_context.display_screen_name == SCREEN_RX_DISPLAY_OVERSIKT) {
+                                    t_swap (uint8_t, RX_context.senderid_not_displayed_now, RX_context.senderid_displayed_now);
+                                    reset_values (display_context, RX_CONTEXT, RXTX_context);
+                                    Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                 } else if (display_context.display_screen_name == SCREEN_WELCOME) {
                                     RX_context.allow_10_sek_timeout = not RX_context.allow_10_sek_timeout;
                                     i_blink_and_watchdog.enable_watchdog (RX_context.allow_10_sek_timeout);
