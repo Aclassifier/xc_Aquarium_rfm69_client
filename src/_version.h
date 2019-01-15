@@ -17,6 +17,7 @@
 
 #define RFM69_CLIENT_VERSION_STR "0.8.41"
 #define RFM69_CLIENT_VERSION_NUM    0841
+    // 0841                         See "2019 01 15 A Log light amount change ver 0841 changes too often around 21.00.txt"
     // 0841     15Jan2019           VERSION_OF_APP_PAYLOAD_01 and VERSION_OF_APP_PAYLOAD_02 handled separately
     // 0839     12Jan2019 RFM69=006 More advanced reception from both from MASTER_ID_AQUARIUM and MASTER_ID_BLACK_BOARD
     // 0838     10Jan2019           Display_screen forgotten

@@ -562,7 +562,7 @@ bool // i2c_ok
                     // ..........----------.
                     // 6  * LYS 1/2
                     // LEDfmb   2/3 1/3 1/3
-                    // NÅ.      DAG @10       '.' when awating data
+                    // NÅ.      DAG  = 10       '.' when awating data. Aquarium display also uses '='. Obs space after "DAG " but not "NATT" (in LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LA)
                     // TIMER    10t 10-20
 
                     if (use == USE_PREV) {
@@ -591,7 +591,7 @@ bool // i2c_ok
                     } else {} // Should not happen
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s LYS %u/%u\nLEDfmb   %u/3 %u/3 %u/3\nN%s%s      %s @%u\nTIMER    %ut %u-%u",
+                            "%s %s LYS %u/%u\nLEDfmb   %u/3 %u/3 %u/3\nN%s%s      %s = %u\nTIMER    %ut %u-%u",
                             display_screen_name_str,
                             alive ? "*" : "+",
                             num_light_amount, den_light_amount,
