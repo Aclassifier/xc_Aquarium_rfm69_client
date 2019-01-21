@@ -742,36 +742,20 @@ bool // i2c_ok
 
             #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
                 case SCREEN_DEBUG: {
-                    #if (IS_MYTARGET_SLAVE == 1)
 
-                        // ..........----------.
-                        // 13 * ERR 1 FFFF
-                        // 0 DEB H-KNAPP→          "Standard" values when IRQ not going on:
-                        // OM=90  F1=D8  F2=00     iof_RegOpMode  iof_RegIrqFlags1             iof_RegIrqFlags2
-                        // RM=04  IC=00            iof_radio_mode iof_waitForIRQInterruptCause
+                    // ..........----------.
+                    // 13 * RADIO
+                    // LOKAL RFM69 0.8.05
+                    // FJERN #IRQ  255
 
-                        //       OM F1    F2 RM IC
-                        // 0824: 90 90,D8 00 04 00
-                        // 0823: 90 D9    64 04 00 Feil 0x4000 It did not help to do par differently
-                        // 0819: 90 D9    44 04 00 Feil 0x4000 ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY 200 ms (1000 ms did not help)
-                        // 0819: 90 D9    64 04 00
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s %s RADIO\nLOKAL RFM69 %s\nFJERN #IRQ  %u",
+                            display_screen_name_str,
+                            alive ? "*" : "+",
+                            RFM69_DRIVER_VERSION_STR,
+                            RX_context.RX_radio_payload.u.payload_u0.debug); // 8 bits here, full 32 bits value in display of aquarium (context.ultimateIRQclearCnt)
 
-                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                                "%s %s ERR %u %04X\n%u DEB %s%s\nOM=%02X  F1=%02X  F2=%02X\nRM=%02X  IC=%02X",
-                                display_screen_name_str,
-                                alive ? "*" : "+",
-                                RXTX_context.is_new_error, RXTX_context.error_bits_history,
-                                RX_context.debug_state,
-                               (display_context.debug_r_button) ? "H-KNAPP" : "GAMLE",
-                                char_right_arrow_str,
-                                RX_context.debug_data[0],  // iof_RegOpMode
-                                RX_context.debug_data[1],  // iof_RegIrqFlags1
-                                RX_context.debug_data[2],  // iof_RegIrqFlags2
-                                RX_context.debug_data[3],  // iof_radio_mode
-                                RX_context.debug_data[4]); // iof_waitForIRQInterruptCause
-
-                        display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
-                    #endif
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
 
                 } break;
             #endif
@@ -913,7 +897,7 @@ bool // i2c_ok
                     const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS;
                     const unsigned num_light_amount = GET_NUMERATOR   (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles ); // [1..9]
                     const unsigned den_light_amount = GET_DENOMINATOR (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles ); // [1..9]
-                    debug_print ("Light light_control_scheme%s%s with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 full%s%u/%u day%s%uh (%u-%u)\n",
+                    debug_print ("Light light_control_scheme%s%s with light_composition%s%02u gives FCB %u/3 %u/3 %u/3 amount%s%u/%u day%s%uh (%u-%u)\n",
                             (RX_context.RX_radio_payload.u.payload_u0.light_control_scheme == RX_context.RX_radio_payload_prev.u.payload_u0.light_control_scheme) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
                              light_control_scheme_strings[RX_context.RX_radio_payload.u.payload_u0.light_control_scheme],
                             (RX_context.RX_radio_payload.u.payload_u0.light_composition == RX_context.RX_radio_payload_prev.u.payload_u0.light_composition) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
@@ -939,9 +923,10 @@ bool // i2c_ok
                 dp1 = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
                 debug_print ("Box %02u.%udegC\n", dp1.unary, dp1.decimal);
 
-                debug_print ("Debug%s%02X\n",
+                debug_print ("Debug%s%1u.%01X\n", // Debug= or Debug#
                         (RX_context.RX_radio_payload.u.payload_u0.debug == RX_context.RX_radio_payload_prev.u.payload_u0.debug) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                        RX_context.RX_radio_payload.u.payload_u0.debug);
+                        (RX_context.RX_radio_payload.u.payload_u0.debug >> 4) bitand 0x0f,
+                         RX_context.RX_radio_payload.u.payload_u0.debug       bitand 0x0f);
 
                 debug_print_context.debug_print_rx_2_done = true;
             } break;
@@ -1713,13 +1698,15 @@ void RFM69_client (
                                 i_i2c_internal_commands,
                                 debug_print_context);
 
-                    } else if (irq.time_since_last_change_sec >= 2) {
+                    } else if (irq.time_since_last_change_sec >= (AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC/2)) { // =2 secs
                         #if (IS_MYTARGET_SLAVE == 1)
                             i_radio.ultimateIRQclear();
                             RX_context.ultimateIRQclearCnt++;
                         #endif
                     }
-                } else {}
+                } else {
+                    // Pin is low, do nothing
+                }
 
                 debug_print ("IRQ %u for %u sek",
                         irq.pin_value,
@@ -1842,6 +1829,9 @@ void RFM69_client (
                                 } else if (display_context.display_screen_name == SCREEN_RX_DISPLAY_OVERSIKT) {
                                     t_swap (uint8_t, RX_context.senderid_not_displayed_now, RX_context.senderid_displayed_now);
                                     reset_values (display_context, RX_CONTEXT, RXTX_context);
+                                    debug_print ("LISTENING TO RADIO %s on address %u\n",
+                                            (RX_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "AQARIUM" : "BLACK_BOARD",
+                                             RX_context.senderid_displayed_now);
                                     Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                 } else if (display_context.display_screen_name == SCREEN_WELCOME) {
                                     RX_context.allow_10_sek_timeout = not RX_context.allow_10_sek_timeout;

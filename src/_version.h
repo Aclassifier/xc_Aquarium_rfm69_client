@@ -13,10 +13,10 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-// #define FLASH_EXPLORER_BOX 1 // 1 basically to remove code building printf strings
-
-#define RFM69_CLIENT_VERSION_STR "0.8.41"
-#define RFM69_CLIENT_VERSION_NUM    0841
+#define RFM69_CLIENT_VERSION_STR "0.8.43"
+#define RFM69_CLIENT_VERSION_NUM    0843
+    // 0843     21Jan2019           Just testing that it takes RFM69_DRIVER_VERSION_STR "0.8.07" plus a change in SCREEN_DEBUG
+    // 0842     20Jan2019           SCREEN_DEBUG now displays from aquarium
     // 0841                         See "2019 01 15 A Log light amount change ver 0841 changes too often around 21.00.txt"
     // 0841     15Jan2019           VERSION_OF_APP_PAYLOAD_01 and VERSION_OF_APP_PAYLOAD_02 handled separately
     // 0839     12Jan2019 RFM69=006 More advanced reception from both from MASTER_ID_AQUARIUM and MASTER_ID_BLACK_BOARD
