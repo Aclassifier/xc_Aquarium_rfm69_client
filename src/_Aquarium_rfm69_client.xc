@@ -126,7 +126,7 @@
 #define TEST_01_LISTENTOALL    0 // Tested OK 04Apr2018
 
 #define ONE_SECOND_TICKS                        (1000 * XS1_TIMER_KHZ) // Expands to clock frequency = 100 mill = 100 * 1000 * 1000
-#define SEND_PACKET_ON_NO_CHANGE_TIMOEUT_SECONDS 1                     // MINIMUM 1! For sendPacket_seconds_cntdown
+#define SEND_PACKET_ON_NO_CHANGE_TIMOEUT_SECONDS 4                     // MINIMUM 1! For sendPacket_seconds_cntdown
 
 #define KEY            MY_KEY // From *_commprot.h TODO move it into aquarium _rfm69_commprot.h away from the library files
 #define IS_RFM69HW_HCW true   // 1 for Adafruit RFM69HCW (high power)
@@ -1249,6 +1249,7 @@ void RFM69_handle_timeout (
         TX_context_t                     &?TX_context,
         RXTX_context_t                   &RXTX_context,
         display_context_t                &display_context,
+        const   unsigned                 seconds_since_last_call,
         client  radio_if_t               i_radio,
         client  blink_and_watchdog_if_t  i_blink_and_watchdog,
         const   bool                     semantics_do_rssi_in_irq_detect_task,
@@ -1262,9 +1263,9 @@ void RFM69_handle_timeout (
     #endif
 
     #if (IS_MYTARGET_SLAVE == 1)
-        RX_context.seconds_since_last_received++; // about, anyhow, since we don't reset divTime.time_ticks in pin_rising
+        RX_context.seconds_since_last_received += seconds_since_last_call; // about, anyhow, since we don't reset divTime.time_ticks in pin_rising
         //
-        if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds
+        if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds = 10 seconds
             i_radio.receiveDone(); // TODO necessary after some mid January 2019?
             RX_context.seconds_since_last_received = 0;
         } else {}
@@ -1274,11 +1275,11 @@ void RFM69_handle_timeout (
         if (RX_context.is_watchdog_blinking) {
             debug_print ("WATCHDOG BLINKING T %u ", RX_context.seconds_since_last_received); // no nl, added below
         } else {
-            debug_print ("T %u ", RX_context.seconds_since_last_received);  // no nl, added below
+            debug_print ("T %u ", RX_context.seconds_since_last_received);  // "T 1", "T 2" etc. no nl, added below
         }
 
         #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_TIMEOUT==1)
-        {
+
             bool are_equal;
 
             i_radio.getDebug (RX_context.debug_data);
@@ -1294,7 +1295,7 @@ void RFM69_handle_timeout (
             for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
                 debug_print ("%02X%s", RX_context.debug_data[i], ((i == (NUM_DEBUG_BYTES-1)) ? "\n" : " "));
             }
-        }
+
         #else
             debug_print ("%s", "\n"); // Add missing nl from above
         #endif
@@ -1375,7 +1376,11 @@ void RFM69_handle_timeout (
             TX_context.sendPacket_seconds_cntdown = SEND_PACKET_ON_NO_CHANGE_TIMOEUT_SECONDS - 1;
 
         } else {
-            TX_context.sendPacket_seconds_cntdown--; // To zero
+            if (TX_context.sendPacket_seconds_cntdown > seconds_since_last_call) {
+                TX_context.sendPacket_seconds_cntdown -= seconds_since_last_call; // Down
+            } else {
+                TX_context.sendPacket_seconds_cntdown = 0;
+            }
         }
 
         {
@@ -1489,6 +1494,7 @@ void RFM69_client (
     debug_print_context_t debug_print_context;
     divTime_t             divTime;
     bool                  read_irq_val_continue = false;
+    unsigned              seconds_since_last_call = 0;
 
     debug_print_context.debug_print_rx_2_done = false;
 
@@ -1679,13 +1685,17 @@ void RFM69_client (
 
     tmr :> divTime.time_ticks; // First sending now
 
-    pin_e irq_pin;
+    c_irq_high_event_e sender_as;
 
     while (1) {
         select {
-            case c_irq_high_event :> irq_pin : {
+            case c_irq_high_event :> sender_as : {
 
-                debug_print ("\n\n%s\n", "IRQ high");
+                time32_t then_tics, now_tics;
+                tmr :> then_tics;
+
+                debug_print ("\n\nIRQ %s HIGH, THEN PROCESSING..\n",
+                        (sender_as == initial) ? "INITIAL" : "DELAYED");
 
                 RFM69_handle_irq (
                         RX_CONTEXT,
@@ -1698,69 +1708,69 @@ void RFM69_client (
                         i_i2c_internal_commands,
                         debug_print_context);
 
-                //debug_print ("%s", "HERE 1\n");
-                //delay_milliseconds(1000);
-                //debug_print ("%s", "HERE 2\n");
-
                 irq_val = i_irq_val.read_irq_val(); // Must read pin_value==low before next irq_pin_high may arrive
+                tmr :> now_tics;
+                debug_print ("..TO IRQ POLLED %s TIME %u ms\n", // "..TO IRQ POLLED LOW TIME", "..TO IRQ POLLED HIGH! TIME"
+                            (irq_val.pin_value == low) ? "LOW" : "HIGH!",
+                            (now_tics - then_tics) / XS1_TIMER_KHZ);
 
-                debug_print ("IRQ %s\n", // "IRQ LOW" or "IRQ HIGH!"
-                            (irq_val.pin_value == low) ? "LOW" : "HIGH!");
-
-                if (irq_val.lost_pin_high_event) {
-                    i_radio.ultimateIRQclear();
-                    RX_context.ultimateIRQclearCnt++;
-                    debug_print ("%s\n", "IRQ lost"); // "LOST" below
+                if (irq_val.pin_high_lost_event_resend_it) { // Wait for c_irq_high_event
+                    debug_print ("%s\n", "IRQ WILL BE RESENT");
                     read_irq_val_continue = false;
                 } else {
                     read_irq_val_continue = (irq_val.pin_value == high); // not to deadlock
                 }
             } break;
 
-            case tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
+            case (not irq_val.pin_high_lost_event_resend_it) => tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
+
+                bool allow_RFM69_handle_timeout = true;
 
                 if (read_irq_val_continue) {
-                    irq_val = i_irq_val.read_irq_val();
 
-                     if (irq_val.pin_value == high) {
-                         if (irq_val.time_since_high_sec >= (AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC + (AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC/2))) { // =6 secs
+                    irq_val = i_irq_val.read_irq_val(); // read_irq_val_continue protects this interface call
+
+                    if (irq_val.pin_high_lost_event_resend_it) { // Wait for c_irq_high_event
+                        read_irq_val_continue      = false;
+                        allow_RFM69_handle_timeout = false; // Avoid harmfulness since expecting more on c_irq_high_event
+                        debug_print ("%s\n", "irq will be resent");
+                    } else if (irq_val.pin_value == high) {
+                         if (irq_val.pin_high_timed_out) {
                              i_radio.ultimateIRQclear();
                              RX_context.ultimateIRQclearCnt++;
-                             // irq_val = i_irq_val.read_irq_val(); A read here migh deadlock since pin_value now would be low and an IRQ might arrive
-
-                             irq_val.lost_pin_high_event = false; // Not to trigger below
-                             irq_val.pin_value           = low;   // So that read_irq_val_continue beccomes false below
-                             debug_print ("%s", "IRQ RESET\n");
+                             debug_print ("%s", "irq reset\n");
                          } else {
-                             debug_print ("IRQ high secs %u\n", irq_val.time_since_high_sec);
+                             allow_RFM69_handle_timeout = false; // Avoid harmfulness since expecting more on c_irq_high_event
+                             debug_print ("%s", "irq high\n");
                          }
                      } else {
-                         debug_print ("%s\n", "IRQ low");
-                     }
-
-                     if (irq_val.lost_pin_high_event) {
-                         i_radio.ultimateIRQclear();
-                         RX_context.ultimateIRQclearCnt++;
-                         debug_print ("%s\n", "IRQ LOST"); // "lost" above
                          read_irq_val_continue = false;
-                     } else {
-                         read_irq_val_continue = (irq_val.pin_value == high); // not to deadlock
+                         debug_print ("%s\n", "irq low");
                      }
+                } else {
+                    // No code. This is what would happen most
+                }
+
+                seconds_since_last_call++;
+
+                if (allow_RFM69_handle_timeout) {
+                    RFM69_handle_timeout (
+                            divTime,
+                            startTime_ticks,
+                            RX_CONTEXT,
+                            TX_CONTEXT,
+                            RXTX_context,
+                            display_context,
+                            seconds_since_last_call,
+                            i_radio,
+                            i_blink_and_watchdog,
+                            semantics_do_rssi_in_irq_detect_task,
+                            i_i2c_internal_commands);
+                    seconds_since_last_call = 0;
                 } else {}
 
-                RFM69_handle_timeout (
-                        divTime,
-                        startTime_ticks,
-                        RX_CONTEXT,
-                        TX_CONTEXT,
-                        RXTX_context,
-                        display_context,
-                        i_radio,
-                        i_blink_and_watchdog,
-                        semantics_do_rssi_in_irq_detect_task,
-                        i_i2c_internal_commands);
-
                 #if (TEST_CAR_KEY == 1)
+                    #error NO
                     divTime.time_ticks += ONE_SECOND_TICKS/5; // Every 200 ms will destroy for car's requirement of seein the pulse train for 500 ms
                 #else
                     divTime.time_ticks += ONE_SECOND_TICKS; // FUTURE TIMEOUT

@@ -209,6 +209,8 @@ port inP_button_right  = on tile[0]: XS1_PORT_1P; // P11P, X0D39 B_Right
 
 #define I2C_INTERNAL_NUM_CLIENTS        1
 
+#define IRQ_HIGH_MAX_TIME_MILLIS        1200
+
 int main() {
 
     button_if                i_buttons[BUTTONS_NUM_CLIENTS];
@@ -237,7 +239,7 @@ int main() {
             IRQ_detect_task (i_irq, p_spi_irq, null, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
         #else
             // on tile[0].core[4]: IRQ_detect_and_follow_task (i_irq, p_spi_irq, null, null, SPI_CLIENT_VOID);
-            on tile[0].core[4]: IRQ_detect_and_poll_task_2 (c_irq_high_event, i_irq_val, p_spi_irq, null, SPI_CLIENT_VOID);
+            on tile[0].core[4]: IRQ_detect_and_poll_task_2 (c_irq_high_event, i_irq_val, p_spi_irq, null, SPI_CLIENT_VOID, IRQ_HIGH_MAX_TIME_MILLIS);
         #endif
 
         on tile[0].core[5]: Button_Task (IOF_BUTTON_LEFT,   inP_button_left,   i_buttons[IOF_BUTTON_LEFT]);   // [[combinable]]
