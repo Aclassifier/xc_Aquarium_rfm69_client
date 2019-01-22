@@ -31,8 +31,8 @@ void Button_Task (
         const unsigned   button_n,
         port             p_button,
         client button_if i_button_out // See http://www.teigfam.net/oyvind/home/technology/141-xc-is-c-plus-x/#the_combined_code_6_to_zero_channels
-        ) {
-
+        )
+{
     // From XMOS-Programming-Guide.
     int      current_val = 0;
     bool     is_stable   = true;
@@ -98,7 +98,6 @@ void Button_Task (
                     debug_print(" BUTTON_ACTION_PRESSED_FOR_10_SECONDS %u sent\n", button_n);
                 }
             } break;
-
         }
     }
 }

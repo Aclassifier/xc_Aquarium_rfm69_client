@@ -1265,7 +1265,7 @@ void RFM69_handle_timeout (
         RX_context.seconds_since_last_received++; // about, anyhow, since we don't reset divTime.time_ticks in pin_rising
         //
         if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds
-            i_radio.receiveDone();
+            i_radio.receiveDone(); // TODO necessary after some mid January 2019?
             RX_context.seconds_since_last_received = 0;
         } else {}
 
@@ -1471,7 +1471,8 @@ void reset_values (
 
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
-          server  irq_if_t                 i_irq,
+                  chanend                  c_irq_high_event,
+          client  irq_val_if_t             i_irq_val,
           client  radio_if_t               i_radio,
           client  blink_and_watchdog_if_t  i_blink_and_watchdog,
           const   bool                     semantics_do_rssi_in_irq_detect_task,
@@ -1487,6 +1488,7 @@ void RFM69_client (
     display_context_t     display_context;
     debug_print_context_t debug_print_context;
     divTime_t             divTime;
+    bool                  read_irq_val_continue = false;
 
     debug_print_context.debug_print_rx_2_done = false;
 
@@ -1620,6 +1622,8 @@ void RFM69_client (
 
     // Radio matters
 
+    irq_val_t irq_val;
+
     i_radio.do_spi_aux_adafruit_rfm69hcw_RST_pulse (MASKOF_SPI_AUX0_RST);
     i_radio.initialize (RXTX_context.radio_init);
 
@@ -1675,54 +1679,74 @@ void RFM69_client (
 
     tmr :> divTime.time_ticks; // First sending now
 
+    pin_e irq_pin;
+
     while (1) {
         select {
-            case i_irq.irq_pin_state (const irq_t irq) : {
+            case c_irq_high_event :> irq_pin : {
 
-                #if (IS_MYTARGET_SLAVE == 1)
-                    unsigned ultimateIRQclearCnt_prev = RX_context.ultimateIRQclearCnt;
-                #endif
+                debug_print ("\n\n%s\n", "IRQ high");
 
-                if (irq.pin_value == high) {
-                    if (irq.time_since_last_change_sec == 0) {
-                        RXTX_context.irq_value = irq.RSSI_value;
+                RFM69_handle_irq (
+                        RX_CONTEXT,
+                        TX_CONTEXT,
+                        RXTX_context,
+                        display_context,
+                        i_radio,
+                        i_blink_and_watchdog,
+                        semantics_do_rssi_in_irq_detect_task, // is false
+                        i_i2c_internal_commands,
+                        debug_print_context);
 
-                        RFM69_handle_irq (
-                                RX_CONTEXT,
-                                TX_CONTEXT,
-                                RXTX_context,
-                                display_context,
-                                i_radio,
-                                i_blink_and_watchdog,
-                                semantics_do_rssi_in_irq_detect_task,
-                                i_i2c_internal_commands,
-                                debug_print_context);
+                //debug_print ("%s", "HERE 1\n");
+                //delay_milliseconds(1000);
+                //debug_print ("%s", "HERE 2\n");
 
-                    } else if (irq.time_since_last_change_sec >= (AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC/2)) { // =2 secs
-                        #if (IS_MYTARGET_SLAVE == 1)
-                            i_radio.ultimateIRQclear();
-                            RX_context.ultimateIRQclearCnt++;
-                        #endif
-                    }
+                irq_val = i_irq_val.read_irq_val(); // Must read pin_value==low before next irq_pin_high may arrive
+
+                debug_print ("IRQ %s\n", // "IRQ LOW" or "IRQ HIGH!"
+                            (irq_val.pin_value == low) ? "LOW" : "HIGH!");
+
+                if (irq_val.lost_pin_high_event) {
+                    i_radio.ultimateIRQclear();
+                    RX_context.ultimateIRQclearCnt++;
+                    debug_print ("%s\n", "IRQ lost"); // "LOST" below
+                    read_irq_val_continue = false;
                 } else {
-                    // Pin is low, do nothing
+                    read_irq_val_continue = (irq_val.pin_value == high); // not to deadlock
                 }
-
-                debug_print ("IRQ %u for %u sek",
-                        irq.pin_value,
-                        irq.time_since_last_change_sec);
-
-                #if (IS_MYTARGET_SLAVE == 1)
-                    debug_print (" ULT%s%u", // ULT= or ULT#
-                            (ultimateIRQclearCnt_prev == RX_context.ultimateIRQclearCnt) ? CHAR_EQ_STR : CHAR_CHANGE_STR,
-                            RX_context.ultimateIRQclearCnt);
-                #endif
-
-                debug_print ("%s", "\n");
-
             } break;
 
             case tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
+
+                if (read_irq_val_continue) {
+                    irq_val = i_irq_val.read_irq_val();
+
+                     if (irq_val.pin_value == high) {
+                         if (irq_val.time_since_high_sec >= (AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC + (AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC/2))) { // =6 secs
+                             i_radio.ultimateIRQclear();
+                             RX_context.ultimateIRQclearCnt++;
+                             // irq_val = i_irq_val.read_irq_val(); A read here migh deadlock since pin_value now would be low and an IRQ might arrive
+
+                             irq_val.lost_pin_high_event = false; // Not to trigger below
+                             irq_val.pin_value           = low;   // So that read_irq_val_continue beccomes false below
+                             debug_print ("%s", "IRQ RESET\n");
+                         } else {
+                             debug_print ("IRQ high secs %u\n", irq_val.time_since_high_sec);
+                         }
+                     } else {
+                         debug_print ("%s\n", "IRQ low");
+                     }
+
+                     if (irq_val.lost_pin_high_event) {
+                         i_radio.ultimateIRQclear();
+                         RX_context.ultimateIRQclearCnt++;
+                         debug_print ("%s\n", "IRQ LOST"); // "lost" above
+                         read_irq_val_continue = false;
+                     } else {
+                         read_irq_val_continue = (irq_val.pin_value == high); // not to deadlock
+                     }
+                } else {}
 
                 RFM69_handle_timeout (
                         divTime,

@@ -214,7 +214,9 @@ int main() {
     button_if                i_buttons[BUTTONS_NUM_CLIENTS];
     spi_master_if            i_spi[SPI_NUM_CLIENTS];
     radio_if_t               i_radio;
-    irq_if_t                 i_irq;
+    //irq_high_if_t            i_irq_high;
+    chan                     c_irq_high_event;
+    irq_val_if_t             i_irq_val;
     blink_and_watchdog_if_t  i_blink_and_watchdog[BEEP_BLINK_TASK_NUM_CLIENTS];
     i2c_internal_commands_if i_i2c_internal_commands [I2C_INTERNAL_NUM_CLIENTS];
     i2c_master_if            i_i2c[I2C_MASTER_NUM_CLIENTS];
@@ -227,14 +229,15 @@ int main() {
 
         on tile[0].core[0]: spi_master_2            (i_spi, SPI_NUM_CLIENTS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
         on tile[0].core[1]: RFM69_driver            (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combineable]]
-        on tile[0].core[2]: RFM69_client            (i_irq, i_radio, i_blink_and_watchdog[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK, i_buttons, i_i2c_internal_commands[0], p_display_notReset);
+        on tile[0].core[2]: RFM69_client            (c_irq_high_event, i_irq_val, i_radio, i_blink_and_watchdog[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK, i_buttons, i_i2c_internal_commands[0], p_display_notReset);
         on tile[0].core[3]: blink_and_watchdog_task (i_blink_and_watchdog, p_explorer_leds);
 
         #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
             // Does not work, see XMOS ticket 31286
             IRQ_detect_task (i_irq, p_spi_irq, null, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
         #else
-            on tile[0].core[4]: IRQ_detect_and_follow_task (i_irq, p_spi_irq, null, null, SPI_CLIENT_VOID);
+            // on tile[0].core[4]: IRQ_detect_and_follow_task (i_irq, p_spi_irq, null, null, SPI_CLIENT_VOID);
+            on tile[0].core[4]: IRQ_detect_and_poll_task_2 (c_irq_high_event, i_irq_val, p_spi_irq, null, SPI_CLIENT_VOID);
         #endif
 
         on tile[0].core[5]: Button_Task (IOF_BUTTON_LEFT,   inP_button_left,   i_buttons[IOF_BUTTON_LEFT]);   // [[combinable]]

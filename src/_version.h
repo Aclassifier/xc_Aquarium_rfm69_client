@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.43"
-#define RFM69_CLIENT_VERSION_NUM    0843
+#define RFM69_CLIENT_VERSION_STR "0.8.44"
+#define RFM69_CLIENT_VERSION_NUM    0844
+    // 0844     22Jan2019           IRQ_detect_and_poll_task is new, but now even using IRQ_detect_and_poll_task_2 with chanend
     // 0843     21Jan2019           Just testing that it takes RFM69_DRIVER_VERSION_STR "0.8.07" plus a change in SCREEN_DEBUG
     // 0842     20Jan2019           SCREEN_DEBUG now displays from aquarium
     // 0841                         See "2019 01 15 A Log light amount change ver 0841 changes too often around 21.00.txt"
