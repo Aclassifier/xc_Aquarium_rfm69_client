@@ -209,7 +209,7 @@ port inP_button_right  = on tile[0]: XS1_PORT_1P; // P11P, X0D39 B_Right
 
 #define I2C_INTERNAL_NUM_CLIENTS        1
 
-#define IRQ_HIGH_MAX_TIME_MILLIS        1200
+#define IRQ_HIGH_MAX_TIME_MILLIS        2000 // Longer than debugger with prints time (about 1550 ms)
 
 int main() {
 
