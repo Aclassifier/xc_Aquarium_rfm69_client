@@ -13,8 +13,11 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.44"
-#define RFM69_CLIENT_VERSION_NUM    0844
+#define RFM69_CLIENT_VERSION_STR "0.8.47"
+#define RFM69_CLIENT_VERSION_NUM    0847
+    // 0847     23Jan2019           c_irq_high_event_e new name to make deadlock situation shown, and no read_irq_val call then
+    // 0846     23Jan2019 RFM69=007 I think I noticed a situation where IRQ was correctly low but it did not do any RX of messages
+    // 0845     23Jan2019           Doing reset of more values in reset_values
     // 0844     22Jan2019           IRQ_detect_and_poll_task is new, but now even using IRQ_detect_and_poll_task_2 with chanend
     // 0843     21Jan2019           Just testing that it takes RFM69_DRIVER_VERSION_STR "0.8.07" plus a change in SCREEN_DEBUG
     // 0842     20Jan2019           SCREEN_DEBUG now displays from aquarium

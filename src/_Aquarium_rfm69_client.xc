@@ -677,17 +677,20 @@ bool // i2c_ok
 
                 // ..........----------.
                 // 10 VERSJON 0.8.09
-                // RX DATA FRA AKVARIET
+                // RX AKVA               eller "RX KORT"
                 // HVERT 4. SEKUND (*)
-                // MED TIMEOUT 10 SEK     eller "UTEN TIMEOUT" or "TIMET UT 10 SEK" or "TIMEUT UT" a short period
+                // MED TIMEOUT 10 SEK     eller "UTEN TIMEOUT" or "TIMET UT 10 SEK" or "TIMET UT" a short period
 
                 char timeout_str [3];
                 sprintf (timeout_str, "%u", AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC);
 
+                const bool is_aquarium = (RX_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
+
                 display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                        "%s VERSJON %s\nRX DATA FRA AKVARIET\nHVERT %u. SEKUND (%s)\n%s %s %s",
+                        "%s VERSJON %s\nRX %s\nHVERT %u. SEKUND (%s)\n%s %s %s",
                         display_screen_name_str,
                         RFM69_CLIENT_VERSION_STR,
+                        (is_aquarium) ? "AKVA" : "KORT", // Displayed now
                         AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
                         alive ? "*" : "+",
                         RX_context.is_watchdog_blinking ?     "TIMET UT"    :
@@ -1263,20 +1266,6 @@ void RFM69_handle_timeout (
     #endif
 
     #if (IS_MYTARGET_SLAVE == 1)
-        RX_context.seconds_since_last_received += seconds_since_last_call; // about, anyhow, since we don't reset divTime.time_ticks in pin_rising
-        //
-        if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds = 10 seconds
-            i_radio.receiveDone(); // TODO necessary after some mid January 2019?
-            RX_context.seconds_since_last_received = 0;
-        } else {}
-
-        RX_context.is_watchdog_blinking = i_blink_and_watchdog.is_watchdog_blinking();
-
-        if (RX_context.is_watchdog_blinking) {
-            debug_print ("WATCHDOG BLINKING T %u ", RX_context.seconds_since_last_received); // no nl, added below
-        } else {
-            debug_print ("T %u ", RX_context.seconds_since_last_received);  // "T 1", "T 2" etc. no nl, added below
-        }
 
         #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_TIMEOUT==1)
 
@@ -1434,6 +1423,7 @@ void reset_values (
     #if (IS_MYTARGET_SLAVE==1)
         for (unsigned index = 0; index < _USERMAKEFILE_LIB_RFM69_XC_PAYLOAD_LEN08; index++) {
             RX_context.RX_radio_payload_prev.u.payload_u1_uint8_arr[index] = PACKET_INIT_VAL08;
+            RX_context.RX_radio_payload.u.payload_u1_uint8_arr[index]      = PACKET_INIT_VAL08; // So that SCREEN_RX_MAIN_TIME_TEMP_ETC is zeroed
         }
                                                                                               // RFM69=002 redefined in _Aquarium_1_x/src/_rfm69_commprot.h
         RX_context.RX_radio_payload_max.u.payload_u0.heater_on_percent                        = HEATER_ON_PERCENT_R_MIN;
@@ -1686,16 +1676,17 @@ void RFM69_client (
     tmr :> divTime.time_ticks; // First sending now
 
     c_irq_high_event_e sender_as;
+    bool               pin_high_lost_event_resend_it = false;
 
     while (1) {
         select {
-            case c_irq_high_event :> sender_as : {
+            case c_irq_high_event :> sender_as : { // initial_must_read_irq_val or delayed_no_read_irq_val
 
                 time32_t then_tics, now_tics;
                 tmr :> then_tics;
 
-                debug_print ("\n\nIRQ %s HIGH, THEN PROCESSING..\n",
-                        (sender_as == initial) ? "INITIAL" : "DELAYED");
+                debug_print ("\n\nIRQ %s HIGH, THEN PROCESSING..\n", // "IRQ INITIAL HIGH, THEN PROCESSING.." or "IRQ DELAYED HIGH, THEN PROCESSING.."
+                        (sender_as == initial_must_read_irq_val) ? "INITIAL" : "DELAYED");
 
                 RFM69_handle_irq (
                         RX_CONTEXT,
@@ -1708,29 +1699,43 @@ void RFM69_client (
                         i_i2c_internal_commands,
                         debug_print_context);
 
-                irq_val = i_irq_val.read_irq_val(); // Must read pin_value==low before next irq_pin_high may arrive
                 tmr :> now_tics;
-                debug_print ("..TO IRQ POLLED %s TIME %u ms\n", // "..TO IRQ POLLED LOW TIME", "..TO IRQ POLLED HIGH! TIME"
-                            (irq_val.pin_value == low) ? "LOW" : "HIGH!",
-                            (now_tics - then_tics) / XS1_TIMER_KHZ);
 
-                if (irq_val.pin_high_lost_event_resend_it) { // Wait for c_irq_high_event
-                    debug_print ("%s\n", "IRQ WILL BE RESENT");
+                if (sender_as == delayed_no_read_irq_val) {
+
+                    pin_high_lost_event_resend_it = false;
                     read_irq_val_continue = false;
-                } else {
-                    read_irq_val_continue = (irq_val.pin_value == high); // not to deadlock
+
+                    debug_print ("DELAYED HANDLED TIME %u ms\n", (now_tics - then_tics) / XS1_TIMER_KHZ);
+
+                } else { // initial_must_read_irq_val
+
+                    irq_val = i_irq_val.read_irq_val(); // Must read pin_value==low before next irq_pin_high may arrive
+                    pin_high_lost_event_resend_it = irq_val.pin_high_lost_event_resend_it;
+
+                    debug_print ("..INITIAL HANDLED %s TIME %u ms\n", // "..INITIAL HANDLED LOW TIME", "..INITIAL HANDLED HIGH! TIME"
+                                (irq_val.pin_value == low) ? "LOW" : "HIGH!",
+                                (now_tics - then_tics) / XS1_TIMER_KHZ);
+
+                    if (pin_high_lost_event_resend_it) { // Wait for c_irq_high_event
+                        debug_print ("%s\n", "IRQ WILL BE RESENT");
+                        read_irq_val_continue = false;
+                    } else {
+                        read_irq_val_continue = (irq_val.pin_value == high); // not to deadlock
+                    }
                 }
             } break;
 
-            case (not irq_val.pin_high_lost_event_resend_it) => tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
+            case (not pin_high_lost_event_resend_it) => tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
 
                 bool allow_RFM69_handle_timeout = true;
 
                 if (read_irq_val_continue) {
 
                     irq_val = i_irq_val.read_irq_val(); // read_irq_val_continue protects this interface call
+                    pin_high_lost_event_resend_it = irq_val.pin_high_lost_event_resend_it;
 
-                    if (irq_val.pin_high_lost_event_resend_it) { // Wait for c_irq_high_event
+                    if (pin_high_lost_event_resend_it) { // Wait for c_irq_high_event
                         read_irq_val_continue      = false;
                         allow_RFM69_handle_timeout = false; // Avoid harmfulness since expecting more on c_irq_high_event
                         debug_print ("%s\n", "irq will be resent");
@@ -1752,6 +1757,27 @@ void RFM69_client (
                 }
 
                 seconds_since_last_call++;
+
+                #if (IS_MYTARGET_SLAVE == 1)
+                    RX_context.seconds_since_last_received += seconds_since_last_call; // about, anyhow, since we don't reset divTime.time_ticks in pin_rising
+                    //
+                    if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds = 10 seconds
+                        // RFM69=007
+                        // Independent of pin_high_lost_event_resend_it or irq_val.pin_value should be ok since that's anly talking with IRQ_detect_and_poll_task_2,
+                        // and if the sw here ends up reading the RFM69 wrongly it would not get any interesting data from it anyhow (TODO?)
+                        i_radio.receiveDone(); // TODO necessary after some mid January 2019?. Testing moving it to run always (not in allow_RFM69_handle_timeout)
+                        debug_print ("%s", "irq reset\n");
+                        RX_context.seconds_since_last_received = 0;
+                    } else {}
+
+                    RX_context.is_watchdog_blinking = i_blink_and_watchdog.is_watchdog_blinking();
+
+                    if (RX_context.is_watchdog_blinking) {
+                        debug_print ("WATCHDOG BLINKING T %u ", RX_context.seconds_since_last_received); // no nl, added below
+                    } else {
+                        debug_print ("T %u ", RX_context.seconds_since_last_received);  // "T 1", "T 2" etc. no nl, added below
+                    }
+                #endif
 
                 if (allow_RFM69_handle_timeout) {
                     RFM69_handle_timeout (
@@ -1875,6 +1901,14 @@ void RFM69_client (
                             } else {}
                         } else if (button_action == BUTTON_ACTION_PRESSED_FOR_10_SECONDS) {
                             reset_values (display_context, RX_CONTEXT, RXTX_context);
+                            { // Make display blink.
+                                display_screen_name_t display_screen_name_copy = display_context.display_screen_name;
+                                display_context.display_screen_name = SCREEN_DARK;
+                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                delay_milliseconds(100); // It blinks also without this
+                                display_context.display_screen_name = display_screen_name_copy;
+                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                            }
                         }
                     } break;
                 }
