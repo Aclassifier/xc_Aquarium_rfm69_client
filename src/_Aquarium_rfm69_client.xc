@@ -1685,8 +1685,12 @@ void RFM69_client (
                 time32_t then_tics, now_tics;
                 tmr :> then_tics;
 
+                // nnnn numbers from "2019 01 23 C Logg 0849 deadlocker ikke håper jeg.txt"
+
                 debug_print ("\n\nIRQ %s HIGH, THEN PROCESSING..\n", // "IRQ INITIAL HIGH, THEN PROCESSING.." or "IRQ DELAYED HIGH, THEN PROCESSING.."
-                        (sender_as == initial_must_read_irq_val_and_tick_state) ? "INITIAL" : "DELAYED");
+                        (sender_as == initial_must_read_irq_val_and_tick_state) ?
+                                "INITIAL" : // 4640
+                                "DELAYED"); // 3624
 
                 RFM69_handle_irq (
                         RX_CONTEXT,
@@ -1706,7 +1710,8 @@ void RFM69_client (
                     pin_high_event_muted_now_follows_delayed_event = false;
                     read_irq_val_and_tick_state_continue = false;
 
-                    debug_print ("DELAYED HANDLED TIME %u ms\n", (now_tics - then_tics) / XS1_TIMER_KHZ);
+                    debug_print ("DELAYED HANDLED TIME %u ms\n", // 3624
+                            (now_tics - then_tics) / XS1_TIMER_KHZ);
 
                 } else { // initial_must_read_irq_val_and_tick_state
 
@@ -1715,17 +1720,20 @@ void RFM69_client (
                     irq_val = i_irq_val.read_irq_val_and_tick_state(); // Must read pin_value==low before next irq_pin_high may arrive
                     pin_high_event_muted_now_follows_delayed_event = irq_val.pin_high_event_muted_now_follows_delayed_event;
 
-                    debug_print ("..INITIAL HANDLED %s TIME %u ms\n", // "..INITIAL HANDLED LOW TIME", "..INITIAL HANDLED HIGH! TIME"
-                                (irq_val.pin_value == low) ? "LOW" : "HIGH!",
+                    debug_print ("..INITIAL HANDLED %s TIME %u ms\n",
+                                (irq_val.pin_value == low) ?
+                                        "LOW" :  // "..INITIAL HANDLED LOW TIME"    1016
+                                        "HIGH!", // "..INITIAL HANDLED HIGH! TIME"  3624
                                 (now_tics - then_tics) / XS1_TIMER_KHZ);
 
                     // TEST ENOUGH TO WAIT FOR NEW IRQ HIGH OR CONTINUE POLLING THE TASK/PIN
                     //
                     if (pin_high_event_muted_now_follows_delayed_event) { // Wait for c_irq_high_event
-                        debug_print ("%s\n", "IRQ WILL BE RESENT");
+                        debug_print ("%s\n", "IRQ WILL BE RESENT A");  // 3624
                         read_irq_val_and_tick_state_continue = false;
                     } else {
                         read_irq_val_and_tick_state_continue = (irq_val.pin_value == high); // not to deadlock
+                        debug_print ("CONTINUE A %u", read_irq_val_and_tick_state_continue);  // 3624
                     }
                 }
             } break;
@@ -1735,6 +1743,7 @@ void RFM69_client (
                 bool allow_RFM69_handle_timeout = true;
 
                 if (read_irq_val_and_tick_state_continue) {
+                    debug_print ("%s\n", "continue b");
 
                     read_irq_val_and_tick_state_continue = false; // May be overwritten
 
@@ -1749,22 +1758,23 @@ void RFM69_client (
                     //     CONTINUE POLLING FOR LOW OR
                     //     STANDARD: WAIT FOR AN INITIAL IRQ HIGH EVENT
                     //
-                    if (pin_high_event_muted_now_follows_delayed_event) {                 // WAIT FOR A DELAYED IRQ HIGH EVENT
+                    if (pin_high_event_muted_now_follows_delayed_event) {                 // never: WAIT FOR A DELAYED IRQ HIGH EVENT
                         allow_RFM69_handle_timeout = false;
-                        debug_print ("%s\n", "irq will be resent");
-                    } else if (irq_val.pin_was_high_too_long) {                           // CLEAR RFM69 RADIO IRQ TO LOW
+                        debug_print ("%s\n", "irq will be resent b");
+                    } else if (irq_val.pin_was_high_too_long) {                           // 4: CLEAR RFM69 RADIO IRQ TO LOW
                         i_radio.ultimateIRQclear();
                         RX_context.ultimateIRQclearCnt++;
-                        debug_print ("%s", "irq reset\n");
-                    } else if (irq_val.pin_value == high) {                               // CONTINUE POLLING FOR LOW
+                        debug_print ("%s\n", "irq reset b");
+                    } else if (irq_val.pin_value == high) {                               // never: CONTINUE POLLING FOR LOW
                         read_irq_val_and_tick_state_continue = true; // Only place
                         allow_RFM69_handle_timeout = false;
-                        debug_print ("%s", "irq high\n");
-                    } else { // irq_val.pin_value is low                                  // STANDARD: WAIT FOR AN INITIAL IRQ HIGH EVENT
-                        debug_print ("%s\n", "irq low");
+                        debug_print ("%s\n", "irq high b");
+                    } else { // irq_val.pin_value is low                                  // vere: STANDARD: WAIT FOR AN INITIAL IRQ HIGH EVENT
+                        debug_print ("%s\n", "irq low b");
                     }
                 } else {
                     // No code. This is what would happen most
+                    debug_print ("%s\n", "no continue c");
                 }
 
                 seconds_since_last_call++;
