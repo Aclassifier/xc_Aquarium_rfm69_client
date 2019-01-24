@@ -13,9 +13,10 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.50"
-#define RFM69_CLIENT_VERSION_NUM    0850
-    // 0850     23Jan2019           More logging
+#define RFM69_CLIENT_VERSION_STR "0.8.51"
+#define RFM69_CLIENT_VERSION_NUM    0851
+    // 0851     24Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 1000
+    // 0850     23Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 2000
     // 0849     23Jan2019           Some rewrite, should be minor
     // 0848     23Jan2019           IRQ_HIGH_MAX_TIME_MILLIS from 1200 to 2000
     // 0847     23Jan2019           c_irq_high_event_e new name to make deadlock situation shown, and no read_irq_val_and_tick_state call then
