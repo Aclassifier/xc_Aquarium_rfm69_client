@@ -51,8 +51,8 @@
 #define CAT3(a,b,c) a##b##c
 #define XS1_PORT(WIDTH,LETTER) CAT3(XS1_PORT_,WIDTH,LETTER) // XS1_PORT_ is a string here, not some #define from the woods!
 
-                                              //                StartKIT                  eXplorerKIT - BUT NOT AS PREDEFINED SPI in their Portmaps
-                                              //                                          as WiFi sliceCARD My breakpot board
+                                              //               StartKIT                  eXplorerKIT - BUT NOT AS PREDEFINED SPI in their Portmaps
+                                              //                                         as WiFi sliceCARD My breakpot board
 #define SPI_MOSI                XS1_PORT(1,K) // XS1_PORT_1K   X0D34 P1K        PCIe-B10 GPIO-PIN19                                (also on J12 servo connector)
 #define SPI_CLK                 XS1_PORT(1,J) // XS1_PORT_1J   X0D25 P1J        PCIe-A8  GPIO-PIN21
 #define SPI_MISO                XS1_PORT(1,I) // XS1_PORT_1I   X0D24 P1I        PCIe-B15 GPIO-PIN23

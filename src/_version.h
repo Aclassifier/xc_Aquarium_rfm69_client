@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.51"
-#define RFM69_CLIENT_VERSION_NUM    0851
+#define RFM69_CLIENT_VERSION_STR "0.8.52"
+#define RFM69_CLIENT_VERSION_NUM    0852
+    // 0852     26Jan2019           SCREEN_VOLTAGES -> SCREEN_AQUARIUM_BOX_INTERNALS and new contents
     // 0851     24Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 1000
     // 0850     23Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 2000
     // 0849     23Jan2019           Some rewrite, should be minor

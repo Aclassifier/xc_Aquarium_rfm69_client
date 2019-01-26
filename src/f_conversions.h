@@ -13,7 +13,7 @@
 //void myExceptionHandler(void);
 
 typedef int16_t temp_onetenthDegC_t;  // 25.1 DegC is 251 (as is i2c_temp_onetenthDegC_t)
-typedef int16_t voltage_onetenthV_t;  // 12.1 Volt is 121
+typedef int16_t onetenthVolt_t;  // 12.1 Volt is 121
 typedef int light_sensor_range_t; // [0..99] = [00..INNER_MAX_LUX]
 #define LIGHT_SENSOR_RANGE_DIFF_TRIGGER_LEVEL ((INNER_MAX_LUX+1) / 5) // 20
 #define NUM_MINUTES_LIGHT_SENSOR_RANGE_DIFF    2 // 1-2 minutes
@@ -136,7 +136,7 @@ version_t                    Parse_packed_version                          (cons
 {temp_onetenthDegC_t, bool}  Temp_OnetenthDegC_To_String                   (const i2c_temp_onetenthDegC_t degC_dp1, char temp_degC_str[EXTERNAL_TEMPERATURE_DEGC_TEXT_LEN]);
 {temp_onetenthDegC_t, bool}  TC1047_Raw_DegC_To_String_Ok                  (const unsigned int adc_val_mean_i,      char (&?temp_degC_str)[EXTERNAL_TEMPERATURE_DEGC_TEXT_LEN]);
 {light_sensor_range_t, bool} Ambient_Light_Sensor_ALS_PDIC243_To_String_Ok (const unsigned int adc_val_mean_i,      char (&?lux_str)[INNER_LUX_TEXT_LEN]);
-{voltage_onetenthV_t, bool}  RR_12V_24V_To_String_Ok                       (const unsigned int adc_val_mean_i,      char (&?rr_12V_24V_str)[INNER_RR_12V_24V_TEXT_LEN]);
+{onetenthVolt_t, bool}  RR_12V_24V_To_String_Ok                       (const unsigned int adc_val_mean_i,      char (&?rr_12V_24V_str)[INNER_RR_12V_24V_TEXT_LEN]);
 
 uint8_t BCD_To_Bin_8 (uint8_t val);
 uint8_t Bin_To_BCD_8 (uint8_t val);
