@@ -13,8 +13,10 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.55"
-#define RFM69_CLIENT_VERSION_NUM    0855
+#define RFM69_CLIENT_VERSION_STR "0.8.57"
+#define RFM69_CLIENT_VERSION_NUM    0857
+    // 0857     27Jan2019           SCREEN_AQUARIUM_BOX_INTERNALS changed
+    // 0856     27Jan2019           100 and 1000 ms seemed ok. Going back to 2000, which I guess would only handle a _real_ problem. No log from RFM69 library any more
     // 0855     27Jan2019           Just testing with IRQ_HIGH_MAX_TIME_MILLIS = 100
     // 0854     27Jan2019           Just testing with IRQ_HIGH_MAX_TIME_MILLIS = 1000
     // 0853     27Jan2019 RFM69=008 IRQ_detect_and_follow_task_2 new and used. Just one-way from IRQ handler, like it used to

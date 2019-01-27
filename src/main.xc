@@ -209,8 +209,9 @@ port inP_button_right  = on tile[0]: XS1_PORT_1P; // P11P, X0D39 B_Right
 
 #define I2C_INTERNAL_NUM_CLIENTS        1
 
-#define IRQ_HIGH_MAX_TIME_MILLIS        100 // Longer than debugger with prints time (about 1550 ms)
-#warning 100 ms
+
+#define IRQ_HIGH_MAX_TIME_MILLIS 2000 // This is not critical, but having a value that would display a real stuck IRQ would be most correct I guess
+                                      // Have testet 100 and 1000 with debug prints (which would waste the most time in debug_print)
 
 int main() {
 

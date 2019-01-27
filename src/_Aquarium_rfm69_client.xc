@@ -639,15 +639,18 @@ bool // i2c_ok
                     const dp1_t internal_box_temp_onetenthDegC = Parse_i16_dp1 (RX_context.RX_radio_payload.u.payload_u0.internal_box_temp_onetenthDegC);
 
                     // ..........----------.
-                    // 8  *  AKVA-BOKS       Same layout as screen 4 of aquarium
+                    // 8  *       AKVA      or KORT
                     //        LYS 11.9V
                     //      VARME 24.1V
                     // TEMPERATUR 24.5°C     Also used with max/min with debug_print
 
+                    const bool is_aquarium = (RX_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
+
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s  AKVA-BOKS\n       LYS %02u.%uV\n     VARME %02u.%uV\nTEMPERATUR %02u.%u%sC",
+                            "%s %s       %s\n       LYS %02u.%uV\n     VARME %02u.%uV\nTEMPERATUR %02u.%u%sC",
                             display_screen_name_str,
                             alive ? "*" : "+",
+                            (is_aquarium) ? "AKVA" : "KORT", // Displayed now
                             rr_12V_LEDlight_onetenthV.unary, rr_12V_LEDlight_onetenthV.decimal,
                             rr_24V_heat_onetenthV.unary, rr_24V_heat_onetenthV.decimal,
                             internal_box_temp_onetenthDegC.unary, internal_box_temp_onetenthDegC.decimal,
