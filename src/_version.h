@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.53"
-#define RFM69_CLIENT_VERSION_NUM    0853
+#define RFM69_CLIENT_VERSION_STR "0.8.54"
+#define RFM69_CLIENT_VERSION_NUM    0854
+    // 0854     27Jan2019           Just testing with IRQ_HIGH_MAX_TIME_MILLIS = 1000
     // 0853     27Jan2019 RFM69=008 IRQ_detect_and_follow_task_2 new and used. Just one-way from IRQ handler, like it used to
     //          27Jan2019           Below was probably last use of IRQ_detect_and_poll_task_2
     // 0852     26Jan2019           SCREEN_VOLTAGES -> SCREEN_AQUARIUM_BOX_INTERNALS and new contents

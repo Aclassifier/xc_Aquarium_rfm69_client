@@ -1682,14 +1682,14 @@ void RFM69_client (
         select {
             case c_irq_update :> irq_update : {
 
-                time32_t then_tics, now_tics;
-                tmr :> then_tics;
-
                 debug_print ("IRQ %u UPDATE %s\n",
                         allow_i_radio_usage,
                         (irq_update == pin_high)         ? "pin_high" :
                         (irq_update == pin_high_timeout) ? "pin_high_timeout" :
                                                            "pin_low");
+                time32_t then_tics, now_tics;
+                tmr :> then_tics;
+
                 if (irq_update == pin_high) {
                     RFM69_handle_irq (
                        RX_CONTEXT,
