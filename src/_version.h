@@ -15,6 +15,7 @@
 
 #define RFM69_CLIENT_VERSION_STR "0.8.52"
 #define RFM69_CLIENT_VERSION_NUM    0852
+    //          27Jan2019           Below was probably last use of IRQ_detect_and_poll_task_2
     // 0852     26Jan2019           SCREEN_VOLTAGES -> SCREEN_AQUARIUM_BOX_INTERNALS and new contents
     // 0851     24Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 1000
     // 0850     23Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 2000
