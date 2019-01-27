@@ -13,15 +13,16 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.52"
-#define RFM69_CLIENT_VERSION_NUM    0852
+#define RFM69_CLIENT_VERSION_STR "0.8.53"
+#define RFM69_CLIENT_VERSION_NUM    0853
+    // 0853     27Jan2019 RFM69=008 IRQ_detect_and_follow_task_2 new and used. Just one-way from IRQ handler, like it used to
     //          27Jan2019           Below was probably last use of IRQ_detect_and_poll_task_2
     // 0852     26Jan2019           SCREEN_VOLTAGES -> SCREEN_AQUARIUM_BOX_INTERNALS and new contents
     // 0851     24Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 1000
     // 0850     23Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 2000
     // 0849     23Jan2019           Some rewrite, should be minor
     // 0848     23Jan2019           IRQ_HIGH_MAX_TIME_MILLIS from 1200 to 2000
-    // 0847     23Jan2019           c_irq_high_event_e new name to make deadlock situation shown, and no read_irq_val_and_tick_state call then
+    // 0847     23Jan2019           c_irq_update_e new name to make deadlock situation shown, and no read_irq_val_and_tick_state call then
     // 0846     23Jan2019 RFM69=007 I think I noticed a situation where IRQ was correctly low but it did not do any RX of messages
     // 0845     23Jan2019           Doing reset of more values in reset_values
     // 0844     22Jan2019           IRQ_detect_and_poll_task is new, but now even using IRQ_detect_and_poll_task_2 with chanend

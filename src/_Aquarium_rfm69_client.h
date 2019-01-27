@@ -11,8 +11,7 @@
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
         // server  irq_high_if_t         i_irq_high, TODO remove
-        chanend                          c_irq_high_event,
-        client  irq_val_if_t             i_irq_val,
+        chanend                          c_irq_update,
         client  radio_if_t               i_radio,
         client  blink_and_watchdog_if_t  i_beep_blink,
         const   bool                     semantics_do_rssi_in_irq_detect_task,

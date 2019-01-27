@@ -1470,8 +1470,7 @@ void reset_values (
 
 [[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
-                  chanend                  c_irq_high_event,
-          client  irq_val_if_t             i_irq_val,
+                  chanend                  c_irq_update,
           client  radio_if_t               i_radio,
           client  blink_and_watchdog_if_t  i_blink_and_watchdog,
           const   bool                     semantics_do_rssi_in_irq_detect_task,
@@ -1487,7 +1486,6 @@ void RFM69_client (
     display_context_t     display_context;
     debug_print_context_t debug_print_context;
     divTime_t             divTime;
-    bool                  poll_while_irq_high = false;
     unsigned              seconds_since_last_call = 0;
 
     debug_print_context.debug_print_rx_2_done = false;
@@ -1622,8 +1620,6 @@ void RFM69_client (
 
     // Radio matters
 
-    irq_val_t irq_val;
-
     i_radio.do_spi_aux_adafruit_rfm69hcw_RST_pulse (MASKOF_SPI_AUX0_RST);
     i_radio.initialize (RXTX_context.radio_init);
 
@@ -1677,110 +1673,49 @@ void RFM69_client (
             AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC * 1000, // 10 seconds. May lose two ok. Max 21 secs
             200);
 
-    tmr :> divTime.time_ticks; // First sending now
+    irq_update_e irq_update;
+    bool         allow_i_radio_usage = true;
 
-    c_irq_high_event_e sender_as;
-    bool               pin_delayed_high_event_next = false;
+    tmr :> divTime.time_ticks; // First sending now
 
     while (1) {
         select {
-            case c_irq_high_event :> sender_as : { // initial_must_read_irq_val_and_tick_state or delayed_no_read_irq_val_and_tick_state
+            case c_irq_update :> irq_update : {
 
                 time32_t then_tics, now_tics;
                 tmr :> then_tics;
 
-                // nnnn numbers from "2019 01 23 C Logg 0849 deadlocker ikke håper jeg.txt"
-
-                debug_print ("\n\nIRQ %s HIGH, THEN PROCESSING..\n", // "IRQ INITIAL HIGH, THEN PROCESSING.." or "IRQ DELAYED HIGH, THEN PROCESSING.."
-                        (sender_as == initial_must_read_irq_val_and_tick_state) ?
-                                "INITIAL" : // 4640
-                                "DELAYED"); // 3624
-
-                RFM69_handle_irq (
-                        RX_CONTEXT,
-                        TX_CONTEXT,
-                        RXTX_context,
-                        display_context,
-                        i_radio,
-                        i_blink_and_watchdog,
-                        semantics_do_rssi_in_irq_detect_task, // is false
-                        i_i2c_internal_commands,
-                        debug_print_context);
+                debug_print ("IRQ %u UPDATE %s\n",
+                        allow_i_radio_usage,
+                        (irq_update == pin_high)         ? "pin_high" :
+                        (irq_update == pin_high_timeout) ? "pin_high_timeout" :
+                                                           "pin_low");
+                if (irq_update == pin_high) {
+                    RFM69_handle_irq (
+                       RX_CONTEXT,
+                       TX_CONTEXT,
+                       RXTX_context,
+                       display_context,
+                       i_radio,
+                       i_blink_and_watchdog,
+                       semantics_do_rssi_in_irq_detect_task, // is false
+                       i_i2c_internal_commands,
+                       debug_print_context);
+                    allow_i_radio_usage = false;
+                } else if (irq_update == pin_low) {
+                    allow_i_radio_usage = true;
+                } else if (irq_update == pin_high_timeout) {
+                    i_radio.ultimateIRQclear();
+                    RX_context.ultimateIRQclearCnt++;
+                    allow_i_radio_usage = false;
+                } else {} // Never here
 
                 tmr :> now_tics;
+                debug_print ("IRQ HANDLING %u ms and %u\n",  (now_tics - then_tics) / XS1_TIMER_KHZ, RX_context.ultimateIRQclearCnt);
 
-                if (sender_as == delayed_no_read_irq_val_and_tick_state) {
-
-                    pin_delayed_high_event_next = false;
-                    poll_while_irq_high = false;
-
-                    debug_print ("DELAYED HANDLED TIME %u ms\n", // 3624
-                            (now_tics - then_tics) / XS1_TIMER_KHZ);
-
-                } else { // initial_must_read_irq_val_and_tick_state
-
-                    // READ IRQ PROCESS
-                    //
-                    irq_val = i_irq_val.read_irq_val_and_tick_state(); // Must read pin_value==low before next irq_pin_high may arrive
-                    pin_delayed_high_event_next = irq_val.pin_delayed_high_event_next;
-
-                    debug_print ("..INITIAL HANDLED %s TIME %u ms\n",
-                                (irq_val.pin_value == low) ?
-                                        "LOW" :  // "..INITIAL HANDLED LOW TIME"    1016
-                                        "HIGH!", // "..INITIAL HANDLED HIGH! TIME"  3624
-                                (now_tics - then_tics) / XS1_TIMER_KHZ);
-
-                    // TEST ENOUGH TO WAIT FOR NEW IRQ HIGH OR CONTINUE POLLING THE TASK/PIN
-                    //
-                    if (pin_delayed_high_event_next) { // Wait for c_irq_high_event
-                        debug_print ("%s\n", "IRQ WILL BE RESENT A");     // 3624
-                        poll_while_irq_high = false;
-                    } else {
-                        poll_while_irq_high = (irq_val.pin_value == high);  // not to deadlock
-                        debug_print ("CONTINUE A %u\n", poll_while_irq_high); // 3624
-                    }
-                }
             } break;
 
-            case (not pin_delayed_high_event_next) => tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
-
-                bool allow_RFM69_handle_timeout = true;
-
-                if (poll_while_irq_high) {
-                    debug_print ("%s\n", "continue b");
-
-                    poll_while_irq_high = false; // May be overwritten
-
-                    // READ IRQ PROCESS
-                    //
-                    irq_val = i_irq_val.read_irq_val_and_tick_state(); // poll_while_irq_high protects this interface call
-                    pin_delayed_high_event_next = irq_val.pin_delayed_high_event_next;
-
-                    // RETEST ALL POSSIBILITES
-                    //     TO WAIT FOR A DELAYED IRQ HIGH EVENT,
-                    //     CLEAR RFM69 RADIO IRQ TO LOW,
-                    //     CONTINUE POLLING FOR LOW OR
-                    //     STANDARD: WAIT FOR AN INITIAL IRQ HIGH EVENT
-                    //
-                    if (pin_delayed_high_event_next) {                 // never: WAIT FOR A DELAYED IRQ HIGH EVENT
-                        allow_RFM69_handle_timeout = false;
-                        debug_print ("%s\n", "irq will be resent b");
-                    } else if (irq_val.pin_was_high_too_long) {                   // 4: CLEAR RFM69 RADIO IRQ TO LOW
-                        i_radio.ultimateIRQclear();
-                        RX_context.ultimateIRQclearCnt++;
-                        debug_print ("%s\n", "irq reset b");
-                    } else if (irq_val.pin_value == high) {                       // never: CONTINUE POLLING FOR LOW
-                        poll_while_irq_high = true; // Only place
-                        allow_RFM69_handle_timeout = false;
-                        debug_print ("%s\n", "irq high b");
-                    } else { // irq_val.pin_value is low                          // never: STANDARD: WAIT FOR AN INITIAL IRQ HIGH EVENT
-                        debug_print ("%s\n", "irq low b");
-                    }
-                } else {
-                    // No code. This is what would happen most
-                    debug_print ("%s\n", "no continue c");
-                }
-
+            case tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
                 seconds_since_last_call++;
 
                 #if (IS_MYTARGET_SLAVE == 1)
@@ -1788,8 +1723,7 @@ void RFM69_client (
                     //
                     if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds = 10 seconds
                         // RFM69=007
-                        // Independent of pin_delayed_high_event_next or irq_val.pin_value should be ok since that's anly talking with IRQ_detect_and_poll_task_2,
-                        // and if the sw here ends up reading the RFM69 wrongly it would not get any interesting data from it anyhow (TODO?)
+                        // Independent of allow_i_radio_usage. If the sw here ends up reading the RFM69 wrongly it would not get any interesting data from it anyhow (TODO?)
                         i_radio.receiveDone(); // TODO necessary after some mid January 2019?. Testing moving it to run always (not in allow_RFM69_handle_timeout)
                         debug_print ("%s", "irq reset c\n");
                         RX_context.seconds_since_last_received = 0;
@@ -1804,7 +1738,7 @@ void RFM69_client (
                     }
                 #endif
 
-                if (allow_RFM69_handle_timeout) {
+                if (allow_i_radio_usage) {
                     RFM69_handle_timeout (
                             divTime,
                             startTime_ticks,
@@ -1834,13 +1768,9 @@ void RFM69_client (
 
             // xTIMEcomposer issues an error if this is guarded
             // If any cod in here should talk over i_radio (that might side effect into IRQ) then it should be
-            // protected by "not pin_delayed_high_event_next" instead
+            // protected by "not allow_i_radio_usage" instead
             //
             case i_button_in[int iof_button].button (const button_action_t button_action) : {
-
-                if (pin_delayed_high_event_next) {
-                    debug_print ("%s\n", "DELAYED IRQ HIGH WHILE BUTTON"); // TODO remove
-                } else {}
 
                 display_context.buttons_state[iof_button].pressed_now =            (button_action == BUTTON_ACTION_PRESSED);
                 display_context.buttons_state[iof_button].pressed_for_10_seconds = (button_action == BUTTON_ACTION_PRESSED_FOR_10_SECONDS);
@@ -1905,10 +1835,7 @@ void RFM69_client (
                                 if (display_context.display_screen_name == SCREEN_DEBUG) {
                                     #if (IS_MYTARGET_SLAVE == 1)
                                         #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
-                                            if (pin_delayed_high_event_next) { // Just don't do anything over i_radio!
-                                                display_context.display_screen_name == SCREEN_HJELP;
-                                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
-                                            } else {
+                                            if (allow_i_radio_usage) {
                                                 // debug_mode_0_1 SOLVED THE PROBLEM!
                                                 display_context.debug_r_button = true;
                                                 RX_context.debug_state = (RX_context.debug_state + 1) % debug_void;
@@ -1919,6 +1846,9 @@ void RFM69_client (
 
                                                 Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                                 display_context.debug_r_button = false;
+                                            } else {
+                                                display_context.display_screen_name == SCREEN_HJELP;
+                                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                             }
                                         #endif
                                     #endif
