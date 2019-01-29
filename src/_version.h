@@ -53,7 +53,7 @@
     // 0828     30Nov2018           i_radio.ultimateIRQclear(); is new
     //                              When I run this with the debugger and lots of printouts, ultimateIRQclear_cnt counts a lot!
     //                              The same code ran as FLASHed shows NO increments over 14 hours at least
-    // 0827     29Nov2018 RFM69=004 Button_Task opdated
+    // 0827     29Nov2018 RFM69=004 Button_Task updated
     // 0826     27Nov2018           Just testing with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=1 again to see if IRQ stuck still happens
     //                              Observe that we treat all messages with IRQ with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0
     // 0825     27Nov2018           debug_state is new. _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0 again
