@@ -238,7 +238,7 @@ int main() {
             // Does not work, see XMOS ticket 31286
             IRQ_detect_task (i_irq, p_spi_irq, null, i_spi[SPI_CLIENT_1], SPI_CLIENT_1);
         #else
-            on tile[0].core[4]: IRQ_detect_and_follow_task_2 (c_irq_update, p_spi_irq, null, IRQ_HIGH_MAX_TIME_MILLIS); // null since IRQ has a separate LED
+            on tile[0].core[4]: IRQ_interrupt_task (c_irq_update, p_spi_irq, null, IRQ_HIGH_MAX_TIME_MILLIS); // null since IRQ has a separate LED
         #endif
 
         on tile[0].core[5]: Button_Task (IOF_BUTTON_LEFT,   inP_button_left,   i_buttons[IOF_BUTTON_LEFT]);   // [[combinable]]

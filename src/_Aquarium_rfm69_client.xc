@@ -96,26 +96,26 @@
 #define SEMANTICS_DEBUG_CALC_RF_FRF_REGISTERS 1 // 1 : never while real TX->RX!. Also set ALLOW_FLOAT_FREQ_CALC 1 for calculations
                                                 // 0 : Standard usage
 
-// 433 MHz band shared with our (1) indoor/outdoor thermometer and ("433") (2) kitchen light switch over the table and ("433.92")
-// (3) car key ("433.92") - so it's a good idea to avoid 433.92 MHz at least
-#define TEST_CAR_KEY 0
-//
-#if (TEST_CAR_KEY == 1)
-    #define MY_RFM69_FREQ_HZ     RF69_INIT_FREQUENCY_433919921_HZ // 433.92 MHz same as my car key
-    #define MY_RFM69_FREQ_REGS            RF_FRF_433_433919921    // Is 0x006C7AE0
-            // See http://www.teigfam.net/oyvind/home/technology/164-my-aquariums-data-radioed-through-the-shelf/#frequency_crash_with_my_car_key
-            // and https://forum.allaboutcircuits.com/threads/radio-board-interferes-with-my-car-key-system.151059/
-            //   The hypothesis there seems to be that my key must send a unique on/off pattern (one for lock and one for unlock),
-            //   typically modulated at 10 MHz with a bit rate of 40 kbps, repeated every 20 ms for 500 ms before the receiver in the car
-            //   will accept it. There probably is no packetisation or cryptographic key, just that repeated stream of bits.
-            //   So when I sent my packets every 200 ms I destroyed that data stream. This seems very plausible.
-            //   Thanks to sghioto and DickCappels! See Wikipedia article On-off keying (https://en.wikipedia.org/wiki/On-off_keying) and
-            //   Application note 4439 from Maxim integrated at I’m OOK. You’re OOK? (https://www.maximintegrated.com/en/app-notes/index.mvp/id/4439)
-#else
-    #define MY_RFM69_FREQ_HZ     RF69_INIT_FREQUENCY_433705993_HZ // Frequency is according to calculator 0x006C6D2F * (RF69_FSTEP_FLOAT32 as 61.03515625)
-                                                                  // Only needed for printouts and to check calculator-accurate calculation of these hex values:
-    #define MY_RFM69_FREQ_REGS            RF_FRF_433_433705993    // Is 0x006C6D2F
-#endif
+// 433 MHz band shared with our
+//    (1) indoor/outdoor thermometer and ("433")
+//    (2) kitchen light switch over the table and ("433.92")
+//    (3) car key ("433.92") - so it's a good idea to avoid 433.92 MHz at least
+//        For the CAR_KEY case (code removed with 0858)
+//            #define MY_RFM69_FREQ_HZ     RF69_INIT_FREQUENCY_433919921_HZ // 433.92 MHz same as my car key
+//            #define MY_RFM69_FREQ_REGS            RF_FRF_433_433919921    // Is 0x006C7AE0
+//            // See http://www.teigfam.net/oyvind/home/technology/164-my-aquariums-data-radioed-through-the-shelf/#frequency_crash_with_my_car_key
+//            // and https://forum.allaboutcircuits.com/threads/radio-board-interferes-with-my-car-key-system.151059/
+//            //   The hypothesis there seems to be that my key must send a unique on/off pattern (one for lock and one for unlock),
+//            //   typically modulated at 10 MHz with a bit rate of 40 kbps, repeated every 20 ms for 500 ms before the receiver in the car
+//            //   will accept it. There probably is no packetisation or cryptographic key, just that repeated stream of bits.
+//            //   So when I sent my packets every 200 ms I destroyed that data stream. This seems very plausible.
+//            //   Thanks to sghioto and DickCappels! See Wikipedia article On-off keying (https://en.wikipedia.org/wiki/On-off_keying) and
+//            //   Application note 4439 from Maxim integrated at I’m OOK. You’re OOK? (https://www.maximintegrated.com/en/app-notes/index.mvp/id/4439)
+
+
+#define MY_RFM69_FREQ_HZ   RF69_INIT_FREQUENCY_433705993_HZ // Frequency is according to calculator 0x006C6D2F * (RF69_FSTEP_FLOAT32 as 61.03515625)
+                                                            // Only needed for printouts and to check calculator-accurate calculation of these hex values:
+#define MY_RFM69_FREQ_REGS          RF_FRF_433_433705993    // Is 0x006C6D2F
 
 //      SPI_AUX bits:
 #define MASKOF_SPI_AUX0_RST        0x01 // RST is port SPI_AUX BIT0. Search for SPI_AUX0_RST to see HW-defined timing
@@ -1286,14 +1286,15 @@ void RFM69_handle_timeout (
                 RX_context.debug_data_prev[i] = RX_context.debug_data[i];
             }
 
-            debug_print ("DEB%s", are_equal ? CHAR_EQ_STR : CHAR_CHANGE_STR);
+            debug_print ("DEB%s\n", are_equal ? CHAR_EQ_STR : CHAR_CHANGE_STR);
 
             for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
                 debug_print ("%02X%s", RX_context.debug_data[i], ((i == (NUM_DEBUG_BYTES-1)) ? "\n" : " "));
             }
+            debug_print ("%s", "\n");
 
         #else
-            debug_print ("%s", "\n"); // Add missing nl from above
+            // No code
         #endif
 
     #elif (IS_MYTARGET_MASTER == 1)
@@ -1677,7 +1678,7 @@ void RFM69_client (
             200);
 
     irq_update_e irq_update;
-    bool         allow_i_radio_usage = true;
+    bool         timeout_i_radio_usage_allowed = true;
 
     tmr :> divTime.time_ticks; // First sending now
 
@@ -1686,14 +1687,14 @@ void RFM69_client (
             case c_irq_update :> irq_update : {
 
                 debug_print ("IRQ %u UPDATE %s\n",
-                        allow_i_radio_usage,
-                        (irq_update == pin_high)         ? "pin_high" :
-                        (irq_update == pin_high_timeout) ? "pin_high_timeout" :
-                                                           "pin_low");
+                        timeout_i_radio_usage_allowed,
+                        (irq_update == pin_gone_high)          ? "pin_gone_high" :
+                        (irq_update == pin_still_high_timeout) ? "pin_still_high_timeout" :
+                                                                 "pin_gone_low");
                 time32_t then_tics, now_tics;
                 tmr :> then_tics;
 
-                if (irq_update == pin_high) {
+                if (irq_update == pin_gone_high) {
                     RFM69_handle_irq (
                        RX_CONTEXT,
                        TX_CONTEXT,
@@ -1701,16 +1702,16 @@ void RFM69_client (
                        display_context,
                        i_radio,
                        i_blink_and_watchdog,
-                       semantics_do_rssi_in_irq_detect_task, // is false
+                       semantics_do_rssi_in_irq_detect_task,         // is false
                        i_i2c_internal_commands,
                        debug_print_context);
-                    allow_i_radio_usage = false;
-                } else if (irq_update == pin_low) {
-                    allow_i_radio_usage = true;
-                } else if (irq_update == pin_high_timeout) {
-                    i_radio.ultimateIRQclear();
+                    timeout_i_radio_usage_allowed = false;                     // Waiting for pin_gone_low
+                } else if (irq_update == pin_gone_low) {
+                    timeout_i_radio_usage_allowed = true;                      // Ready
+                } else if (irq_update == pin_still_high_timeout) {
+                    i_radio.ultimateIRQclear();                      // i_radio allowed because we need to kick the radio in some way
                     RX_context.ultimateIRQclearCnt++;
-                    allow_i_radio_usage = false;
+                    timeout_i_radio_usage_allowed = false;                     // Still let's wait for the consequential pin_gone_low
                 } else {} // Never here
 
                 tmr :> now_tics;
@@ -1719,29 +1720,27 @@ void RFM69_client (
             } break;
 
             case tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
-                seconds_since_last_call++;
+                seconds_since_last_call++; // Since ONE_SECOND_TICKS used below
 
                 #if (IS_MYTARGET_SLAVE == 1)
                     RX_context.seconds_since_last_received += seconds_since_last_call; // about, anyhow, since we don't reset divTime.time_ticks in pin_rising
-                    //
-                    if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds = 10 seconds
-                        // RFM69=007
-                        // Independent of allow_i_radio_usage. If the sw here ends up reading the RFM69 wrongly it would not get any interesting data from it anyhow (TODO?)
-                        i_radio.receiveDone(); // TODO necessary after some mid January 2019?. Testing moving it to run always (not in allow_RFM69_handle_timeout)
-                        debug_print ("%s", "irq reset c\n");
-                        RX_context.seconds_since_last_received = 0;
+                    if (timeout_i_radio_usage_allowed) {
+                        if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds = 10 seconds
+                            i_radio.receiveDone(); // TODO necessary after some mid January 2019?
+                            debug_print ("%s", "NO RX FOR 10 SECONDS\n");
+                            RX_context.seconds_since_last_received = 0;
+                        } else {}
                     } else {}
-
                     RX_context.is_watchdog_blinking = i_blink_and_watchdog.is_watchdog_blinking();
 
                     if (RX_context.is_watchdog_blinking) {
-                        debug_print ("WATCHDOG BLINKING T %u ", RX_context.seconds_since_last_received); // no nl, added below
+                        debug_print ("WATCHDOG BLINKING T %u\n", RX_context.seconds_since_last_received);
                     } else {
-                        debug_print ("T %u ", RX_context.seconds_since_last_received);  // "T 1", "T 2" etc. no nl, added below
+                        debug_print ("T %u\n", RX_context.seconds_since_last_received);  // "T 1", "T 2" etc.
                     }
                 #endif
 
-                if (allow_i_radio_usage) {
+                if (timeout_i_radio_usage_allowed) {
                     RFM69_handle_timeout (
                             divTime,
                             startTime_ticks,
@@ -1757,13 +1756,8 @@ void RFM69_client (
                     seconds_since_last_call = 0;
                 } else {}
 
-                #if (TEST_CAR_KEY == 1)
-                    #error NO
-                    divTime.time_ticks += ONE_SECOND_TICKS/5; // Every 200 ms will destroy for car's requirement of seein the pulse train for 500 ms
-                #else
-                    divTime.time_ticks += ONE_SECOND_TICKS; // FUTURE TIMEOUT
-                    // observe AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC
-                #endif
+                divTime.time_ticks += ONE_SECOND_TICKS; // FUTURE TIMEOUT
+                // observe AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC
 
                 // If diffTime_ms is larger than ONE_SEC_TICS the select will be timed out immediately N times until it's AFTER again
 
@@ -1771,7 +1765,7 @@ void RFM69_client (
 
             // xTIMEcomposer issues an error if this is guarded
             // If any cod in here should talk over i_radio (that might side effect into IRQ) then it should be
-            // protected by "not allow_i_radio_usage" instead
+            // protected by "not timeout_i_radio_usage_allowed" instead
             //
             case i_button_in[int iof_button].button (const button_action_t button_action) : {
 
@@ -1838,7 +1832,7 @@ void RFM69_client (
                                 if (display_context.display_screen_name == SCREEN_DEBUG) {
                                     #if (IS_MYTARGET_SLAVE == 1)
                                         #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
-                                            if (allow_i_radio_usage) {
+                                            if (timeout_i_radio_usage_allowed) {
                                                 // debug_mode_0_1 SOLVED THE PROBLEM!
                                                 display_context.debug_r_button = true;
                                                 RX_context.debug_state = (RX_context.debug_state + 1) % debug_void;

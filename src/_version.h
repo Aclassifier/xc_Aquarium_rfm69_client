@@ -13,13 +13,15 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.57"
-#define RFM69_CLIENT_VERSION_NUM    0857
+#define RFM69_CLIENT_VERSION_STR "0.8.59"
+#define RFM69_CLIENT_VERSION_NUM    0859
+    // 0859     29Jan2019           Logging format
+    // 0858     28Jan2019           CAR_KEY code removed (some comments kept)
     // 0857     27Jan2019           SCREEN_AQUARIUM_BOX_INTERNALS changed
     // 0856     27Jan2019           100 and 1000 ms seemed ok. Going back to 2000, which I guess would only handle a _real_ problem. No log from RFM69 library any more
     // 0855     27Jan2019           Just testing with IRQ_HIGH_MAX_TIME_MILLIS = 100
     // 0854     27Jan2019           Just testing with IRQ_HIGH_MAX_TIME_MILLIS = 1000
-    // 0853     27Jan2019 RFM69=008 IRQ_detect_and_follow_task_2 new and used. Just one-way from IRQ handler, like it used to
+    // 0853     27Jan2019 RFM69=008 IRQ_interrupt_task new and used. Just one-way from IRQ handler, like it used to
     //          27Jan2019           Below was probably last use of IRQ_detect_and_poll_task_2
     // 0852     26Jan2019           SCREEN_VOLTAGES -> SCREEN_AQUARIUM_BOX_INTERNALS and new contents
     // 0851     24Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 1000
