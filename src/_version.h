@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.59"
-#define RFM69_CLIENT_VERSION_NUM    0859
+#define RFM69_CLIENT_VERSION_STR "0.8.60"
+#define RFM69_CLIENT_VERSION_NUM    0860
+    // 0860     29Jan2019           Logging format
     // 0859     29Jan2019           Logging format
     // 0858     28Jan2019           CAR_KEY code removed (some comments kept)
     // 0857     27Jan2019           SCREEN_AQUARIUM_BOX_INTERNALS changed

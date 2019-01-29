@@ -1672,6 +1672,9 @@ void RFM69_client (
         debug_print ("RFM69 err1 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
     } else {}
 
+    debug_print ("\nRADIO RX IS %s ",
+         (RX_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA");
+
     i_blink_and_watchdog.init_watchdog_ok (
             XCORE_200_EXPLORER_LED_GREEN_BIT_MASK bitor XCORE_200_EXPLORER_LED_RGB_GREEN_BIT_MASK,
             AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC * 1000, // 10 seconds. May lose two ok. Max 21 secs
@@ -1785,8 +1788,8 @@ void RFM69_client (
 
                                 display_screen_store_RX_context_values (display_context, RX_CONTEXT);
                             } else { // is_off: now switch on
-                                display_context.display_screen_name         = display_context.display_screen_name_last_on; // PULL it
-                                display_context.state                       = is_on;                             // First is_on..
+                                display_context.display_screen_name         = display_context.display_screen_name_last_on;     // PULL it
+                                display_context.state                       = is_on;                                           // First is_on..
                                 Display_screen (display_context, RX_CONTEXT, RXTX_context, USE_PREV, i_i2c_internal_commands); // ..then this so that screen goes on
                             }
                         } else if (button_action == BUTTON_ACTION_PRESSED) {
@@ -1850,10 +1853,12 @@ void RFM69_client (
                                         #endif
                                     #endif
                                 } else if (display_context.display_screen_name == SCREEN_RX_DISPLAY_OVERSIKT) {
+                                    debug_print ("\nRADIO RX WAS %s ",
+                                            (RX_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA");
                                     t_swap (uint8_t, RX_context.senderid_not_displayed_now, RX_context.senderid_displayed_now);
                                     reset_values (display_context, RX_CONTEXT, RXTX_context);
-                                    debug_print ("LISTENING TO RADIO %s on address %u\n",
-                                            (RX_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "AQARIUM" : "BLACK_BOARD",
+                                    debug_print ("NOW %s = address %u\n\n",
+                                            (RX_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA",
                                              RX_context.senderid_displayed_now);
                                     Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                 } else if (display_context.display_screen_name == SCREEN_WELCOME) {
