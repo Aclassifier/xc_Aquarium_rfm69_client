@@ -155,6 +155,7 @@ typedef struct {
     some_rfm69_internals_t some_rfm69_internals;
     packet_t               PACKET;
     error_bits_e           error_bits_history;
+    bool                   awaiting_trans2;
     //
 } RXTX_context_t;
 
@@ -184,8 +185,6 @@ typedef struct {
     int16_t   nowRSSI;           // -80  dB
     int16_t   nowRSSI_weakest;   // -100 dB
     int16_t   nowRSSI_strongest; // -60  dB
-    unsigned  ultimateIRQclearCnt;
-    unsigned  ultimateIRQclearCnt_notSeen_inDisplay;
     bool      allow_10_sek_timeout; // AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC or none
     bool      is_watchdog_blinking;
 
@@ -194,9 +193,6 @@ typedef struct {
         uint8_t       debug_data_prev[NUM_DEBUG_BYTES];
         debug_state_e debug_state;
     #endif
-    unsigned senderid_not_displayed_cnt;  // New RFM69=005. Typically if received from MASTER_ID_BLACK_BOX
-    uint8_t  senderid_not_displayed_now;  // New RFM69=006
-    uint8_t  senderid_displayed_now;      // New RFM69=006
 } RX_context_t; // RX same as SLAVE same as ISMASTER==0
 
 #define AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2) // 10 or 4 times 2.5 (test with 3 secs)
@@ -245,6 +241,11 @@ typedef struct {
     bool                  display_screen_direction_up;
     bool                  debug_r_button;
     button_state_t        buttons_state [BUTTONS_NUM_CLIENTS];
+    unsigned              ultimateIRQclearCnt;
+    unsigned              ultimateIRQclearCnt_notSeen_inDisplay;
+    unsigned              senderid_not_displayed_cnt;  // New RFM69=005. Typically if received from MASTER_ID_BLACK_BOX
+    uint8_t               senderid_not_displayed_now;  // New RFM69=006
+    uint8_t               senderid_displayed_now;      // New RFM69=006
 } display_context_t;
 
 typedef enum {
@@ -346,8 +347,11 @@ bool // i2c_ok
                     }
 
                     setTextSize(2);
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NU
+
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
                 #endif
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
             case SCREEN_STATISTICS_DB_ETC: {
@@ -394,9 +398,10 @@ bool // i2c_ok
                                 lost_one_per,
                                 (diff > 0) ? "+" : "", diff);
                     }
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
-
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
                 #endif
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
             case SCREEN_STATISTICS_OBS: {
@@ -408,7 +413,7 @@ bool // i2c_ok
                     // CRC32 0
                     // IRQ↑  123 (+2)
 
-                    const signed diff = RX_context.ultimateIRQclearCnt - RX_context.ultimateIRQclearCnt_notSeen_inDisplay;
+                    const signed diff = display_context.ultimateIRQclearCnt - display_context.ultimateIRQclearCnt_notSeen_inDisplay;
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                             "%s %s  OBS\nCRC16 %u\nCRC32 %u\nIRQ%s  %u (%s%d)",
                             display_screen_name_str,
@@ -416,11 +421,13 @@ bool // i2c_ok
                             RX_context.num_radioCRC16errs,
                             RX_context.num_appCRC32errs,
                             char_up_arrow_str,
-                            RX_context.ultimateIRQclearCnt,
+                            display_context.ultimateIRQclearCnt,
                             (diff > 0) ? "+" : "", diff);
 
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
                 #endif
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
             case SCREEN_TEMPS_ETC: {
@@ -464,8 +471,10 @@ bool // i2c_ok
                             now_water_dp1.unary, now_water_dp1.decimal, now_ambient_dp1.unary, now_ambient_dp1.decimal, now_heater_dp1.unary, now_heater_dp1.decimal,
                             min_water_dp1.unary, min_water_dp1.decimal, min_ambient_dp1.unary, min_ambient_dp1.decimal, min_heater_dp1.unary, min_heater_dp1.decimal);
 
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
                 #endif
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
             case SCREEN_WATT_ETC: {
@@ -547,9 +556,10 @@ bool // i2c_ok
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s",
                             now_regulating_at_char[RX_context.RX_radio_payload.u.payload_u0.now_regulating_at]);
 
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
                 #endif
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
             case SCREEN_LIGHT: {
@@ -606,8 +616,10 @@ bool // i2c_ok
                             RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour
                     );
 
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
                 #endif
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
             case SCREEN_TX_SEQ_CNT: {
@@ -628,8 +640,10 @@ bool // i2c_ok
                             RX_context.appSeqCnt,
                             hours, days);
 
+                    #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
+                    #endif
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
-                #endif
             } break;
 
             case SCREEN_AQUARIUM_BOX_INTERNALS: {
@@ -644,7 +658,7 @@ bool // i2c_ok
                     //      VARME 24.1V
                     // TEMPERATUR 24.5°C     Also used with max/min with debug_print
 
-                    const bool is_aquarium = (RX_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
+                    const bool is_aquarium = (display_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                             "%s %s       %s\n       LYS %02u.%uV\n     VARME %02u.%uV\nTEMPERATUR %02u.%u%sC",
@@ -656,8 +670,10 @@ bool // i2c_ok
                             internal_box_temp_onetenthDegC.unary, internal_box_temp_onetenthDegC.decimal,
                             char_degC_circle_str);
 
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
                 #endif
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
             case SCREEN_AQUARIUM_ERROR_BITS: {
@@ -677,34 +693,41 @@ bool // i2c_ok
                             RX_context.RX_radio_payload.u.payload_u0.error_bits_history);
 
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
                 #endif
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
             case SCREEN_WELCOME: {
+                #if (IS_MYTARGET_SLAVE == 1)
 
-                // ..........----------.
-                // 10 VERSJON 0.8.09
-                // RX AKVA               eller "RX KORT"
-                // HVERT 4. SEKUND (*)
-                // MED TIMEOUT 10 SEK     eller "UTEN TIMEOUT" or "TIMET UT 10 SEK" or "TIMET UT" a short period
+                    // ..........----------.
+                    // 10 VERSJON 0.8.09
+                    // RX AKVA               eller "RX KORT"
+                    // HVERT 4. SEKUND (*)
+                    // MED TIMEOUT 10 SEK     eller "UTEN TIMEOUT" or "TIMET UT 10 SEK" or "TIMET UT" a short period
 
-                char timeout_str [3];
-                sprintf (timeout_str, "%u", AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC);
+                    char timeout_str [3];
+                    sprintf (timeout_str, "%u", AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC);
 
-                const bool is_aquarium = (RX_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
+                    const bool is_aquarium = (display_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
 
-                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                        "%s VERSJON %s\nRX %s\nHVERT %u. SEKUND (%s)\n%s %s %s",
-                        display_screen_name_str,
-                        RFM69_CLIENT_VERSION_STR,
-                        (is_aquarium) ? "AKVA" : "KORT", // Displayed now
-                        AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
-                        alive ? "*" : "+",
-                        RX_context.is_watchdog_blinking ?     "TIMET UT"    :
-                            RX_context.allow_10_sek_timeout ? "MED TIMEOUT" : "UTEN TIMEOUT",
-                        RX_context.allow_10_sek_timeout ? timeout_str : "",
-                        RX_context.allow_10_sek_timeout ? "SEK"       : "");
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s VERSJON %s\nRX %s\nHVERT %u. SEKUND (%s)\n%s %s %s",
+                            display_screen_name_str,
+                            RFM69_CLIENT_VERSION_STR,
+                            (is_aquarium) ? "AKVA" : "KORT", // Displayed now
+                            AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
+                            alive ? "*" : "+",
+                            RX_context.is_watchdog_blinking ?     "TIMET UT"    :
+                                RX_context.allow_10_sek_timeout ? "MED TIMEOUT" : "UTEN TIMEOUT",
+                            RX_context.allow_10_sek_timeout ? timeout_str : "",
+                            RX_context.allow_10_sek_timeout ? "SEK"       : "");
 
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
+                #endif
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
@@ -728,30 +751,32 @@ bool // i2c_ok
 
             case SCREEN_RX_DISPLAY_OVERSIKT: {
                 #if (IS_MYTARGET_SLAVE == 1)
-
                     // ..........----------.
                     // 12 * DISPLAY: AKVA   12 * DISPLAY: KORT
                     // VISES ADR 98         VISES ADR 99
                     // IKKE  ADR 99→        IKKE  ADR 98→
                     //       #RX 1234             #RX 1234
 
-                    const bool is_aquarium = (RX_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
+                    const bool is_aquarium = (display_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
                             "%s %s DISPLAY: %s\nVISES ADR %u\nIKKE  ADR %u%s\n      #RX %u",
                             display_screen_name_str,
                             alive ? "*" : "+",
                             (is_aquarium) ? "AKVA" : "KORT", // Displayed now
-                            RX_context.senderid_displayed_now,
-                            RX_context.senderid_not_displayed_now,
+                            display_context.senderid_displayed_now,
+                            display_context.senderid_not_displayed_now,
                             char_right_arrow_str,
-                            RX_context.senderid_not_displayed_cnt);
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+                            display_context.senderid_not_displayed_cnt);
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
                 #endif
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
             #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
                 case SCREEN_DEBUG: {
+                    #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
                     // 13 * RADIO
@@ -765,8 +790,10 @@ bool // i2c_ok
                             RFM69_DRIVER_VERSION_STR,
                             RX_context.RX_radio_payload.u.payload_u0.debug); // 8 bits here, full 32 bits value in display of aquarium (context.ultimateIRQclearCnt)
 
-                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including N
-
+                    #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
+                    #endif
+                    display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 } break;
             #endif
 
@@ -1001,17 +1028,10 @@ void RFM69_handle_irq (
          display_context_t                 &display_context,
          client  radio_if_t                i_radio,
          client  blink_and_watchdog_if_t   i_blink_and_watchdog,
-         const   bool                      semantics_do_rssi_in_irq_detect_task,
          client  i2c_internal_commands_if  i_i2c_internal_commands,
          debug_print_context_t             &debug_print_context)
 {
     // IRQ LED mounted RFM69 board's IRQ/G0 pin will lit now (via a transistor). Same as SPI_IRQ port
-
-    if (semantics_do_rssi_in_irq_detect_task) {
-        RX_context.nowRSSI = RXTX_context.irq_value;
-    } else {
-        RX_context.nowRSSI = i_radio.readRSSI_dBm (FORCETRIGGER_OFF);
-    }
 
     // c_irq_rising is delivered from IRQ_detect_task also if pin change was over while _this_ task
     // was in an i_radio call, which might last longer than the IRQ pulse! We saw that this
@@ -1024,7 +1044,7 @@ void RFM69_handle_irq (
 
     i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, high); // For scope
 
-    {RXTX_context.some_rfm69_internals, RXTX_context.PACKET, interruptAndParsingResult} = i_radio.handleSPIInterrupt(); // DO IT and GET DATA
+    {RXTX_context.some_rfm69_internals, RXTX_context.PACKET, interruptAndParsingResult} = i_radio.uspi_handleSPIInterrupt(); // DO IT and GET DATA
     // Now values like RXTX_context.some_rfm69_internals.SENDERID has a value
 
     #if (DEBUG_PRINT_BUFFER==1)
@@ -1045,17 +1065,16 @@ void RFM69_handle_irq (
         debug_print ("%s", char_leading_space_str);
     #endif
 
-    RXTX_context.receiveDone = i_radio.receiveDone(); // For any interruptAndParsingResult (30Aug2018, 12Sept2018 TODO works?)
+    RXTX_context.receiveDone = i_radio.uspi_receiveDone(); // For any interruptAndParsingResult (30Aug2018, 12Sept2018 TODO works?)
 
     switch (interruptAndParsingResult) {
 
         #if (IS_MYTARGET_SLAVE == 1)
             case messageReceivedOk_IRQ: {
-                // if (i_radio.receiveDone()) {
+                // if (i_radio.uspi_receiveDone()) {
                 if (RXTX_context.receiveDone) {
 
-                    if (RXTX_context.some_rfm69_internals.SENDERID == RX_context.senderid_displayed_now) { // From this address
-
+                    if (RXTX_context.some_rfm69_internals.SENDERID == display_context.senderid_displayed_now) { // From this address
                         if (display_context.state == is_on) {
                             i_blink_and_watchdog.blink_pulse_ok (XCORE_200_EXPLORER_LED_RGB_BLUE_BIT_MASK, 25);
                         } else {}
@@ -1122,7 +1141,7 @@ void RFM69_handle_irq (
                         // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
                         // Reinserted RFM69=001
                         #if (SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE == 1) // TODO remove
-                           if (i_radio.receiveDone()) {                          // This is needed even if..
+                           if (i_radio.uspi_receiveDone()) {                          // This is needed even if..
                                debug_print ("%s\n", "receiveDone in polling!");  // ..it never gets here! (TODO?)
                            } else {}
                         #endif
@@ -1137,7 +1156,7 @@ void RFM69_handle_irq (
 
                         RX_context.appSeqCnt_prev = RX_context.appSeqCnt;
                     } else {
-                        RX_context.senderid_not_displayed_cnt++;
+                        display_context.senderid_not_displayed_cnt++;
                         if (display_context.display_screen_name == SCREEN_RX_DISPLAY_OVERSIKT) {
                             Display_screen (display_context, RX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
                         } else {}
@@ -1262,7 +1281,6 @@ void RFM69_handle_timeout (
         const   unsigned                 seconds_since_last_call,
         client  radio_if_t               i_radio,
         client  blink_and_watchdog_if_t  i_blink_and_watchdog,
-        const   bool                     semantics_do_rssi_in_irq_detect_task,
         client  i2c_internal_commands_if i_i2c_internal_commands)
 {
 
@@ -1278,7 +1296,7 @@ void RFM69_handle_timeout (
 
             bool are_equal;
 
-            i_radio.getDebug (RX_context.debug_data);
+            i_radio.uspi_getDebug (RX_context.debug_data);
 
             are_equal = (memcmp (RX_context.debug_data_prev, RX_context.debug_data, NUM_DEBUG_BYTES) == 0);
 
@@ -1306,7 +1324,7 @@ void RFM69_handle_timeout (
                 // Normal send failed: no messagePacketSentOk_IRQ seen
                 #if (SEMANTICS_DO_LOOP_FOR_RF_IRQFLAGS2_PACKETSENT == 0)
                     debug_print ("fail IRQ waitForIRQInterruptCause %u\n", TX_context.waitForIRQInterruptCause); // Report and continue
-                    TX_context.waitForIRQInterruptCause = no_IRQExpected; // Clear it here even if i_radio.send will overwrite it
+                    TX_context.waitForIRQInterruptCause = no_IRQExpected; // Clear it here even if i_radio.uspi_send will overwrite it
                 #endif
             } else {} // No code
 
@@ -1315,7 +1333,7 @@ void RFM69_handle_timeout (
                     // No code, kep full power always
                 #else
                 TX_context.TX_appPowerLevel_dBm = APPPOWERLEVEL_MIN_DBM;
-                    i_radio.setPowerLevel_dBm (TX_context.TX_appPowerLevel_dBm); // Should stop the sound in my speakers!
+                    i_radio.uspi_setPowerLevel_dBm (TX_context.TX_appPowerLevel_dBm); // Should stop the sound in my speakers!
                 #endif
             } else {}
 
@@ -1324,11 +1342,11 @@ void RFM69_handle_timeout (
                     debug_print ("\nKEY2\n", TX_context.TX_gatewayid);
                     debug_print ("%s", char_leading_space_str);
                     #define KEY2 "OM11-Aquarium-2"
-                    i_radio.encrypt16 (KEY2, KEY_LEN);
+                    i_radio.uspi_encrypt16 (KEY2, KEY_LEN);
                 } else if (TX_context.TX_appSeqCnt == 20) {
                     debug_print ("\nKEY again\n", "KEY again");
                     debug_print ("%s", char_leading_space_str);
-                    i_radio.encrypt16 (RXTX_context.radio_init.key, KEY_LEN);
+                    i_radio.uspi_encrypt16 (RXTX_context.radio_init.key, KEY_LEN);
                 } else if (TX_context.TX_appSeqCnt == 25) {
                     TX_context.TX_gatewayid = 58;
                     debug_print ("\ngatewayid %u(%02X)\n", TX_context.TX_gatewayid, TX_context.TX_gatewayid);
@@ -1339,36 +1357,49 @@ void RFM69_handle_timeout (
                     divTime.max_diffTime_ms  = 0;
                     divTime.mean_diffTime_ms = 0;
                     #if (RADIO_IF_FULL == 1)
-                        // i_radio.readAllRegs();
+                        // i_radio.uspi_readAllRegs();
                     #endif
                 } else {}
             #endif
 
             for (unsigned index = 0; index < PACKET_LEN32; index++) {
-                 RXTX_context.PACKET_U.u.packet_u2_uint32_arr[index] = PACKET_INIT_VAL32;
+                 RXTX_context.PACKET.u.packet_u2_uint32_arr[index] = PACKET_INIT_VAL32;
             }
 
-            RXTX_context.PACKET_U.u.packet_u3.appHeading.numbytes_of_full_payload = PACKET_LEN08;
-            RXTX_context.PACKET_U.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_02;
-            RXTX_context.PACKET_U.u.packet_u3.appHeading.num_of_this_app_payload  = NUM_OF_THIS_APP_PAYLOAD_01;
+            RXTX_context.PACKET.u.packet_u3.appHeading.numbytes_of_full_payload = PACKET_LEN08;
+            RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_02;
+            RXTX_context.PACKET.u.packet_u3.appHeading.num_of_this_app_payload  = NUM_OF_THIS_APP_PAYLOAD_01;
 
-            RXTX_context.PACKET_U.u.packet_u3.appNODEID = NODEID; // Comes from MASTER_ID
-            RXTX_context.PACKET_U.u.packet_u3.appPowerLevel_dBm = TX_context.TX_appPowerLevel_dBm;
+            RXTX_context.PACKET.u.packet_u3.appNODEID = NODEID; // Comes from MASTER_ID
+            RXTX_context.PACKET.u.packet_u3.appPowerLevel_dBm = TX_context.TX_appPowerLevel_dBm;
 
-            RXTX_context.PACKET_U.u.packet_u3.appSeqCnt = TX_context.TX_appSeqCnt;
+            RXTX_context.PACKET.u.packet_u3.appSeqCnt = TX_context.TX_appSeqCnt;
 
             debug_print("TXappSeqCnt %u\n", TX_context.TX_appSeqCnt);
 
-            TX_context.waitForIRQInterruptCause = i_radio.send (
-                    TX_context.TX_gatewayid,
-                    RXTX_context.PACKET_U); // element CommHeaderRFM69 is not taken from here, so don't fill it in
+            #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+            {
+                 RXTX_context.awaiting_trans2 = true;
+                 debug_print ("%s\n", "USPI send1 before");
+                 i_radio.send_trans1 (
+                     TX_context.TX_gatewayid,
+                     RXTX_context.PACKET);
+                 debug_print ("%s\n", "USPI send1 after");
+             }
+             #elif (CLIENT_ALLOW_SESSION_TYPE_TRANS==0)
+             {
+                 TX_context.waitForIRQInterruptCause = i_radio.uspi_send (
+                         TX_context.TX_gatewayid,
+                         RXTX_context.PACKET); // element CommHeaderRFM69 is not taken from here, so don't fill it in
 
-            // delay_milliseconds(500); // I can hear the sending in my speakers when high power since delays time to IRQ
+                 // delay_milliseconds(500); // I can hear the sending in my speakers when high power since delays time to IRQ
 
-            {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
-            if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
-                debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
-            } else {}
+                 {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+                 if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
+                     debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
+                 } else {}
+             }
+            #endif
 
             TX_context.sendPacket_seconds_cntdown = SEND_PACKET_ON_NO_CHANGE_TIMOEUT_SECONDS - 1;
 
@@ -1419,7 +1450,7 @@ void display_screen_store_RX_context_values (
 {
     #if (IS_MYTARGET_SLAVE==1)
         RX_context.num_appSeqCnt_notSeen_inDisplay       = RX_context.num_appSeqCnt_notSeen;
-        RX_context.ultimateIRQclearCnt_notSeen_inDisplay = RX_context.ultimateIRQclearCnt;
+        display_context.ultimateIRQclearCnt_notSeen_inDisplay = display_context.ultimateIRQclearCnt;
     #endif
 }
 
@@ -1464,20 +1495,18 @@ void reset_values (
             display_context.debug_r_button = false;
         #endif
 
-        RX_context.ultimateIRQclearCnt = 0;
-        RX_context.ultimateIRQclearCnt_notSeen_inDisplay = 0;
-        RX_context.senderid_not_displayed_cnt = 0;
+        display_context.ultimateIRQclearCnt = 0;
+        display_context.ultimateIRQclearCnt_notSeen_inDisplay = 0;
+        display_context.senderid_not_displayed_cnt = 0;
     #endif
 
     RXTX_context.error_bits_history = 0;
 }
 
-[[combinable]] // Cannot be [[distributable]] since timer case in select
 void RFM69_client (
                   chanend                  c_irq_update,
           client  radio_if_t               i_radio,
           client  blink_and_watchdog_if_t  i_blink_and_watchdog,
-          const   bool                     semantics_do_rssi_in_irq_detect_task,
           server  button_if                i_button_in[BUTTONS_NUM_CLIENTS],
           client  i2c_internal_commands_if i_i2c_internal_commands,
           out port                         p_display_notReset)
@@ -1494,10 +1523,11 @@ void RFM69_client (
 
     debug_print_context.debug_print_rx_2_done = false;
 
-    RXTX_context.interruptCnt = 0;
+    RXTX_context.interruptCnt         = 0;
     RXTX_context.radio_init.nodeID    = NODEID; // Comes from SHARED_ID from _Aquarium. Will cause messageReceivedOk_IRQ if received this or RF69_BROADCAST_ADDR
     RXTX_context.radio_init.RegFrf    = MY_RFM69_FREQ_REGS;
     RXTX_context.radio_init.isRFM69HW = IS_RFM69HW_HCW; // Must be true or else my Adafruit high power module won't work!
+    RXTX_context.awaiting_trans2      = false;
     //
     for (unsigned i=0; i < KEY_LEN; i++) {
         RXTX_context.radio_init.key[i] = KEY[i];
@@ -1543,9 +1573,9 @@ void RFM69_client (
 
         RX_context.allow_10_sek_timeout = true;
         RX_context.is_watchdog_blinking = false;
-        RX_context.senderid_not_displayed_cnt = 0;
-        RX_context.senderid_displayed_now = MASTER_ID_AQUARIUM;
-        RX_context.senderid_not_displayed_now = MASTER_ID_BLACK_BOARD;
+        display_context.senderid_not_displayed_cnt = 0;
+        display_context.senderid_displayed_now = MASTER_ID_AQUARIUM;
+        display_context.senderid_not_displayed_now = MASTER_ID_BLACK_BOARD;
 
     #else
         #error MUST BE ONE of them! To code for both, recode somewhat
@@ -1595,10 +1625,9 @@ void RFM69_client (
                 RFM69_CLIENT_VERSION_STR);
     #endif
 
-    debug_print ("Built %s [%s] with read RSSI %s and radio CRC %s IRQ and %s sent\n\n",
+    debug_print ("Built %s [%s] with radio CRC %s IRQ and %s sent\n\n",
             __DATE__,
             __TIME__,
-            (semantics_do_rssi_in_irq_detect_task) ? "in IRQ_detect_task" : "by RFM69_client",
             (SEMANTICS_DO_CRC_ERR_NO_IRQ == 1) ? "no" : "with",
             (SEMANTICS_DO_LOOP_FOR_RF_IRQFLAGS2_PACKETSENT == 1) ? "loop for" : "state for");
 
@@ -1624,22 +1653,22 @@ void RFM69_client (
 
     // Radio matters
 
-    i_radio.do_spi_aux_adafruit_rfm69hcw_RST_pulse (MASKOF_SPI_AUX0_RST);
-    i_radio.initialize (RXTX_context.radio_init);
+    i_radio.uspi_do_aux_adafruit_rfm69hcw_RST_pulse (MASKOF_SPI_AUX0_RST);
+    i_radio.uspi_initialize (RXTX_context.radio_init);
 
-    RXTX_context.device_type = i_radio.getDeviceType(); // ERROR_BITNUM_DEVICE_TYPE if not 0x24
+    RXTX_context.device_type = i_radio.uspi_getDeviceType(); // ERROR_BITNUM_DEVICE_TYPE if not 0x24
     debug_print ("\n---> DEVICE TYPE 0x%02X <---\n\n", RXTX_context.device_type);
 
     {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
 
     if (RXTX_context.some_rfm69_internals.error_bits == ERROR_BITS_NONE) {
 
-        i_radio.setHighPower (RXTX_context.radio_init.isRFM69HW);
-        i_radio.encrypt16 (RXTX_context.radio_init.key, KEY_LEN);
+        i_radio.uspi_setHighPower (RXTX_context.radio_init.isRFM69HW);
+        i_radio.uspi_encrypt16 (RXTX_context.radio_init.key, KEY_LEN);
         #if (IS_MYTARGET_SLAVE==1)
             i_radio.setListenToAll (RX_context.doListenToAll);
         #endif
-        i_radio.setFrequencyRegister (MY_RFM69_FREQ_REGS); // Only needed if different from MY_RFM69_FREQ_REGS, since that done in radio_init
+        i_radio.uspi_setFrequencyRegister (MY_RFM69_FREQ_REGS); // Only needed if different from MY_RFM69_FREQ_REGS, since that done in radio_init
 
         #if (DEBUG_PRINT_RFM69 == 1)
             #define TEST_FLOAT_FREQ 0 // =1 would cause the linker to kick in the floating point library!
@@ -1663,7 +1692,7 @@ void RFM69_client (
             #endif
         #endif
 
-        i_radio.receiveDone(); // To have setMode(RF69_MODE_RX) done (via receiveBegin)
+        i_radio.uspi_receiveDone(); // To have setMode(RF69_MODE_RX) done (via receiveBegin)
     } else {}
 
     {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
@@ -1672,8 +1701,10 @@ void RFM69_client (
         debug_print ("RFM69 err1 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
     } else {}
 
-    debug_print ("\nRADIO RX IS %s ",
-         (RX_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA");
+    #if (IS_MYTARGET_SLAVE==1)
+        debug_print ("\nRADIO RX IS %s\n", // "RADIO RX IS AKVA" or "RADIO RX IS KORT"
+             (display_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA");
+    #endif
 
     i_blink_and_watchdog.init_watchdog_ok (
             XCORE_200_EXPLORER_LED_GREEN_BIT_MASK bitor XCORE_200_EXPLORER_LED_RGB_GREEN_BIT_MASK,
@@ -1687,7 +1718,7 @@ void RFM69_client (
 
     while (1) {
         select {
-            case c_irq_update :> irq_update : {
+            case (not RXTX_context.awaiting_trans2) => c_irq_update :> irq_update : {
 
                 debug_print ("IRQ %u UPDATE %s\n",
                         timeout_i_radio_usage_allowed,
@@ -1698,6 +1729,36 @@ void RFM69_client (
                 tmr :> then_tics;
 
                 if (irq_update == pin_gone_high) {
+
+                    #if (IS_MYTARGET_SLAVE == 1)
+                        #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                        {
+                            timer    tmr;
+                            time32_t time;
+
+                            tmr :> time;
+                            time += XS1_TIMER_HZ;
+
+                            i_radio.readRSSI_dBm_trans1 (FORCETRIGGER_OFF);
+                            select {
+                                case i_radio.session_trans2() : {
+                                    session_return_from_trans3_t session_return_from_trans3;;
+                                    session_return_from_trans3 = i_radio.session_trans3();
+                                    xassert (session_return_from_trans3.session_trans1_id == from_readRSSI_dBm_trans1);
+                                    RX_context.nowRSSI = session_return_from_trans3.u.return_rssi_dBm;
+                                } break;
+                                case tmr when timerafter(time) :> void: {
+                                    RX_context.nowRSSI = 0;
+                                    debug_print ("%s", "timeout: RSSI\n");
+                                } break;
+                            }
+                        }
+                        #else
+                            RX_context.nowRSSI = i_radio.uspi_readRSSI_dBm (FORCETRIGGER_OFF);
+                        #endif
+
+                    #endif
+
                     RFM69_handle_irq (
                        RX_CONTEXT,
                        TX_CONTEXT,
@@ -1705,22 +1766,41 @@ void RFM69_client (
                        display_context,
                        i_radio,
                        i_blink_and_watchdog,
-                       semantics_do_rssi_in_irq_detect_task,         // is false
                        i_i2c_internal_commands,
                        debug_print_context);
                     timeout_i_radio_usage_allowed = false;                     // Waiting for pin_gone_low
                 } else if (irq_update == pin_gone_low) {
                     timeout_i_radio_usage_allowed = true;                      // Ready
                 } else if (irq_update == pin_still_high_timeout) {
-                    i_radio.ultimateIRQclear();                      // i_radio allowed because we need to kick the radio in some way
-                    RX_context.ultimateIRQclearCnt++;
+                    i_radio.uspi_ultimateIRQclear();                           // i_radio allowed because we need to kick the radio in some way
+                    display_context.ultimateIRQclearCnt++;
                     timeout_i_radio_usage_allowed = false;                     // Still let's wait for the consequential pin_gone_low
                 } else {} // Never here
 
                 tmr :> now_tics;
-                debug_print ("IRQ HANDLING %u ms and %u\n",  (now_tics - then_tics) / XS1_TIMER_KHZ, RX_context.ultimateIRQclearCnt);
+                debug_print ("IRQ HANDLING %u ms and %u\n",  (now_tics - then_tics) / XS1_TIMER_KHZ, display_context.ultimateIRQclearCnt);
 
             } break;
+
+            #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                case i_radio.session_trans2 () : {
+                    session_return_from_trans3_t session_return_from_trans3;
+
+                    RXTX_context.awaiting_trans2 = false;
+                    session_return_from_trans3 = i_radio.session_trans3();
+
+                    {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits(); // No SPI comm
+
+                    if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
+                        debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
+                        // Don't set context.radio_board_fault here since some errors may not appear next time
+                    } else {
+                        #if (IS_MYTARGET_MASTER == 1)
+                            debug_print ("TX %u\n", TX_context.TX_appSeqCnt);
+                        #endif
+                    }
+                } break;
+            #endif
 
             case tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
                 seconds_since_last_call++; // Since ONE_SECOND_TICKS used below
@@ -1729,7 +1809,7 @@ void RFM69_client (
                     RX_context.seconds_since_last_received += seconds_since_last_call; // about, anyhow, since we don't reset divTime.time_ticks in pin_rising
                     if (timeout_i_radio_usage_allowed) {
                         if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds = 10 seconds
-                            i_radio.receiveDone(); // TODO necessary after some mid January 2019?
+                            i_radio.uspi_receiveDone(); // TODO necessary after some mid January 2019?
                             debug_print ("%s", "NO RX FOR 10 SECONDS\n");
                             RX_context.seconds_since_last_received = 0;
                         } else {}
@@ -1754,7 +1834,6 @@ void RFM69_client (
                             seconds_since_last_call,
                             i_radio,
                             i_blink_and_watchdog,
-                            semantics_do_rssi_in_irq_detect_task,
                             i_i2c_internal_commands);
                     seconds_since_last_call = 0;
                 } else {}
@@ -1839,7 +1918,7 @@ void RFM69_client (
                                                 // debug_mode_0_1 SOLVED THE PROBLEM!
                                                 display_context.debug_r_button = true;
                                                 RX_context.debug_state = (RX_context.debug_state + 1) % debug_void;
-                                                i_radio.getDebug (RX_context.debug_state, RX_context.debug_data);
+                                                i_radio.uspi_getDebug (RX_context.debug_state, RX_context.debug_data);
 
                                                 {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
                                                 RXTX_context.error_bits_history or_eq RXTX_context.some_rfm69_internals.error_bits;
@@ -1853,29 +1932,69 @@ void RFM69_client (
                                         #endif
                                     #endif
                                 } else if (display_context.display_screen_name == SCREEN_RX_DISPLAY_OVERSIKT) {
-                                    debug_print ("\nRADIO RX WAS %s ",
-                                            (RX_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA");
-                                    t_swap (uint8_t, RX_context.senderid_not_displayed_now, RX_context.senderid_displayed_now);
-                                    reset_values (display_context, RX_CONTEXT, RXTX_context);
-                                    debug_print ("NOW %s = address %u\n\n",
-                                            (RX_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA",
-                                             RX_context.senderid_displayed_now);
-                                    Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                    #if (IS_MYTARGET_SLAVE == 1)
+                                        debug_print ("\nRADIO RX WAS %s ",
+                                                (display_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA");
+                                        t_swap (uint8_t, display_context.senderid_not_displayed_now, display_context.senderid_displayed_now);
+                                        reset_values (display_context, RX_CONTEXT, RXTX_context);
+                                        debug_print ("NOW %s = address %u\n\n",
+                                                (display_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA",
+                                                 display_context.senderid_displayed_now);
+                                        Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                    #endif
                                 } else if (display_context.display_screen_name == SCREEN_WELCOME) {
-                                    RX_context.allow_10_sek_timeout = not RX_context.allow_10_sek_timeout;
-                                    i_blink_and_watchdog.enable_watchdog (RX_context.allow_10_sek_timeout);
-                                    Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                    #if (IS_MYTARGET_SLAVE == 1)
+                                        RX_context.allow_10_sek_timeout = not RX_context.allow_10_sek_timeout;
+                                        i_blink_and_watchdog.enable_watchdog (RX_context.allow_10_sek_timeout);
+                                        Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                    #endif
                                 } else {}
                             } else {}
                         } else if (button_action == BUTTON_ACTION_PRESSED_FOR_10_SECONDS) {
+                            {   // RACLI=001
+                                unsigned int pllVal;
+                                unsigned int localTileId = get_local_tile_id();
+                                unsigned int tileId;
+                                unsigned int tileArrayLength;
+
+                                asm volatile ("ldc %0, tile.globound":"=r"(tileArrayLength));
+
+                                /* Reset all remote tiles */
+                                for(int i = 0; i < tileArrayLength; i++)
+                                {
+                                    /* Cannot cast tileref to unsigned */
+                                    tileId = get_tile_id(tile[i]);
+
+                                    /* Do not reboot local tile yet */
+                                    if (localTileId != tileId)
+                                    {
+                                        read_sswitch_reg(tileId, 6, pllVal);
+                                        write_sswitch_reg_no_ack(tileId, 6, pllVal);
+                                    }
+                                }
+
+                                /* Finally reboot this tile */
+                                read_sswitch_reg(localTileId, 6, pllVal);
+                                write_sswitch_reg_no_ack(localTileId, 6, pllVal);
+
+                            }
+
                             reset_values (display_context, RX_CONTEXT, RXTX_context);
                             { // Make display blink.
                                 display_screen_name_t display_screen_name_copy = display_context.display_screen_name;
                                 display_context.display_screen_name = SCREEN_DARK;
-                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                #if (IS_MYTARGET_SLAVE == 1)
+                                    Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                #else
+                                    Display_screen (display_context, null, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                #endif
                                 delay_milliseconds(100); // It blinks also without this
                                 display_context.display_screen_name = display_screen_name_copy;
-                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                #if (IS_MYTARGET_SLAVE == 1)
+                                    Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                #else
+                                    Display_screen (display_context, null, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                #endif
                             }
                         }
                     } break;

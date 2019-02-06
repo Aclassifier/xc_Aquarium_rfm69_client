@@ -230,8 +230,8 @@ int main() {
         //           i2c_master is synchronous and called from RFM69_client so RFM69_client should then not be on some core as spi_master_2 (?)
 
         on tile[0].core[0]: spi_master_2            (i_spi, SPI_NUM_CLIENTS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
-        on tile[0].core[1]: RFM69_driver            (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combineable]]
-        on tile[0].core[2]: RFM69_client            (c_irq_update, i_radio, i_blink_and_watchdog[0], SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK, i_buttons, i_i2c_internal_commands[0], p_display_notReset);
+        on tile[0].core[1]: RFM69_driver            (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combinable]]
+        on tile[0]:         RFM69_client            (c_irq_update, i_radio, i_blink_and_watchdog[0], i_buttons, i_i2c_internal_commands[0], p_display_notReset); // occam type task since nested select
         on tile[0].core[3]: blink_and_watchdog_task (i_blink_and_watchdog, p_explorer_leds);
 
         #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)

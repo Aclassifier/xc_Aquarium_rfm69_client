@@ -13,100 +13,102 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.60"
-#define RFM69_CLIENT_VERSION_NUM    0860
-    // 0860     29Jan2019           Logging format
-    // 0859     29Jan2019           Logging format
-    // 0858     28Jan2019           CAR_KEY code removed (some comments kept)
-    // 0857     27Jan2019           SCREEN_AQUARIUM_BOX_INTERNALS changed
-    // 0856     27Jan2019           100 and 1000 ms seemed ok. Going back to 2000, which I guess would only handle a _real_ problem. No log from RFM69 library any more
-    // 0855     27Jan2019           Just testing with IRQ_HIGH_MAX_TIME_MILLIS = 100
-    // 0854     27Jan2019           Just testing with IRQ_HIGH_MAX_TIME_MILLIS = 1000
-    // 0853     27Jan2019 RFM69=008 IRQ_interrupt_task new and used. Just one-way from IRQ handler, like it used to
-    //          27Jan2019           Below was probably last use of IRQ_detect_and_poll_task_2
-    // 0852     26Jan2019           SCREEN_VOLTAGES -> SCREEN_AQUARIUM_BOX_INTERNALS and new contents
-    // 0851     24Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 1000
-    // 0850     23Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 2000
-    // 0849     23Jan2019           Some rewrite, should be minor
-    // 0848     23Jan2019           IRQ_HIGH_MAX_TIME_MILLIS from 1200 to 2000
-    // 0847     23Jan2019           c_irq_update_e new name to make deadlock situation shown, and no read_irq_val_and_tick_state call then
-    // 0846     23Jan2019 RFM69=007 I think I noticed a situation where IRQ was correctly low but it did not do any RX of messages
-    // 0845     23Jan2019           Doing reset of more values in reset_values
-    // 0844     22Jan2019           IRQ_detect_and_poll_task is new, but now even using IRQ_detect_and_poll_task_2 with chanend
-    // 0843     21Jan2019           Just testing that it takes RFM69_DRIVER_VERSION_STR "0.8.07" plus a change in SCREEN_DEBUG
-    // 0842     20Jan2019           SCREEN_DEBUG now displays from aquarium
-    // 0841                         See "2019 01 15 A Log light amount change ver 0841 changes too often around 21.00.txt"
-    // 0841     15Jan2019           VERSION_OF_APP_PAYLOAD_01 and VERSION_OF_APP_PAYLOAD_02 handled separately
-    // 0839     12Jan2019 RFM69=006 More advanced reception from both from MASTER_ID_AQUARIUM and MASTER_ID_BLACK_BOARD
-    // 0838     10Jan2019           Display_screen forgotten
-    // 0837     10Jan2019 RFM69=005 Allowing reception from both from MASTER_ID_AQUARIUM and MASTER_ID_BLACK_BOARD
-    // 0836     12Dec2018           RX_context.allow_10_sek_timeout is new
-    // 0835     07Dec2018           buttons_state was not init enough, so first left button to dark did not work
-    // 0834     05Dec2018           SCREEN_HJELP is new
-    // 0833     05Dec2018           Direction of next screen now "up" or "down". Changes with keys: Hold center in while left is pushed in and out
-    // 0832     03Dec2018           i_blink_and_watchdog.blink_pulse_ok only when RXTX_context.receiveDone sin IRQ has separate LED
-    // 0831     02Dec2018           Just a new number after two important logs with different settings
-    // 0830     01Dec2018           messageRadioCRC16AppCRC32Errs_IRQ (in LIB), num_bothCRCerrs removed
-    // 0829     01Dec2018           _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=0 just to test FLASHed version!
-    //                              ultimateIRQclear_cnt in this case counts, also when FLASHed. The good thing is that with this solution it's not down to RF69_MODE_STANDBY
-    //                              between every reception and _maybe_ we will see more packages and lose fewer
-    // 0828     30Nov2018           i_radio.ultimateIRQclear(); is new
-    //                              When I run this with the debugger and lots of printouts, ultimateIRQclear_cnt counts a lot!
-    //                              The same code ran as FLASHed shows NO increments over 14 hours at least
-    // 0827     29Nov2018 RFM69=004 Button_Task updated
-    // 0826     27Nov2018           Just testing with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=1 again to see if IRQ stuck still happens
-    //                              Observe that we treat all messages with IRQ with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0
-    // 0825     27Nov2018           debug_state is new. _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0 again
-    //                    RFM69=003 solved with debug_mode_0_1 with IOF_BUTTON_RIGHT. It went on when this was pressed
-    // 0824     26Nov2018           _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=1 again, the only change. Not able to see IRQ error
-    // 0823     26Nov2018           Did not help to MUL by 5 below. Now new par layout in main. Still ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY, but some times that's ok!
-    // 0822     26Nov2018           WAIT_FOR_REGISTER_VALUE_MS * 5 for ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY?
-    // 0821     26Nov2018           Reading error bits also on right button. ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY triggers
-    // 0820     26Nov2018           SCREEN_DEBUG better
-    // 0819     26Nov2018           SCREEN_DEBUG is new
-    //                              SEMANTICS_DO_CRC_ERR_NO_IRQ now to be set with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ
-    //                              RFM69=003 IRQ error aqain, first time seen in with FLASH_EXPLORER_BOX.
-    // 0818     25Nov2018           SCREEN_STATISTICS_2 and compiled with SEMANTICS_DO_CRC_ERR_NO_IRQ=0 in lib_rfm69_xc
-    //                              I did see that the IRQ error with IRQ LED on always happened once when I was using the display (now call this RFM69=003)
-    //                              There were lots of CRC16 and even both CRC16 and CRC32 errors over the night
-    // 0817     24Nov2018           New screen SCREEN_STATISTICS and more statistics
-    // 0815     23Nov2018           u_to_str_lm is new
-    // 0814     22Nov2018           New light and heating regulating names of text constants
-    // 0813     21Nov2108           Error screen and showing when a screen has got new data (with '*' and '+')
-    // 0812     21Nov2018           An error in SCREEN_4_MAX_NA_MIN
-    // "0.8.11" 20Nov2018           display_screen_store_values is new
-    // "0.8.10" 20Nov2018           Display now toggles on and off with left button etc.
-    // "0.8.9"  20Nov2018
-    //                    RFM69=002 MAX and MIN values now like 100 for % and 99 for temp, to make display nicer
-    // "0.8.8"  19Nov2018           All LEDs are black (except IRQ on board) of screen is black
-    // "0.8.7"  19Nov2018           feed_watchdog is new etc. Plus a blank screen
-    // "0.8.6"  19Nov2018           RX_context.appSeqCnt_prev and calculations around this fixed (had been compromised by some code cut and paste)
-    // "0.8.5"  18Nov2018           SCREEN_4_MAX_NA_MIN is new (with Watt etc.)
-    // "0.8.4"  18Nov2018           Helper functions to convert and print pluss _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=0 again
-    // "0.8.2"  13Nov2018           IRQ and timeout handling now separate functions in _Aquarium_rfm69_client.xc
-    // "0.8.1"  02Nov2018           DEG C and WATT ALSO DISPLAYED
-    // "0.7.2"  29Oct2018           THIS VERSION SHOWS AQUARIUM TIME AND WATER TEMP IN THE DISPLAY! YESS!
-    //                    RFM69=001 The IRQ line that keeps high after IRQ 7 (messagePacketLenErr_IRQ) is worked on. Testing at the moment
-    //                    --"--     This tag is also seen in the "rfm69_commprot.h" code
-    // "0.7.1"  07Jun2018           _commprot.h -> renamed to rfm69_commprot.h
-    //                              _globals.h  -> renamed to rfm69_globals.h and new _globals.h made
-    // "0.7.0"  06Jun2018           File changes before moving to lib_fsm69_xc
-    //                              RFM69.h           -> contents moved to rfm69_xc.xc then renamed to rfm69_xc.h
-    //                              RFM69_interface.h -> contents moved to rfm69_xc.h then file obsoleted
-    //                              RFM69.xc          -> renamed to rfm69_xc.xc
-    //                              RFM69.xc          -> renamed to rfm69_xc.xc
-    //                              spi_driver.h      -> renamed to rfm69_spi_driver.h
-    //                              spi_driver.xc     -> renamed to rfm69_spi_driver.xc
-    //                              CRC.h             -> renamed to rfm69_crc.h and uint32_t moved go _globals.h
-    //                              CRC.xc            -> renamed to rfm69_crc.xc
-    //                              RFM69_registers.h -> renamed to rfm69_registers.h
-    // "0.6.0"  05May2018           SEMANTICS_DO_LOOP_FOR_RF_IRQFLAGS2_PACKETSENT is new
-    // "0.5.5"  18Apr2018           This is a long-live number during development
-    // "0.5.3"  03Apr2018           SHARED_ID etc are new
-    // "0.5.2"                      File _commprot.h is new etc
-    // "0.5.1"  28Feb2018           more advanced handling
-    // "0.5.0"  26Feb2018           testing some changes that Maxim initiated
-    //          RFM69=000           First testing with two boards
+#define RFM69_CLIENT_VERSION_STR "0.8.62"
+#define RFM69_CLIENT_VERSION_NUM    0862
+// 0862     06Feb2019 RACLI=001 testing with code to restart, see https://www.xcore.com/viewtopic.php?f=44&t=7065
+// 0861     05Feb2019 RFM69=011 Works with that value with getting RSSI and _trans1, _trans2 and _trans3
+// 0860     29Jan2019           Logging format. Works with lib_rfm69
+// 0859     29Jan2019           Logging format
+// 0858     28Jan2019           CAR_KEY code removed (some comments kept)
+// 0857     27Jan2019           SCREEN_AQUARIUM_BOX_INTERNALS changed
+// 0856     27Jan2019           100 and 1000 ms seemed ok. Going back to 2000, which I guess would only handle a _real_ problem. No log from RFM69 library any more
+// 0855     27Jan2019           Just testing with IRQ_HIGH_MAX_TIME_MILLIS = 100
+// 0854     27Jan2019           Just testing with IRQ_HIGH_MAX_TIME_MILLIS = 1000
+// 0853     27Jan2019 RFM69=008 IRQ_interrupt_task new and used. Just one-way from IRQ handler, like it used to
+//          27Jan2019           Below was probably last use of IRQ_detect_and_poll_task_2
+// 0852     26Jan2019           SCREEN_VOLTAGES -> SCREEN_AQUARIUM_BOX_INTERNALS and new contents
+// 0851     24Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 1000
+// 0850     23Jan2019           More logging. IRQ_HIGH_MAX_TIME_MILLIS 2000
+// 0849     23Jan2019           Some rewrite, should be minor
+// 0848     23Jan2019           IRQ_HIGH_MAX_TIME_MILLIS from 1200 to 2000
+// 0847     23Jan2019           c_irq_update_e new name to make deadlock situation shown, and no read_irq_val_and_tick_state call then
+// 0846     23Jan2019 RFM69=007 I think I noticed a situation where IRQ was correctly low but it did not do any RX of messages
+// 0845     23Jan2019           Doing reset of more values in reset_values
+// 0844     22Jan2019           IRQ_detect_and_poll_task is new, but now even using IRQ_detect_and_poll_task_2 with chanend
+// 0843     21Jan2019           Just testing that it takes RFM69_DRIVER_VERSION_STR "0.8.07" plus a change in SCREEN_DEBUG
+// 0842     20Jan2019           SCREEN_DEBUG now displays from aquarium
+// 0841                         See "2019 01 15 A Log light amount change ver 0841 changes too often around 21.00.txt"
+// 0841     15Jan2019           VERSION_OF_APP_PAYLOAD_01 and VERSION_OF_APP_PAYLOAD_02 handled separately
+// 0839     12Jan2019 RFM69=006 More advanced reception from both from MASTER_ID_AQUARIUM and MASTER_ID_BLACK_BOARD
+// 0838     10Jan2019           Display_screen forgotten
+// 0837     10Jan2019 RFM69=005 Allowing reception from both from MASTER_ID_AQUARIUM and MASTER_ID_BLACK_BOARD
+// 0836     12Dec2018           RX_context.allow_10_sek_timeout is new
+// 0835     07Dec2018           buttons_state was not init enough, so first left button to dark did not work
+// 0834     05Dec2018           SCREEN_HJELP is new
+// 0833     05Dec2018           Direction of next screen now "up" or "down". Changes with keys: Hold center in while left is pushed in and out
+// 0832     03Dec2018           i_blink_and_watchdog.blink_pulse_ok only when RXTX_context.receiveDone sin IRQ has separate LED
+// 0831     02Dec2018           Just a new number after two important logs with different settings
+// 0830     01Dec2018           messageRadioCRC16AppCRC32Errs_IRQ (in LIB), num_bothCRCerrs removed
+// 0829     01Dec2018           _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=0 just to test FLASHed version!
+//                              ultimateIRQclear_cnt in this case counts, also when FLASHed. The good thing is that with this solution it's not down to RF69_MODE_STANDBY
+//                              between every reception and _maybe_ we will see more packages and lose fewer
+// 0828     30Nov2018           i_radio.uspi_ultimateIRQclear(); is new
+//                              When I run this with the debugger and lots of printouts, ultimateIRQclear_cnt counts a lot!
+//                              The same code ran as FLASHed shows NO increments over 14 hours at least
+// 0827     29Nov2018 RFM69=004 Button_Task updated
+// 0826     27Nov2018           Just testing with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=1 again to see if IRQ stuck still happens
+//                              Observe that we treat all messages with IRQ with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0
+// 0825     27Nov2018           debug_state is new. _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=0 again
+//                    RFM69=003 solved with debug_mode_0_1 with IOF_BUTTON_RIGHT. It went on when this was pressed
+// 0824     26Nov2018           _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ=1 again, the only change. Not able to see IRQ error
+// 0823     26Nov2018           Did not help to MUL by 5 below. Now new par layout in main. Still ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY, but some times that's ok!
+// 0822     26Nov2018           WAIT_FOR_REGISTER_VALUE_MS * 5 for ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY?
+// 0821     26Nov2018           Reading error bits also on right button. ERROR_BITNUM_RF_IRQFLAGS2_FIFONOTEMPTY triggers
+// 0820     26Nov2018           SCREEN_DEBUG better
+// 0819     26Nov2018           SCREEN_DEBUG is new
+//                              SEMANTICS_DO_CRC_ERR_NO_IRQ now to be set with _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_CRC_ERR_NO_IRQ
+//                              RFM69=003 IRQ error aqain, first time seen in with FLASH_EXPLORER_BOX.
+// 0818     25Nov2018           SCREEN_STATISTICS_2 and compiled with SEMANTICS_DO_CRC_ERR_NO_IRQ=0 in lib_rfm69_xc
+//                              I did see that the IRQ error with IRQ LED on always happened once when I was using the display (now call this RFM69=003)
+//                              There were lots of CRC16 and even both CRC16 and CRC32 errors over the night
+// 0817     24Nov2018           New screen SCREEN_STATISTICS and more statistics
+// 0815     23Nov2018           u_to_str_lm is new
+// 0814     22Nov2018           New light and heating regulating names of text constants
+// 0813     21Nov2108           Error screen and showing when a screen has got new data (with '*' and '+')
+// 0812     21Nov2018           An error in SCREEN_4_MAX_NA_MIN
+// "0.8.11" 20Nov2018           display_screen_store_values is new
+// "0.8.10" 20Nov2018           Display now toggles on and off with left button etc.
+// "0.8.9"  20Nov2018
+//                    RFM69=002 MAX and MIN values now like 100 for % and 99 for temp, to make display nicer
+// "0.8.8"  19Nov2018           All LEDs are black (except IRQ on board) of screen is black
+// "0.8.7"  19Nov2018           feed_watchdog is new etc. Plus a blank screen
+// "0.8.6"  19Nov2018           RX_context.appSeqCnt_prev and calculations around this fixed (had been compromised by some code cut and paste)
+// "0.8.5"  18Nov2018           SCREEN_4_MAX_NA_MIN is new (with Watt etc.)
+// "0.8.4"  18Nov2018           Helper functions to convert and print pluss _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE=0 again
+// "0.8.2"  13Nov2018           IRQ and timeout handling now separate functions in _Aquarium_rfm69_client.xc
+// "0.8.1"  02Nov2018           DEG C and WATT ALSO DISPLAYED
+// "0.7.2"  29Oct2018           THIS VERSION SHOWS AQUARIUM TIME AND WATER TEMP IN THE DISPLAY! YESS!
+//                    RFM69=001 The IRQ line that keeps high after IRQ 7 (messagePacketLenErr_IRQ) is worked on. Testing at the moment
+//                    --"--     This tag is also seen in the "rfm69_commprot.h" code
+// "0.7.1"  07Jun2018           _commprot.h -> renamed to rfm69_commprot.h
+//                              _globals.h  -> renamed to rfm69_globals.h and new _globals.h made
+// "0.7.0"  06Jun2018           File changes before moving to lib_fsm69_xc
+//                              RFM69.h           -> contents moved to rfm69_xc.xc then renamed to rfm69_xc.h
+//                              RFM69_interface.h -> contents moved to rfm69_xc.h then file obsoleted
+//                              RFM69.xc          -> renamed to rfm69_xc.xc
+//                              RFM69.xc          -> renamed to rfm69_xc.xc
+//                              spi_driver.h      -> renamed to rfm69_spi_driver.h
+//                              spi_driver.xc     -> renamed to rfm69_spi_driver.xc
+//                              CRC.h             -> renamed to rfm69_crc.h and uint32_t moved go _globals.h
+//                              CRC.xc            -> renamed to rfm69_crc.xc
+//                              RFM69_registers.h -> renamed to rfm69_registers.h
+// "0.6.0"  05May2018           SEMANTICS_DO_LOOP_FOR_RF_IRQFLAGS2_PACKETSENT is new
+// "0.5.5"  18Apr2018           This is a long-live number during development
+// "0.5.3"  03Apr2018           SHARED_ID etc are new
+// "0.5.2"                      File _commprot.h is new etc
+// "0.5.1"  28Feb2018           more advanced handling
+// "0.5.0"  26Feb2018           testing some changes that Maxim initiated
+//          RFM69=000           First testing with two boards
 
 #endif /* VERSION_H_ */
 

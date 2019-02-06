@@ -78,6 +78,12 @@
     #error NO ROLE DEFINED
 #endif
 
+#ifdef _USERMAKEFILE_LIB_RFM69_XC_TRANS // AQU=073 new
+    #define CLIENT_ALLOW_SESSION_TYPE_TRANS _USERMAKEFILE_LIB_RFM69_XC_TRANS
+#else
+    #define CLIENT_ALLOW_SESSION_TYPE_TRANS 0
+#endif
+
 #if (FLASH_EXPLORER_BOX == 1)
     #define DEBUG_PRINT_GLOBAL_APP 0 // ALWAYS 0: all printf off
 #else
