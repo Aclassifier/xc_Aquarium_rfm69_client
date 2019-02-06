@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.62"
-#define RFM69_CLIENT_VERSION_NUM    0862
+#define RFM69_CLIENT_VERSION_STR "0.8.63"
+#define RFM69_CLIENT_VERSION_NUM    0863
+// 0863     06Feb2019           Undoing RACL=001
 // 0862     06Feb2019 RACLI=001 testing with code to restart, see https://www.xcore.com/viewtopic.php?f=44&t=7065
 // 0861     05Feb2019 RFM69=011 Works with that value with getting RSSI and _trans1, _trans2 and _trans3
 // 0860     29Jan2019           Logging format. Works with lib_rfm69
