@@ -84,12 +84,17 @@
     #define CLIENT_ALLOW_SESSION_TYPE_TRANS 0
 #endif
 
+#ifdef _USERMAKEFILE_LIB_RFM69_XC_DEBUG_SHARED_LOG_VALUE
+    #define DEBUG_SHARED_LOG_VALUE _USERMAKEFILE_LIB_RFM69_XC_DEBUG_SHARED_LOG_VALUE
+#else
+    #define DEBUG_SHARED_LOG_VALUE 0
+#endif
+
 #if (FLASH_EXPLORER_BOX == 1)
     #define DEBUG_PRINT_GLOBAL_APP 0 // ALWAYS 0: all printf off
 #else
     #define DEBUG_PRINT_GLOBAL_APP 1 // 0: all printf off
                                      // 1: controlled locally in each xc file
 #endif
-
 
 #endif /* GLOBALS_H_ */

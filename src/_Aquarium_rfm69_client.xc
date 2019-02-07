@@ -159,7 +159,7 @@ typedef struct {
     //
 } RXTX_context_t;
 
-#if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG)
+#if (GETDEBUG==1)
     #if ((_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_TIMEOUT==1) or (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1))
         // OK
     #else
@@ -1521,6 +1521,11 @@ void RFM69_client (
     divTime_t             divTime;
     unsigned              seconds_since_last_call = 0;
 
+    #if (DEBUG_SHARED_LOG_VALUE==1)
+        unsigned          radio_log_value = 0;
+        unsigned * unsafe radio_log_value_ptr;
+    #endif
+
     debug_print_context.debug_print_rx_2_done = false;
 
     RXTX_context.interruptCnt         = 0;
@@ -1559,7 +1564,7 @@ void RFM69_client (
         RX_context.appSeqCnt = 0;
         RX_context.appSeqCnt_prev = 0;
         RX_context.nowRSSI = 0; // Observe that it's signed so "0" and "-82" would align with print %d. This is fine!
-        #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG==1)
+        #if (GETDEBUG==1)
             for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
                 RX_context.debug_data[i] = 0;
                 RX_context.debug_data_prev[i] = 0;
@@ -1652,6 +1657,10 @@ void RFM69_client (
     }
 
     // Radio matters
+
+    #if (DEBUG_SHARED_LOG_VALUE==1)
+        radio_log_value_ptr = i_radio.get_radio_log_value_ptr();
+    #endif
 
     i_radio.uspi_do_aux_adafruit_rfm69hcw_RST_pulse (MASKOF_SPI_AUX0_RST);
     i_radio.uspi_initialize (RXTX_context.radio_init);
@@ -1752,6 +1761,11 @@ void RFM69_client (
                                     debug_print ("%s", "timeout: RSSI\n");
                                 } break;
                             }
+
+                            #if (DEBUG_SHARED_LOG_VALUE==1)
+                                radio_log_value = get_radio_log_value(radio_log_value_ptr);
+                                debug_print ("radio_log_value %u\n", radio_log_value);
+                            #endif
                         }
                         #else
                             RX_context.nowRSSI = i_radio.uspi_readRSSI_dBm (FORCETRIGGER_OFF);
@@ -1951,7 +1965,6 @@ void RFM69_client (
                                 } else {}
                             } else {}
                         } else if (button_action == BUTTON_ACTION_PRESSED_FOR_10_SECONDS) {
-                            // RACLI=001 code was here
                             reset_values (display_context, RX_CONTEXT, RXTX_context);
                             { // Make display blink.
                                 display_screen_name_t display_screen_name_copy = display_context.display_screen_name;
