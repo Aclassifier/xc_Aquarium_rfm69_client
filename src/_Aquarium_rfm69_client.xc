@@ -1742,29 +1742,22 @@ void RFM69_client (
                     #if (IS_MYTARGET_SLAVE == 1)
                         #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
                         {
-                            timer    tmr;
-                            time32_t time;
-
-                            tmr :> time;
-                            time += XS1_TIMER_HZ;
+                            bool ok;
+                            session_return_from_trans3_t session_return_from_trans3;
 
                             i_radio.readRSSI_dBm_trans1 (FORCETRIGGER_OFF);
-                            select {
-                                case i_radio.session_trans2() : {
-                                    session_return_from_trans3_t session_return_from_trans3;;
-                                    session_return_from_trans3 = i_radio.session_trans3();
-                                    xassert (session_return_from_trans3.session_trans1_id == from_readRSSI_dBm_trans1);
-                                    RX_context.nowRSSI = session_return_from_trans3.u.return_rssi_dBm;
-                                } break;
-                                case tmr when timerafter(time) :> void: {
-                                    RX_context.nowRSSI = 0;
-                                    debug_print ("%s", "timeout: RSSI\n");
-                                } break;
-                            }
+                            ok = wait_for_i_radio_trans2_then_do_trans3_ok (i_radio, from_readRSSI_dBm_trans1, session_return_from_trans3, CLIENT_WAIT_FOR_RADIO_MAX_MS);
+                            RX_context.nowRSSI = session_return_from_trans3.u.return_rssi_dBm;
 
                             #if (DEBUG_SHARED_LOG_VALUE==1)
+                            {
+                                unsigned left_show_as_hex;
+                                unsigned right_show_as_unsigned;
+
                                 radio_log_value = get_radio_log_value(radio_log_value_ptr);
-                                debug_print ("radio_log_value %u\n", radio_log_value);
+                                {left_show_as_hex, right_show_as_unsigned} = parse_radio_log_value (radio_log_value);
+                                debug_print ("radio_log_value %08X.%u (%08X)\n", left_show_as_hex, right_show_as_unsigned, radio_log_value);
+                            }
                             #endif
                         }
                         #else

@@ -13,10 +13,11 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.65"
-#define RFM69_CLIENT_VERSION_NUM    0865
+#define RFM69_CLIENT_VERSION_STR "0.8.66"
+#define RFM69_CLIENT_VERSION_NUM    0866
+// 0866     09Feb2018           Call to wait_for_i_radio_trans2_then_do_trans3_ok is new
 // 0865     07Feb2019           Use of get_radio_log_value and i_radio.get_radio_log_value_ptr is new
-// 0864     07Feb2019           Files reboot.h and reboot.xc were added. Not use yet
+// 0864     07Feb2019           Files reboot.h and reboot.xc were added. Not used yet
 // 0863     06Feb2019           Undoing RACL=001
 // 0862     06Feb2019 RACLI=001 testing with code to restart, see https://www.xcore.com/viewtopic.php?f=44&t=7065. See reboot above which solves the problem for xCORE-200
 // 0861     05Feb2019 RFM69=011 Works with that value with getting RSSI and _trans1, _trans2 and _trans3
