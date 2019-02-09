@@ -158,6 +158,7 @@ typedef struct {
     #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
         bool                         session_trans2_timed_out;
         session_return_from_trans3_t session_return_from_trans3;
+        unsigned                     session_max_time_ms;
     #endif
 } RXTX_context_t;
 
@@ -1541,6 +1542,7 @@ void RFM69_client (
 
     #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
         RXTX_context.session_trans2_timed_out = false;
+        RXTX_context.session_max_time_ms = 0;
     #endif
 
     #if (IS_MYTARGET_MASTER==1)
@@ -1750,11 +1752,14 @@ void RFM69_client (
                             i_radio.readRSSI_dBm_trans1 (RXTX_context.session_trans2_timed_out, FORCETRIGGER_OFF);
                             wait_for_i_radio_trans2_then_do_trans3_ok (
                                     RXTX_context.session_trans2_timed_out,
+                                    RXTX_context.session_max_time_ms,
                                     i_radio,
                                     from_readRSSI_dBm_trans1,
                                     CLIENT_WAIT_FOR_RADIO_MAX_MS,
                                     RXTX_context.session_return_from_trans3);
                             RX_context.nowRSSI = RXTX_context.session_return_from_trans3.u.return_rssi_dBm;
+
+                            debug_print ("trans1-3 timeout %u max %u\n", RXTX_context.session_trans2_timed_out, RXTX_context.session_max_time_ms);
 
                             #if (DEBUG_SHARED_LOG_VALUE==1)
                             {
