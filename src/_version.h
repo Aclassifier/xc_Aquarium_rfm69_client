@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.66"
-#define RFM69_CLIENT_VERSION_NUM    0866
+#define RFM69_CLIENT_VERSION_STR "0.8.67"
+#define RFM69_CLIENT_VERSION_NUM    0867
+// 0867     09Feb2019           session_trans2_timed_out is global is new
 // 0866     09Feb2018           Call to wait_for_i_radio_trans2_then_do_trans3_ok is new
 // 0865     07Feb2019           Use of get_radio_log_value and i_radio.get_radio_log_value_ptr is new
 // 0864     07Feb2019           Files reboot.h and reboot.xc were added. Not used yet

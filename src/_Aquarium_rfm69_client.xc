@@ -155,8 +155,10 @@ typedef struct {
     some_rfm69_internals_t some_rfm69_internals;
     packet_t               PACKET;
     error_bits_e           error_bits_history;
-    bool                   awaiting_trans2;
-    //
+    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+        bool                         session_trans2_timed_out;
+        session_return_from_trans3_t session_return_from_trans3;
+    #endif
 } RXTX_context_t;
 
 #if (GETDEBUG==1)
@@ -1379,9 +1381,9 @@ void RFM69_handle_timeout (
 
             #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
             {
-                 RXTX_context.awaiting_trans2 = true;
                  debug_print ("%s\n", "USPI send1 before");
                  i_radio.send_trans1 (
+                     RXTX_context.session_trans2_timed_out,
                      TX_context.TX_gatewayid,
                      RXTX_context.PACKET);
                  debug_print ("%s\n", "USPI send1 after");
@@ -1532,11 +1534,14 @@ void RFM69_client (
     RXTX_context.radio_init.nodeID    = NODEID; // Comes from SHARED_ID from _Aquarium. Will cause messageReceivedOk_IRQ if received this or RF69_BROADCAST_ADDR
     RXTX_context.radio_init.RegFrf    = MY_RFM69_FREQ_REGS;
     RXTX_context.radio_init.isRFM69HW = IS_RFM69HW_HCW; // Must be true or else my Adafruit high power module won't work!
-    RXTX_context.awaiting_trans2      = false;
     //
     for (unsigned i=0; i < KEY_LEN; i++) {
         RXTX_context.radio_init.key[i] = KEY[i];
     }
+
+    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+        RXTX_context.session_trans2_timed_out = false;
+    #endif
 
     #if (IS_MYTARGET_MASTER==1)
         TX_context_t       TX_context;
@@ -1727,7 +1732,7 @@ void RFM69_client (
 
     while (1) {
         select {
-            case (not RXTX_context.awaiting_trans2) => c_irq_update :> irq_update : {
+            case c_irq_update :> irq_update : {
 
                 debug_print ("IRQ %u UPDATE %s\n",
                         timeout_i_radio_usage_allowed,
@@ -1742,12 +1747,14 @@ void RFM69_client (
                     #if (IS_MYTARGET_SLAVE == 1)
                         #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
                         {
-                            bool ok;
-                            session_return_from_trans3_t session_return_from_trans3;
-
-                            i_radio.readRSSI_dBm_trans1 (FORCETRIGGER_OFF);
-                            ok = wait_for_i_radio_trans2_then_do_trans3_ok (i_radio, from_readRSSI_dBm_trans1, session_return_from_trans3, CLIENT_WAIT_FOR_RADIO_MAX_MS);
-                            RX_context.nowRSSI = session_return_from_trans3.u.return_rssi_dBm;
+                            i_radio.readRSSI_dBm_trans1 (RXTX_context.session_trans2_timed_out, FORCETRIGGER_OFF);
+                            wait_for_i_radio_trans2_then_do_trans3_ok (
+                                    RXTX_context.session_trans2_timed_out,
+                                    i_radio,
+                                    from_readRSSI_dBm_trans1,
+                                    CLIENT_WAIT_FOR_RADIO_MAX_MS,
+                                    RXTX_context.session_return_from_trans3);
+                            RX_context.nowRSSI = RXTX_context.session_return_from_trans3.u.return_rssi_dBm;
 
                             #if (DEBUG_SHARED_LOG_VALUE==1)
                             {
@@ -1793,7 +1800,6 @@ void RFM69_client (
                 case i_radio.session_trans2 () : {
                     session_return_from_trans3_t session_return_from_trans3;
 
-                    RXTX_context.awaiting_trans2 = false;
                     session_return_from_trans3 = i_radio.session_trans3();
 
                     {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits(); // No SPI comm
