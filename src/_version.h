@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.70"
-#define RFM69_CLIENT_VERSION_NUM    0870
+#define RFM69_CLIENT_VERSION_STR "0.8.71"
+#define RFM69_CLIENT_VERSION_NUM    0871
+// 0871     11Feb2019           start_time_trans1 set
 // 0870     11Feb2019           Data to and from _trans functions completely changed
 // 0869     10Feb2019           Common data structure timing_transx_t now used with do_sessions_trans2to3
 // 0868     09Feb2019           trans2_timed_out is global are new

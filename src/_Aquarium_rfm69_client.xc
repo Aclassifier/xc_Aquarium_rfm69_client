@@ -1381,24 +1381,22 @@ void RFM69_handle_timeout (
 
             #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
             {
-                 i_radio.send_trans1 (RXTX_context.timing_transxx.timed_out_trans1to2, TX_context.TX_gatewayid, RXTX_context.PACKET);
+                 RXTX_context.timing_transx.start_time_trans1 = i_radio.send_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, TX_context.TX_gatewayid, RXTX_context.PACKET);
                  // MUST be run now:
-                 do_sessions_trans2to3 (i_radio, RXTX_context.timing_transxx);
+                 do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
              }
              #elif (CLIENT_ALLOW_SESSION_TYPE_TRANS==0)
              {
                  TX_context.waitForIRQInterruptCause = i_radio.uspi_send (
                      TX_context.TX_gatewayid,
                      RXTX_context.PACKET); // element CommHeaderRFM69 is not taken from here, so don't fill it in
-
-                 // delay_milliseconds(500); // I can hear the sending in my speakers when high power since delays time to IRQ
-
-                 {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
-                 if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
-                     debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
-                 } else {}
              }
             #endif
+
+             {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+             if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
+                 debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
+             } else {}
 
             TX_context.sendPacket_seconds_cntdown = SEND_PACKET_ON_NO_CHANGE_TIMOEUT_SECONDS - 1;
 
@@ -1746,13 +1744,18 @@ void RFM69_client (
                     #if (IS_MYTARGET_SLAVE == 1)
                         #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
                         {
-                            i_radio.readRSSI_dBm_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, FORCETRIGGER_OFF);
+                            RXTX_context.timing_transx.start_time_trans1 = i_radio.readRSSI_dBm_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, FORCETRIGGER_OFF);
                             // MUST be run now:
                             do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
 
                             RX_context.nowRSSI = RXTX_context.return_trans3.u_return.rssi_dBm;
 
                             debug_print ("trans1-3 timeout %u max %u\n", RXTX_context.timing_transx.timed_out_trans1to2, RXTX_context.timing_transx.maxtime_used_us_trans1to2);
+
+                            {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+                            if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
+                                debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
+                            } else {}
 
                             #if (DEBUG_SHARED_LOG_VALUE==1)
                             {
@@ -1793,25 +1796,6 @@ void RFM69_client (
                 debug_print ("IRQ HANDLING %u ms and %u\n",  (now_tics - then_tics) / XS1_TIMER_KHZ, display_context.ultimateIRQclearCnt);
 
             } break;
-
-            #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
-                case i_radio.session_trans2 () : {
-                    timing_transx_t session_transx;
-
-                    RXTX_context.return_trans3 = i_radio.session_trans3();
-
-                    {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits(); // No SPI comm
-
-                    if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
-                        debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
-                        // Don't set context.radio_board_fault here since some errors may not appear next time
-                    } else {
-                        #if (IS_MYTARGET_MASTER == 1)
-                            debug_print ("TX %u\n", TX_context.TX_appSeqCnt);
-                        #endif
-                    }
-                } break;
-            #endif
 
             case tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
                 seconds_since_last_call++; // Since ONE_SECOND_TICKS used below
