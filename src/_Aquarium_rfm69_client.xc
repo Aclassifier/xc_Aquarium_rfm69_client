@@ -156,7 +156,8 @@ typedef struct {
     packet_t               PACKET;
     error_bits_e           error_bits_history;
     #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
-        session_transx_t   session_transx;
+        timing_transx_t    timing_transx;
+        return_trans3_t    return_trans3;
     #endif
 } RXTX_context_t;
 
@@ -1380,14 +1381,9 @@ void RFM69_handle_timeout (
 
             #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
             {
-                 debug_print ("%s\n", "USPI send1 before");
-                 i_radio.send_trans1 (
-                     RXTX_context.session_transx.trans1to2_timed_out,
-                     TX_context.TX_gatewayid,
-                     RXTX_context.PACKET);
-                 debug_print ("%s\n", "USPI send1 after");
-
-                 do_sessions_trans2to3 (i_radio, RXTX_context.session_transx);
+                 i_radio.send_trans1 (RXTX_context.timing_transxx.timed_out_trans1to2, TX_context.TX_gatewayid, RXTX_context.PACKET);
+                 // MUST be run now:
+                 do_sessions_trans2to3 (i_radio, RXTX_context.timing_transxx);
              }
              #elif (CLIENT_ALLOW_SESSION_TYPE_TRANS==0)
              {
@@ -1541,9 +1537,9 @@ void RFM69_client (
     }
 
     #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
-        RXTX_context.session_transx.trans1to2_timed_out = false;
-        RXTX_context.session_transx.trans1to2_maxtime_used_us = 0;
-        RXTX_context.session_transx.trans1to2_maxtime_allowed_ms = CLIENT_WAIT_FOR_RADIO_MAX_MS;
+        RXTX_context.timing_transx.timed_out_trans1to2          = false; // Set       by do_sessions_trans2to3, but we need to clear it first
+        RXTX_context.timing_transx.maxtime_used_us_trans1to2    = 0;     // Increased by do_sessions_trans2to3, but we need to zero it first
+        RXTX_context.timing_transx.maxtime_allowed_ms_trans1to2 = CLIENT_WAIT_FOR_RADIO_MAX_MS; // Set only here
     #endif
 
     #if (IS_MYTARGET_MASTER==1)
@@ -1750,13 +1746,13 @@ void RFM69_client (
                     #if (IS_MYTARGET_SLAVE == 1)
                         #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
                         {
-                            i_radio.readRSSI_dBm_trans1 (RXTX_context.session_transx.trans1to2_timed_out, FORCETRIGGER_OFF);
+                            i_radio.readRSSI_dBm_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, FORCETRIGGER_OFF);
+                            // MUST be run now:
+                            do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
 
-                            do_sessions_trans2to3 (i_radio, RXTX_context.session_transx);
+                            RX_context.nowRSSI = RXTX_context.return_trans3.u_return.rssi_dBm;
 
-                            RX_context.nowRSSI = RXTX_context.session_transx.u_return.rssi_dBm;
-
-                            debug_print ("trans1-3 timeout %u max %u\n", RXTX_context.session_transx.trans1to2_timed_out, RXTX_context.session_transx.trans1to2_maxtime_used_us);
+                            debug_print ("trans1-3 timeout %u max %u\n", RXTX_context.timing_transx.timed_out_trans1to2, RXTX_context.timing_transx.maxtime_used_us_trans1to2);
 
                             #if (DEBUG_SHARED_LOG_VALUE==1)
                             {
@@ -1800,9 +1796,9 @@ void RFM69_client (
 
             #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
                 case i_radio.session_trans2 () : {
-                    session_transx_t session_transx;
+                    timing_transx_t session_transx;
 
-                    session_transx = i_radio.session_trans3();
+                    RXTX_context.return_trans3 = i_radio.session_trans3();
 
                     {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits(); // No SPI comm
 
