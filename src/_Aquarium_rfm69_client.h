@@ -9,7 +9,6 @@
 #define AQUARIUM_RFM69_CLIENT_H_
 
 void RFM69_client (
-        // server  irq_high_if_t         i_irq_high, TODO remove
         chanend                          c_irq_update,
         client  radio_if_t               i_radio,
         client  blink_and_watchdog_if_t  i_beep_blink,

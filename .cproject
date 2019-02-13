@@ -200,6 +200,8 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/api}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/doc/pdf}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/module_xc_ptr/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/module_xc_ptr}&quot;"/>
 								</option>
 								<inputType id="com.xmos.cdt.xc.compiler.input.718293228" name="XC" superClass="com.xmos.cdt.xc.compiler.input"/>
 							</tool>
@@ -526,6 +528,8 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/api}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/doc/pdf}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/module_xc_ptr/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/module_xc_ptr}&quot;"/>
 								</option>
 								<inputType id="com.xmos.cdt.c.compiler.input.c.437085220" name="C" superClass="com.xmos.cdt.c.compiler.input.c"/>
 							</tool>
@@ -857,6 +861,8 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_i2c}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/api}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/lib_logging/doc/pdf}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/module_xc_ptr/src}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/module_xc_ptr}&quot;"/>
 								</option>
 								<inputType id="com.xmos.cdt.cxx.compiler.input.cpp.308055035" name="C++" superClass="com.xmos.cdt.cxx.compiler.input.cpp"/>
 							</tool>

@@ -158,6 +158,7 @@ typedef struct {
     #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
         timing_transx_t    timing_transx;
         return_trans3_t    return_trans3;
+        unsigned           radio_log_value;
     #endif
 } RXTX_context_t;
 
@@ -682,33 +683,34 @@ bool // i2c_ok
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
-                    // 9  *        FEIL
-                    // NÅ        0x0000     '.' when awating data
-                    // HISTORIE  0x0000
+                    // 9  *       FEIL
+                    // NÅ         0000     '.' when awating data
+                    // HISTORIE   0000
+                    // FJERN #IRQ 255
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s       FEIL\nN%s%s      0x%04X\nHISTORIE 0x%04X",
+                            "%s %s       FEIL\nN%s%s        %04X\nHISTORIE   %04X\nFJERN #IRQ %u",
                             display_screen_name_str,
                             alive ? "*" : "+",
                             char_aa_str, (use == USE_THIS) ? " " : ".",
                             RX_context.RX_radio_payload.u.payload_u0.error_bits_now,
-                            RX_context.RX_radio_payload.u.payload_u0.error_bits_history);
+                            RX_context.RX_radio_payload.u.payload_u0.error_bits_history,
+                            RX_context.RX_radio_payload.u.payload_u0.debug); // 8 bits here, full 32 bits value in display of aquarium (context.ultimateIRQclearCnt)
 
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 #elif (IS_MYTARGET_SLAVE == 0) // MASTER
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
                 #endif
-                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
             case SCREEN_WELCOME: {
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
-                    // 10 VERSJON 0.8.09
+                    // 10 B:0.8.09 R:0.9.13
                     // RX AKVA               eller "RX KORT"
                     // HVERT 4. SEKUND (*)
-                    // MED TIMEOUT 10 SEK     eller "UTEN TIMEOUT" or "TIMET UT 10 SEK" or "TIMET UT" a short period
+                    // MED TIMEOUT 10 SEK    eller "UTEN TIMEOUT" or "TIMET UT 10 SEK" or "TIMET UT" a short period
 
                     char timeout_str [3];
                     sprintf (timeout_str, "%u", AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC);
@@ -716,9 +718,10 @@ bool // i2c_ok
                     const bool is_aquarium = (display_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s VERSJON %s\nRX %s\nHVERT %u. SEKUND (%s)\n%s %s %s",
+                            "%s B:%s R:%s\nRX %s\nHVERT %u. SEKUND (%s)\n%s %s %s",
                             display_screen_name_str,
                             RFM69_CLIENT_VERSION_STR,
+                            RFM69_DRIVER_VERSION_STR,
                             (is_aquarium) ? "AKVA" : "KORT", // Displayed now
                             AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC,
                             alive ? "*" : "+",
@@ -780,17 +783,18 @@ bool // i2c_ok
                 case SCREEN_DEBUG: {
                     #if (IS_MYTARGET_SLAVE == 1)
 
-                    // ..........----------.
-                    // 13 * RADIO
-                    // LOKAL RFM69 0.8.05
-                    // FJERN #IRQ  255
-
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s RADIO\nLOKAL RFM69 %s\nFJERN #IRQ  %u",
-                            display_screen_name_str,
-                            alive ? "*" : "+",
-                            RFM69_DRIVER_VERSION_STR,
-                            RX_context.RX_radio_payload.u.payload_u0.debug); // 8 bits here, full 32 bits value in display of aquarium (context.ultimateIRQclearCnt)
+                        // ..........----------.
+                        // 13 * RADIO OK          RADIO FEIL?
+                        //   MAX 820 us
+                        //   LOG 87654321
+                        //
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                                "%s %s RADIO %s\nMAX %u us\nLOG %08X",
+                                display_screen_name_str,
+                                alive ? "*" : "+",
+                               (RXTX_context.timing_transx.timed_out_trans1to2) ? "FEIL?" : "OK",
+                                RXTX_context.timing_transx.maxtime_used_us_trans1to2,
+                                RXTX_context.radio_log_value);
 
                     #elif (IS_MYTARGET_SLAVE == 0) // MASTER
                         display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
@@ -1383,7 +1387,7 @@ void RFM69_handle_timeout (
             {
                  RXTX_context.timing_transx.start_time_trans1 = i_radio.send_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, TX_context.TX_gatewayid, RXTX_context.PACKET);
                  // MUST be run now:
-                 do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                 RXTX_context.radio_log_value = do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
              }
              #elif (CLIENT_ALLOW_SESSION_TYPE_TRANS==0)
              {
@@ -1517,11 +1521,6 @@ void RFM69_client (
     debug_print_context_t debug_print_context;
     divTime_t             divTime;
     unsigned              seconds_since_last_call = 0;
-
-    #if (DEBUG_SHARED_LOG_VALUE==1)
-        unsigned          radio_log_value = 0;
-        unsigned * unsafe radio_log_value_ptr;
-    #endif
 
     debug_print_context.debug_print_rx_2_done = false;
 
@@ -1660,10 +1659,6 @@ void RFM69_client (
 
     // Radio matters
 
-    #if (DEBUG_SHARED_LOG_VALUE==1)
-        radio_log_value_ptr = i_radio.get_radio_log_value_ptr();
-    #endif
-
     i_radio.uspi_do_aux_adafruit_rfm69hcw_RST_pulse (MASKOF_SPI_AUX0_RST);
     i_radio.uspi_initialize (RXTX_context.radio_init);
 
@@ -1746,7 +1741,7 @@ void RFM69_client (
                         {
                             RXTX_context.timing_transx.start_time_trans1 = i_radio.readRSSI_dBm_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, FORCETRIGGER_OFF);
                             // MUST be run now:
-                            do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                            RXTX_context.radio_log_value = do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
 
                             RX_context.nowRSSI = RXTX_context.return_trans3.u_return.rssi_dBm;
 
@@ -1756,17 +1751,6 @@ void RFM69_client (
                             if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
                                 debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
                             } else {}
-
-                            #if (DEBUG_SHARED_LOG_VALUE==1)
-                            {
-                                unsigned left_show_as_hex;
-                                unsigned right_show_as_unsigned;
-
-                                radio_log_value = get_radio_log_value(radio_log_value_ptr);
-                                {left_show_as_hex, right_show_as_unsigned} = parse_radio_log_value (radio_log_value);
-                                debug_print ("radio_log_value %08X.%u (%08X)\n", left_show_as_hex, right_show_as_unsigned, radio_log_value);
-                            }
-                            #endif
                         }
                         #else
                             RX_context.nowRSSI = i_radio.uspi_readRSSI_dBm (FORCETRIGGER_OFF);
@@ -1804,7 +1788,7 @@ void RFM69_client (
                     RX_context.seconds_since_last_received += seconds_since_last_call; // about, anyhow, since we don't reset divTime.time_ticks in pin_rising
                     if (timeout_i_radio_usage_allowed) {
                         if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds = 10 seconds
-                            i_radio.uspi_receiveDone(); // TODO necessary after some mid January 2019?
+                            i_radio.uspi_receiveDone(); // TODO is this really necessary after some mid January 2019?
                             debug_print ("%s", "NO RX FOR 10 SECONDS\n");
                             RX_context.seconds_since_last_received = 0;
                         } else {}
