@@ -90,8 +90,11 @@
     #endif
 #endif
 
-
-#define SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE
+#ifdef _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE
+    #define SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE _USERMAKEFILE_LIB_RFM69_XC_SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE
+#else
+    #define SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE 0
+#endif
 
 #define SEMANTICS_DEBUG_CALC_RF_FRF_REGISTERS 1 // 1 : never while real TX->RX!. Also set ALLOW_FLOAT_FREQ_CALC 1 for calculations
                                                 // 0 : Standard usage
@@ -162,14 +165,6 @@ typedef struct {
     #endif
 } RXTX_context_t;
 
-#if (GETDEBUG==1)
-    #if ((_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_TIMEOUT==1) or (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1))
-        // OK
-    #else
-        #error ONE MUST BE SET TO 1!
-    #endif
-#endif
-
 typedef struct {
     bool      doListenToAll;
     unsigned  num_received;
@@ -191,9 +186,9 @@ typedef struct {
     bool      allow_10_sek_timeout; // AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC or none
     bool      is_watchdog_blinking;
 
-    #if ((_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_TIMEOUT==1) or (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1))
-        uint8_t       debug_data[NUM_DEBUG_BYTES];
-        uint8_t       debug_data_prev[NUM_DEBUG_BYTES];
+    #if (GETDEBUG==1)
+        debug_data_t  debug_data;
+        debug_data_t  debug_data_prev;
         debug_state_e debug_state;
     #endif
 } RX_context_t; // RX same as SLAVE same as ISMASTER==0
@@ -226,7 +221,7 @@ typedef enum display_screen_name_t {
     SCREEN_WELCOME,                                     //  9 display_screen_name_str "10"
     SCREEN_HJELP,                                       // 10 display_screen_name_str "11"
     SCREEN_RX_DISPLAY_OVERSIKT,                         // 11 display_screen_name_str "12"
-    #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
+    #if (GETDEBUG==1)
         SCREEN_DEBUG,                                   // 12 display_screen_name_str "13"
     #endif
     SCREEN_DARK // Must be last
@@ -779,22 +774,32 @@ bool // i2c_ok
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
-            #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
+            #if (GETDEBUG==1)
                 case SCREEN_DEBUG: {
                     #if (IS_MYTARGET_SLAVE == 1)
-
-                        // ..........----------.
-                        // 13 * RADIO OK          RADIO FEIL?
-                        //   MAX 820 us
-                        //   LOG 87654321
-                        //
-                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                                "%s %s RADIO %s\nMAX %u us\nLOG %08X",
-                                display_screen_name_str,
-                                alive ? "*" : "+",
-                               (RXTX_context.timing_transx.timed_out_trans1to2) ? "FEIL?" : "OK",
-                                RXTX_context.timing_transx.maxtime_used_us_trans1to2,
-                                RXTX_context.radio_log_value);
+                        #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                            // ..........----------.
+                            // 13 * RADIO OK          RADIO FEIL?
+                            //   MAX 820 us
+                            //   LOG 87654321
+                            //
+                            display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                                    "%s %s RADIO %s\nMAX %u us\nLOG %08X",
+                                    display_screen_name_str,
+                                    alive ? "*" : "+",
+                                   (RXTX_context.timing_transx.timed_out_trans1to2) ? "FEIL?" : "OK",
+                                    RXTX_context.timing_transx.maxtime_used_us_trans1to2,
+                                    RXTX_context.radio_log_value);
+                        #else
+                            // ..........----------.
+                            // 13 * RADIO
+                            //      SYNC CALLS
+                            //
+                            display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                                    "%s %s RADIO\n     SYNC CALLS",
+                                    display_screen_name_str,
+                                    alive ? "*" : "+");
+                        #endif
 
                     #elif (IS_MYTARGET_SLAVE == 0) // MASTER
                         display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
@@ -1048,10 +1053,32 @@ void RFM69_handle_irq (
 
     RXTX_context.interruptCnt++;
 
-    i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, high); // For scope
+    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+       // CALL IFF, BUT IN ANY CASE NO SPI (so no _trans1)
+       do_spi_aux_pin_iff (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, MASKOF_SPI_AUX0_PROBE3_IRQ, high);
+    #else
+       i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, high); // For scope
+    #endif
 
-    {RXTX_context.some_rfm69_internals, RXTX_context.PACKET, interruptAndParsingResult} = i_radio.uspi_handleSPIInterrupt(); // DO IT and GET DATA
-    // Now values like RXTX_context.some_rfm69_internals.SENDERID has a value
+    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+
+        // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+        #if (TRANS_ASYNCH_WRAPPED==1)
+            interruptAndParsingResult = _handleSPIInterrupt_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.some_rfm69_internals, RXTX_context.PACKET); // TODO ta bort _
+        #else
+            RXTX_context.timing_transx.start_time_trans1 = handleSPIInterrupt_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio);
+            // MUST be run now:
+            do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+
+            RXTX_context.some_rfm69_internals = RXTX_context.return_trans3.u_out.handleSPIInterrupt.return_some_rfm69_internals;
+            RXTX_context.PACKET               = RXTX_context.return_trans3.u_out.handleSPIInterrupt.return_PACKET;
+            interruptAndParsingResult         = RXTX_context.return_trans3.u_out.handleSPIInterrupt.return_interruptAndParsingResult;
+        #endif
+        RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+    #else
+        {RXTX_context.some_rfm69_internals, RXTX_context.PACKET, interruptAndParsingResult} = i_radio.uspi_handleSPIInterrupt(); // DO IT and GET DATA
+        // Now values like RXTX_context.some_rfm69_internals.SENDERID has a value
+    #endif
 
     #if (DEBUG_PRINT_BUFFER==1)
         const char char_leading_space_str[] = CHAR_LEADING_SPACE_STR;
@@ -1071,7 +1098,20 @@ void RFM69_handle_irq (
         debug_print ("%s", char_leading_space_str);
     #endif
 
-    RXTX_context.receiveDone = i_radio.uspi_receiveDone(); // For any interruptAndParsingResult (30Aug2018, 12Sept2018 TODO works?)
+    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+        // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+        #if (TRANS_ASYNCH_WRAPPED==1)
+            RXTX_context.receiveDone = receiveDone_iff_asynch (i_radio, RXTX_context.timing_transx);
+        #else
+            RXTX_context.timing_transx.start_time_trans1 = receiveDone_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio);
+            // MUST be run now:
+            do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+            RXTX_context.receiveDone = RXTX_context.return_trans3.u_out.receiveDone;
+        #endif
+        RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+    #else
+        RXTX_context.receiveDone = i_radio.uspi_receiveDone(); // For any interruptAndParsingResult (30Aug2018, 12Sept2018 TODO works?)
+    #endif
 
     switch (interruptAndParsingResult) {
 
@@ -1146,10 +1186,24 @@ void RFM69_handle_irq (
 
                         // RFM69 had a call to receiveDone(); here, only needed if setMode(RF69_MODE_STANDBY) case 1 in receiveDone
                         // Reinserted RFM69=001
-                        #if (SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE == 1) // TODO remove
-                           if (i_radio.uspi_receiveDone()) {                          // This is needed even if..
+                        #if (SEMANTICS_DO_INTERMEDIATE_RECEIVEDONE == 1)         // TODO remove
+                            #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                                // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                                #if (TRANS_ASYNCH_WRAPPED==1)
+                                    RXTX_context.receiveDone = receiveDone_iff_asynch (i_radio, RXTX_context.timing_transx);
+                                #else
+                                    RXTX_context.timing_transx.start_time_trans1 = receiveDone_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio);
+                                    // MUST be run now:
+                                    do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                                    RXTX_context.receiveDone = RXTX_context.return_trans3.u_out.receiveDone;
+                                #endif
+                                RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+                            #else
+                                RXTX_context.receiveDone = i_radio.uspi_receiveDone(); // For any interruptAndParsingResult (30Aug2018, 12Sept2018 TODO works?)
+                            #endif
+                            if (RXTX_context.receiveDone) {                     // This is needed even if..
                                debug_print ("%s\n", "receiveDone in polling!");  // ..it never gets here! (TODO?)
-                           } else {}
+                            } else {}
                         #endif
 
                         if (RX_context.num_lost_since_last_success == 0) {
@@ -1179,10 +1233,22 @@ void RFM69_handle_irq (
             #if (TEST_01_FOLLOW_ADDRESS==1)
                 case messageNotForThisNode_IRQ: { // Both MASTER_ID_AQUARIUM and MASTER_ID_BLACK_BOX may send TO this address
                     #if (TEST_01_LISTENTOALL==1)
-                        debug_print ("\nStarting to receive on any address, RX_context.num_appSeqCnt_notSeen %u kept, RXappSeqCnt %u\n", RX_context.num_appSeqCnt_notSeen, RXTX_context.PACKET.u.packet_u1.appSeqCnt);
-                        i_radio.RX_context.doListenToAll (true);
+                        debug_print ("%s\n", "Starting to receive on any address");
+                        #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                            // CALL IFF, BUT IN ANY CASE NO SPI (so no _trans1)
+                            setListenToAll_iff (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, true);
+                        #else
+                            i_radio.setListenToAll (true);
+                        #endif
                     #else
-                        uint8_t previous_NODEID = i_radio.setNODEID (RXTX_context.some_rfm69_internals.TARGETID); // Follow who sender wants to send to
+                        uint8_t
+
+                        #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                            // CALL IFF, BUT IN ANY CASE NO SPI (so no _trans1)
+                            previous_NODEID = setNODEID_iff (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, RXTX_context.some_rfm69_internals.TARGETID);
+                        #else
+                            previous_NODEID = i_radio.setNODEID (RXTX_context.some_rfm69_internals.TARGETID); // Follow who sender wants to send to
+                        #endif
                         debug_print ("\nStarting (from #%03u) to receive on address #%03u, RX_context.num_appSeqCnt_notSeen %u, RXappSeqCnt %u\n",
                                 previous_NODEID,
                                 RXTX_context.some_rfm69_internals.TARGETID,
@@ -1267,14 +1333,23 @@ void RFM69_handle_irq (
         #endif
     }
 
-    {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
-    RXTX_context.error_bits_history or_eq RXTX_context.some_rfm69_internals.error_bits;
+    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+        // CALL IFF, BUT IN ANY CASE NO SPI (so no _trans1)
+        {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = getAndClearErrorBits_iff (RXTX_context.timing_transx.timed_out_trans1to2, i_radio);
+    #else
+        {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+    #endif
 
     if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
         debug_print ("RFM69 err2 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
     } else {}
 
-    i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, low); // For scope
+    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+       // CALL IFF, BUT IN ANY CASE NO SPI (so no _trans1)
+       do_spi_aux_pin_iff (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, MASKOF_SPI_AUX0_PROBE3_IRQ, low);
+    #else
+       i_radio.do_spi_aux_pin (MASKOF_SPI_AUX0_PROBE3_IRQ, low); // For scope
+    #endif
 }
 
 void RFM69_handle_timeout (
@@ -1298,22 +1373,32 @@ void RFM69_handle_timeout (
 
     #if (IS_MYTARGET_SLAVE == 1)
 
-        #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_TIMEOUT==1)
+        #if (GETDEBUG==1)
+            #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                 // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                 #if (TRANS_ASYNCH_WRAPPED==1)
+                     RX_context.debug_data = getDebug_iff_asynch (i_radio, RXTX_context.timing_transx, RX_context.debug_state);
+                 #else
+                     RXTX_context.timing_transx.start_time_trans1 = getDebug_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, RX_context.debug_state);
+                     // MUST be run now:
+                     do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                     RX_context.debug_data = RXTX_context.return_trans3.u_out.debug_data;
+                 #endif
+                 RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+             #else
+                 RX_context.debug_data = i_radio.uspi_getDebug (RX_context.debug_state);
+             #endif
 
-            bool are_equal;
-
-            i_radio.uspi_getDebug (RX_context.debug_data);
-
-            are_equal = (memcmp (RX_context.debug_data_prev, RX_context.debug_data, NUM_DEBUG_BYTES) == 0);
+            bool are_equal = (memcmp (RX_context.debug_data_prev.data, RX_context.debug_data.data, NUM_DEBUG_BYTES) == 0);
 
             for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
-                RX_context.debug_data_prev[i] = RX_context.debug_data[i];
+                RX_context.debug_data_prev.data[i] = RX_context.debug_data.data[i];
             }
 
             debug_print ("DEB%s\n", are_equal ? CHAR_EQ_STR : CHAR_CHANGE_STR);
 
             for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
-                debug_print ("%02X%s", RX_context.debug_data[i], ((i == (NUM_DEBUG_BYTES-1)) ? "\n" : " "));
+                debug_print ("%02X%s", RX_context.debug_data.data[i], ((i == (NUM_DEBUG_BYTES-1)) ? "\n" : " "));
             }
             debug_print ("%s", "\n");
 
@@ -1338,8 +1423,22 @@ void RFM69_handle_timeout (
                 #if (TEST_CAR_KEY == 1)
                     // No code, kep full power always
                 #else
-                TX_context.TX_appPowerLevel_dBm = APPPOWERLEVEL_MIN_DBM;
-                    i_radio.uspi_setPowerLevel_dBm (TX_context.TX_appPowerLevel_dBm); // Should stop the sound in my speakers!
+                    TX_context.TX_appPowerLevel_dBm = APPPOWERLEVEL_MIN_DBM;
+
+                    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+
+                        // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                        #if (TRANS_ASYNCH_WRAPPED==1)
+                            setPowerLevel_dBm_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.some_rfm69_internals, TX_context.TX_appPowerLevel_dB);
+                        #else
+                            RXTX_context.timing_transx.start_time_trans1 = setPowerLevel_dBm_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, TX_context.TX_appPowerLevel_dBm);
+                            // MUST be run now:
+                            do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                        #endif
+                        RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+                    #else
+                        i_radio.uspi_setPowerLevel_dBm (TX_context.TX_appPowerLevel_dBm); // Should stop the sound in my speakers!
+                    #endif
                 #endif
             } else {}
 
@@ -1348,11 +1447,36 @@ void RFM69_handle_timeout (
                     debug_print ("\nKEY2\n", TX_context.TX_gatewayid);
                     debug_print ("%s", char_leading_space_str);
                     #define KEY2 "OM11-Aquarium-2"
-                    i_radio.uspi_encrypt16 (KEY2, KEY_LEN);
+                    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                        // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                        #if (TRANS_ASYNCH_WRAPPED==1)
+                            encrypt16_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.some_rfm69_internals, KEY2);
+                        #else
+                            RXTX_context.timing_transx.start_time_trans1 = encrypt16_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, KEY2);
+                            // MUST be run now:
+                            do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                        #endif
+                        RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+                    #else
+                        i_radio.uspi_encrypt16 (KEY2, KEY_LEN);
+                    #endif
+
                 } else if (TX_context.TX_appSeqCnt == 20) {
                     debug_print ("\nKEY again\n", "KEY again");
                     debug_print ("%s", char_leading_space_str);
-                    i_radio.uspi_encrypt16 (RXTX_context.radio_init.key, KEY_LEN);
+                    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                        // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                        #if (TRANS_ASYNCH_WRAPPED==1)
+                            encrypt16_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.some_rfm69_internals, RXTX_context.radio_init.key);
+                        #else
+                            RXTX_context.timing_transx.start_time_trans1 = encrypt16_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, RXTX_context.radio_init.key);
+                            // MUST be run now:
+                            do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                        #endif
+                        RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+                    #else
+                        i_radio.uspi_encrypt16 (RXTX_context.radio_init.key, KEY_LEN);
+                    #endif
                 } else if (TX_context.TX_appSeqCnt == 25) {
                     TX_context.TX_gatewayid = 58;
                     debug_print ("\ngatewayid %u(%02X)\n", TX_context.TX_gatewayid, TX_context.TX_gatewayid);
@@ -1384,23 +1508,29 @@ void RFM69_handle_timeout (
             debug_print("TXappSeqCnt %u\n", TX_context.TX_appSeqCnt);
 
             #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
-            {
-                 RXTX_context.timing_transx.start_time_trans1 = i_radio.send_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, TX_context.TX_gatewayid, RXTX_context.PACKET);
-                 // MUST be run now:
-                 RXTX_context.radio_log_value = do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
-             }
-             #elif (CLIENT_ALLOW_SESSION_TYPE_TRANS==0)
-             {
-                 TX_context.waitForIRQInterruptCause = i_radio.uspi_send (
-                     TX_context.TX_gatewayid,
-                     RXTX_context.PACKET); // element CommHeaderRFM69 is not taken from here, so don't fill it in
-             }
+                // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                #if (TRANS_ASYNCH_WRAPPED==1)
+                    interruptAndParsingResult = send_iff_asynch (i_radio, RXTX_context.timing_transx, TX_context.TX_gatewayid, RXTX_context.PACKET);
+                #else
+                    RXTX_context.timing_transx.start_time_trans1 = i_radio.send_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, TX_context.TX_gatewayid, RXTX_context.PACKET);
+                    // MUST be run now:
+                    do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                #endif
+                RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+             #else
+                 TX_context.waitForIRQInterruptCause = i_radio.uspi_send (TX_context.TX_gatewayid, RXTX_context.PACKET); // element CommHeaderRFM69 is not taken from here, so don't fill it in
+             #endif
+
+            #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                // CALL IFF, BUT IN ANY CASE NO SPI (so no _trans1)
+                {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = getAndClearErrorBits_iff (RXTX_context.timing_transx.timed_out_trans1to2, i_radio);
+            #else
+                {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
             #endif
 
-             {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
-             if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
-                 debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
-             } else {}
+            if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
+                debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
+            } else {}
 
             TX_context.sendPacket_seconds_cntdown = SEND_PACKET_ON_NO_CHANGE_TIMOEUT_SECONDS - 1;
 
@@ -1491,8 +1621,8 @@ void reset_values (
         RX_context.num_radioCRC16errs = 0;
         RX_context.num_appCRC32errs = 0;
 
-        #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
-            RX_context.debug_state = debug_void; // So that the debug_none is the initial use
+        #if (GETDEBUG==1)
+            RX_context.debug_state         = debug_void; // So that the debug_none is the initial use
             display_context.debug_r_button = false;
         #endif
 
@@ -1537,6 +1667,7 @@ void RFM69_client (
         RXTX_context.timing_transx.timed_out_trans1to2          = false; // Set       by do_sessions_trans2to3, but we need to clear it first
         RXTX_context.timing_transx.maxtime_used_us_trans1to2    = 0;     // Increased by do_sessions_trans2to3, but we need to zero it first
         RXTX_context.timing_transx.maxtime_allowed_ms_trans1to2 = CLIENT_WAIT_FOR_RADIO_MAX_MS; // Set only here
+        RXTX_context.timing_transx.radio_log_value              = 0; // Overwritten later on
     #endif
 
     #if (IS_MYTARGET_MASTER==1)
@@ -1567,8 +1698,8 @@ void RFM69_client (
         RX_context.nowRSSI = 0; // Observe that it's signed so "0" and "-82" would align with print %d. This is fine!
         #if (GETDEBUG==1)
             for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
-                RX_context.debug_data[i] = 0;
-                RX_context.debug_data_prev[i] = 0;
+                RX_context.debug_data.data[i] = 0;
+                RX_context.debug_data_prev.data[i] = 0;
             }
             RX_context.debug_state = debug_just_read_some_registers;
         #endif
@@ -1665,7 +1796,12 @@ void RFM69_client (
     RXTX_context.device_type = i_radio.uspi_getDeviceType(); // ERROR_BITNUM_DEVICE_TYPE if not 0x24
     debug_print ("\n---> DEVICE TYPE 0x%02X <---\n\n", RXTX_context.device_type);
 
-    {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+        // CALL IFF, BUT IN ANY CASE NO SPI (so no _trans1)
+        {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = getAndClearErrorBits_iff (RXTX_context.timing_transx.timed_out_trans1to2, i_radio);
+    #else
+        {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+    #endif
 
     if (RXTX_context.some_rfm69_internals.error_bits == ERROR_BITS_NONE) {
 
@@ -1701,7 +1837,12 @@ void RFM69_client (
         i_radio.uspi_receiveDone(); // To have setMode(RF69_MODE_RX) done (via receiveBegin)
     } else {}
 
-    {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+        // CALL IFF, BUT IN ANY CASE NO SPI (so no _trans1)
+        {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = getAndClearErrorBits_iff (RXTX_context.timing_transx.timed_out_trans1to2, i_radio);
+    #else
+        {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+    #endif
 
     if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
         debug_print ("RFM69 err1 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
@@ -1738,24 +1879,19 @@ void RFM69_client (
 
                     #if (IS_MYTARGET_SLAVE == 1)
                         #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
-                        {
-                            RXTX_context.timing_transx.start_time_trans1 = i_radio.readRSSI_dBm_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, FORCETRIGGER_OFF);
-                            // MUST be run now:
-                            RXTX_context.radio_log_value = do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
-
-                            RX_context.nowRSSI = RXTX_context.return_trans3.u_return.rssi_dBm;
-
-                            debug_print ("trans1-3 timeout %u max %u\n", RXTX_context.timing_transx.timed_out_trans1to2, RXTX_context.timing_transx.maxtime_used_us_trans1to2);
-
-                            {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
-                            if (RXTX_context.some_rfm69_internals.error_bits != ERROR_BITS_NONE) {
-                                debug_print ("RFM69 err3 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
-                            } else {}
-                        }
+                            // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                            #if (TRANS_ASYNCH_WRAPPED==1)
+                                RX_context.nowRSSI = readRSSI_dBm_iff_asynch (i_radio, RXTX_context.timing_transx, FORCETRIGGER_OFF);
+                            #else
+                                RXTX_context.timing_transx.start_time_trans1 = readRSSI_dBm_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, FORCETRIGGER_OFF);
+                                // MUST be run now:
+                                do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                                RX_context.nowRSSI = RXTX_context.return_trans3.u_out.rssi_dBm;
+                            #endif
+                            RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
                         #else
                             RX_context.nowRSSI = i_radio.uspi_readRSSI_dBm (FORCETRIGGER_OFF);
                         #endif
-
                     #endif
 
                     RFM69_handle_irq (
@@ -1767,17 +1903,31 @@ void RFM69_client (
                        i_blink_and_watchdog,
                        i_i2c_internal_commands,
                        debug_print_context);
+
                     timeout_i_radio_usage_allowed = false;                     // Waiting for pin_gone_low
                 } else if (irq_update == pin_gone_low) {
                     timeout_i_radio_usage_allowed = true;                      // Ready
                 } else if (irq_update == pin_still_high_timeout) {
-                    i_radio.uspi_ultimateIRQclear();                           // i_radio allowed because we need to kick the radio in some way
+                    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                        // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                        #if (TRANS_ASYNCH_WRAPPED==1)
+                            ultimateIRQclear_iff_asynch (i_radio, RXTX_context.timing_transx);
+                        #else
+                            RXTX_context.timing_transx.start_time_trans1 = ultimateIRQclear_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio);
+                            // MUST be run now:
+                            do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                        #endif
+                        RXTX_context.radio_log_value = RXTX_context.radio_log_value;
+                    #else
+                       i_radio.uspi_ultimateIRQclear();
+                    #endif
+
                     display_context.ultimateIRQclearCnt++;
-                    timeout_i_radio_usage_allowed = false;                     // Still let's wait for the consequential pin_gone_low
+                    timeout_i_radio_usage_allowed = false; // Still let's wait for the consequential pin_gone_low
                 } else {} // Never here
 
                 tmr :> now_tics;
-                debug_print ("IRQ HANDLING %u ms and %u\n",  (now_tics - then_tics) / XS1_TIMER_KHZ, display_context.ultimateIRQclearCnt);
+                debug_print ("IRQ HANDLING %u ms and %u\n", (now_tics - then_tics) / XS1_TIMER_KHZ, display_context.ultimateIRQclearCnt);
 
             } break;
 
@@ -1788,7 +1938,22 @@ void RFM69_client (
                     RX_context.seconds_since_last_received += seconds_since_last_call; // about, anyhow, since we don't reset divTime.time_ticks in pin_rising
                     if (timeout_i_radio_usage_allowed) {
                         if (RX_context.seconds_since_last_received > ((AQUARIUM_RFM69_REPEAT_SEND_EVERY_SEC * 5)/2)) { // 2.5 times 4 seconds = 10 seconds
-                            i_radio.uspi_receiveDone(); // TODO is this really necessary after some mid January 2019?
+                            // TODO is this really necessary after some mid January 2019:
+                            #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                                // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                                #if (TRANS_ASYNCH_WRAPPED==1)
+                                    if (receiveDone_iff_asynch (i_radio, RXTX_context.timing_transx)) {}
+                                #else
+                                    RXTX_context.timing_transx.start_time_trans1 = receiveDone_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio);
+                                    // MUST be run now:
+                                    do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                                #endif
+                                RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+
+                            #else
+                                if (i_radio.uspi_receiveDone()) {} // In the _Aquarium_rfm69_client this is run after every i_radio.uspi_handleSPIInterrupt
+                            #endif
+
                             debug_print ("%s", "NO RX FOR 10 SECONDS\n");
                             RX_context.seconds_since_last_received = 0;
                         } else {}
@@ -1890,16 +2055,36 @@ void RFM69_client (
                         if (button_action == BUTTON_ACTION_RELEASED) {
                             i_blink_and_watchdog.reset_watchdog_ok();
                             if (display_context.state == is_on) {
-                                if (display_context.display_screen_name == SCREEN_DEBUG) {
-                                    #if (IS_MYTARGET_SLAVE == 1)
-                                        #if (_USERMAKEFILE_LIB_RFM69_XC_GETDEBUG_BUTTON==1)
+                                #if (GETDEBUG==1)
+                                    if (display_context.display_screen_name == SCREEN_DEBUG) {
+                                        #if (IS_MYTARGET_SLAVE == 1)
                                             if (timeout_i_radio_usage_allowed) {
                                                 // debug_mode_0_1 SOLVED THE PROBLEM!
                                                 display_context.debug_r_button = true;
                                                 RX_context.debug_state = (RX_context.debug_state + 1) % debug_void;
-                                                i_radio.uspi_getDebug (RX_context.debug_state, RX_context.debug_data);
 
-                                                {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+                                                #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                                                     // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                                                     #if (TRANS_ASYNCH_WRAPPED==1)
+                                                         RX_context.debug_data = getDebug_iff_asynch (i_radio, RXTX_context.timing_transx, RX_context.debug_state);
+                                                     #else
+                                                         RXTX_context.timing_transx.start_time_trans1 = getDebug_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, RX_context.debug_state);
+                                                         // MUST be run now:
+                                                         do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                                                         RX_context.debug_data = RXTX_context.return_trans3.u_out.debug_data;
+                                                     #endif
+                                                     RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+                                                 #else
+                                                     RX_context.debug_data = i_radio.uspi_getDebug (RX_context.debug_state);
+                                                 #endif
+
+                                                #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                                                    // CALL IFF, BUT IN ANY CASE NO SPI (so no _trans1)
+                                                    {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = getAndClearErrorBits_iff (RXTX_context.timing_transx.timed_out_trans1to2, i_radio);
+                                                #else
+                                                    {RXTX_context.some_rfm69_internals.error_bits, RXTX_context.is_new_error} = i_radio.getAndClearErrorBits();
+                                                #endif
+
                                                 RXTX_context.error_bits_history or_eq RXTX_context.some_rfm69_internals.error_bits;
 
                                                 Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
@@ -1909,8 +2094,9 @@ void RFM69_client (
                                                 Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                             }
                                         #endif
-                                    #endif
-                                } else if (display_context.display_screen_name == SCREEN_RX_DISPLAY_OVERSIKT) {
+                                    } else
+                                #endif
+                                    if (display_context.display_screen_name == SCREEN_RX_DISPLAY_OVERSIKT) {
                                     #if (IS_MYTARGET_SLAVE == 1)
                                         debug_print ("\nRADIO RX WAS %s ",
                                                 (display_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA");
