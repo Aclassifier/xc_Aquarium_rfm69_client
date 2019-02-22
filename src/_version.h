@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.73"
-#define RFM69_CLIENT_VERSION_NUM    0873
+#define RFM69_CLIENT_VERSION_STR "0.8.74"
+#define RFM69_CLIENT_VERSION_NUM    0874
+// 0874     22Feb2019           Now g_radio_log_value works on eXplorerKIT. Almost finished TRANS=1 and TRANS ASYNCH_WRAPPED=1 with both zero kept
 // 0873     21Feb2019           Lots of changes with no TRANS=1 and TRANS ASYNCH_WRAPPED=1 with both zero kept. Sync with RFM69_DRIVER_VERSION_STR "0.9.20"
 // 0872     13Feb2019           SCREEN_AQUARIUM_ERROR_BITS and SCREEN_DEBUG modified
 // 0871     11Feb2019           start_time_trans1 set

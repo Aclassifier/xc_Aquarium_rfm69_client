@@ -186,7 +186,7 @@ typedef struct {
     bool      allow_10_sek_timeout; // AQUARIUM_RFM69_RECEIVE_TIMOUT_SEC or none
     bool      is_watchdog_blinking;
 
-    #if (GETDEBUG==1)
+    #if (GET_RADIO_DEBUG_REGS==1)
         debug_data_t  debug_data;
         debug_data_t  debug_data_prev;
         debug_state_e debug_state;
@@ -221,8 +221,9 @@ typedef enum display_screen_name_t {
     SCREEN_WELCOME,                                     //  9 display_screen_name_str "10"
     SCREEN_HJELP,                                       // 10 display_screen_name_str "11"
     SCREEN_RX_DISPLAY_OVERSIKT,                         // 11 display_screen_name_str "12"
-    #if (GETDEBUG==1)
-        SCREEN_DEBUG,                                   // 12 display_screen_name_str "13"
+    SCREEN_RADIO_DEBUG_TRANS,                           // 12 display_screen_name_str "13"
+    #if (GET_RADIO_DEBUG_REGS==1)
+        SCREEN_RADIO_DEBUG_REGS,                        // 13 display_screen_name_str "14"
     #endif
     SCREEN_DARK // Must be last
 } display_screen_name_t;
@@ -774,36 +775,43 @@ bool // i2c_ok
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
-            #if (GETDEBUG==1)
-                case SCREEN_DEBUG: {
-                    #if (IS_MYTARGET_SLAVE == 1)
-                        #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
-                            // ..........----------.
-                            // 13 * RADIO OK          RADIO FEIL?
-                            //   MAX 820 us
-                            //   LOG 87654321
-                            //
-                            display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                                    "%s %s RADIO %s\nMAX %u us\nLOG %08X",
-                                    display_screen_name_str,
-                                    alive ? "*" : "+",
-                                   (RXTX_context.timing_transx.timed_out_trans1to2) ? "FEIL?" : "OK",
-                                    RXTX_context.timing_transx.maxtime_used_us_trans1to2,
-                                    RXTX_context.radio_log_value);
-                        #else
-                            // ..........----------.
-                            // 13 * RADIO
-                            //      SYNC CALLS
-                            //
-                            display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                                    "%s %s RADIO\n     SYNC CALLS",
-                                    display_screen_name_str,
-                                    alive ? "*" : "+");
-                        #endif
-
-                    #elif (IS_MYTARGET_SLAVE == 0) // MASTER
-                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
+            case SCREEN_RADIO_DEBUG_TRANS: {
+                #if (IS_MYTARGET_SLAVE == 1)
+                    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                        // ..........----------.
+                        // 13 * RADIO OK          RADIO FEIL?
+                        //   MAX 820 us
+                        //   LOG 87654321
+                        //
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                                "%s %s RADIO %s\nMAX %u us\nLOG %08X",
+                                display_screen_name_str,
+                                alive ? "*" : "+",
+                               (RXTX_context.timing_transx.timed_out_trans1to2) ? "FEIL?" : "OK",
+                                RXTX_context.timing_transx.maxtime_used_us_trans1to2,
+                                RXTX_context.radio_log_value);
+                    #else
+                        // ..........----------.
+                        // 13 * RADIO
+                        //      SYNC CALLS
+                        //
+                        display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                                "%s %s RADIO\n     SYNC CALLS",
+                                display_screen_name_str,
+                                alive ? "*" : "+");
                     #endif
+
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
+                #endif
+                display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
+            } break;
+
+            #if (GET_RADIO_DEBUG_REGS==1)
+                case SCREEN_RADIO_DEBUG_REGS: {
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                        "%s %s RADIO REGS\n  MANGLER", // Hent fra tidligere commit
+                        display_screen_name_str);
                     display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
                 } break;
             #endif
@@ -1344,6 +1352,13 @@ void RFM69_handle_irq (
         debug_print ("RFM69 err2 new %u code %04X\n", RXTX_context.is_new_error, RXTX_context.some_rfm69_internals.error_bits);
     } else {}
 
+    #if (DEBUG_SHARED_LOG_VALUE==1)
+        if (not RXTX_context.timing_transx.timed_out_trans1to2) {
+            clr_radio_log_value(); // But RXTX_context.radio_log_value is not touched now, it will be updated with new value of not timed out
+            debug_print ("%s\n", "clr_radio_log_value");
+        } else {}
+    #endif
+
     #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
        // CALL IFF, BUT IN ANY CASE NO SPI (so no _trans1)
        do_spi_aux_pin_iff (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, MASKOF_SPI_AUX0_PROBE3_IRQ, low);
@@ -1373,35 +1388,37 @@ void RFM69_handle_timeout (
 
     #if (IS_MYTARGET_SLAVE == 1)
 
-        #if (GETDEBUG==1)
-            #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
-                 // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
-                 #if (TRANS_ASYNCH_WRAPPED==1)
-                     RX_context.debug_data = getDebug_iff_asynch (i_radio, RXTX_context.timing_transx, RX_context.debug_state);
+        #if (GET_RADIO_DEBUG_REGS==1)
+            if (display_context.display_screen_name == SCREEN_RADIO_DEBUG_REGS) {
+                // SCREEN_RADIO_DEBUG_REGS is empty
+                #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                     // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                     #if (TRANS_ASYNCH_WRAPPED==1)
+                         RX_context.debug_data = getDebug_iff_asynch (i_radio, RXTX_context.timing_transx, RX_context.debug_state);
+                     #else
+                         RXTX_context.timing_transx.start_time_trans1 = getDebug_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, RX_context.debug_state);
+                         // MUST be run now:
+                         do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                         RX_context.debug_data = RXTX_context.return_trans3.u_out.debug_data;
+                     #endif
+                     RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
                  #else
-                     RXTX_context.timing_transx.start_time_trans1 = getDebug_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, RX_context.debug_state);
-                     // MUST be run now:
-                     do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
-                     RX_context.debug_data = RXTX_context.return_trans3.u_out.debug_data;
+                     RX_context.debug_data = i_radio.uspi_getDebug (RX_context.debug_state);
                  #endif
-                 RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
-             #else
-                 RX_context.debug_data = i_radio.uspi_getDebug (RX_context.debug_state);
-             #endif
 
-            bool are_equal = (memcmp (RX_context.debug_data_prev.data, RX_context.debug_data.data, NUM_DEBUG_BYTES) == 0);
+                bool are_equal = (memcmp (RX_context.debug_data_prev.data, RX_context.debug_data.data, NUM_DEBUG_BYTES) == 0);
 
-            for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
-                RX_context.debug_data_prev.data[i] = RX_context.debug_data.data[i];
-            }
+                for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
+                    RX_context.debug_data_prev.data[i] = RX_context.debug_data.data[i];
+                }
 
-            debug_print ("DEB%s\n", are_equal ? CHAR_EQ_STR : CHAR_CHANGE_STR);
+                debug_print ("DEB%s\n", are_equal ? CHAR_EQ_STR : CHAR_CHANGE_STR);
 
-            for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
-                debug_print ("%02X%s", RX_context.debug_data.data[i], ((i == (NUM_DEBUG_BYTES-1)) ? "\n" : " "));
-            }
-            debug_print ("%s", "\n");
-
+                for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
+                    debug_print ("%02X%s", RX_context.debug_data.data[i], ((i == (NUM_DEBUG_BYTES-1)) ? "\n" : " "));
+                }
+                debug_print ("%s", "\n");
+            } else {}
         #else
             // No code
         #endif
@@ -1621,7 +1638,7 @@ void reset_values (
         RX_context.num_radioCRC16errs = 0;
         RX_context.num_appCRC32errs = 0;
 
-        #if (GETDEBUG==1)
+        #if (GET_RADIO_DEBUG_REGS==1)
             RX_context.debug_state         = debug_void; // So that the debug_none is the initial use
             display_context.debug_r_button = false;
         #endif
@@ -1696,7 +1713,7 @@ void RFM69_client (
         RX_context.appSeqCnt = 0;
         RX_context.appSeqCnt_prev = 0;
         RX_context.nowRSSI = 0; // Observe that it's signed so "0" and "-82" would align with print %d. This is fine!
-        #if (GETDEBUG==1)
+        #if (GET_RADIO_DEBUG_REGS==1)
             for (unsigned i = 0; i < NUM_DEBUG_BYTES; i++) {
                 RX_context.debug_data.data[i] = 0;
                 RX_context.debug_data_prev.data[i] = 0;
@@ -2055,8 +2072,8 @@ void RFM69_client (
                         if (button_action == BUTTON_ACTION_RELEASED) {
                             i_blink_and_watchdog.reset_watchdog_ok();
                             if (display_context.state == is_on) {
-                                #if (GETDEBUG==1)
-                                    if (display_context.display_screen_name == SCREEN_DEBUG) {
+                                #if (GET_RADIO_DEBUG_REGS==1)
+                                    if (display_context.display_screen_name == SCREEN_RADIO_DEBUG_REGS) {
                                         #if (IS_MYTARGET_SLAVE == 1)
                                             if (timeout_i_radio_usage_allowed) {
                                                 // debug_mode_0_1 SOLVED THE PROBLEM!
