@@ -1438,7 +1438,7 @@ void RFM69_handle_timeout (
 
             if (TX_context.TX_appSeqCnt == 10) {
                 #if (TEST_CAR_KEY == 1)
-                    // No code, kep full power always
+                    // No code, keep full power always
                 #else
                     TX_context.TX_appPowerLevel_dBm = APPPOWERLEVEL_MIN_DBM;
 
@@ -1446,7 +1446,7 @@ void RFM69_handle_timeout (
 
                         // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
                         #if (TRANS_ASYNCH_WRAPPED==1)
-                            setPowerLevel_dBm_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.some_rfm69_internals, TX_context.TX_appPowerLevel_dB);
+                            setPowerLevel_dBm_iff_asynch (i_radio, RXTX_context.timing_transx, TX_context.TX_appPowerLevel_dBm);
                         #else
                             RXTX_context.timing_transx.start_time_trans1 = setPowerLevel_dBm_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, TX_context.TX_appPowerLevel_dBm);
                             // MUST be run now:
@@ -1467,7 +1467,7 @@ void RFM69_handle_timeout (
                     #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
                         // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
                         #if (TRANS_ASYNCH_WRAPPED==1)
-                            encrypt16_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.some_rfm69_internals, KEY2);
+                            encrypt16_iff_asynch (i_radio, RXTX_context.timing_transx, KEY2);
                         #else
                             RXTX_context.timing_transx.start_time_trans1 = encrypt16_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, KEY2);
                             // MUST be run now:
@@ -1484,7 +1484,7 @@ void RFM69_handle_timeout (
                     #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
                         // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
                         #if (TRANS_ASYNCH_WRAPPED==1)
-                            encrypt16_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.some_rfm69_internals, RXTX_context.radio_init.key);
+                            encrypt16_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.radio_init.key);
                         #else
                             RXTX_context.timing_transx.start_time_trans1 = encrypt16_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, RXTX_context.radio_init.key);
                             // MUST be run now:
@@ -1527,7 +1527,7 @@ void RFM69_handle_timeout (
             #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
                 // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
                 #if (TRANS_ASYNCH_WRAPPED==1)
-                    interruptAndParsingResult = send_iff_asynch (i_radio, RXTX_context.timing_transx, TX_context.TX_gatewayid, RXTX_context.PACKET);
+            TX_context.waitForIRQInterruptCause = send_iff_asynch (i_radio, RXTX_context.timing_transx, TX_context.TX_gatewayid, RXTX_context.PACKET);
                 #else
                     RXTX_context.timing_transx.start_time_trans1 = i_radio.send_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, TX_context.TX_gatewayid, RXTX_context.PACKET);
                     // MUST be run now:
@@ -1823,7 +1823,21 @@ void RFM69_client (
     if (RXTX_context.some_rfm69_internals.error_bits == ERROR_BITS_NONE) {
 
         i_radio.uspi_setHighPower (RXTX_context.radio_init.isRFM69HW);
-        i_radio.uspi_encrypt16 (RXTX_context.radio_init.key, KEY_LEN);
+
+        #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+            // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+            #if (TRANS_ASYNCH_WRAPPED==1)
+                encrypt16_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.radio_init.key);
+            #else
+                RXTX_context.timing_transx.start_time_trans1 = encrypt16_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, RXTX_context.radio_init.key);
+                // MUST be run now:
+                do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+            #endif
+            RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+        #else
+            i_radio.uspi_encrypt16 (RXTX_context.radio_init.key, KEY_LEN);
+        #endif
+
         #if (IS_MYTARGET_SLAVE==1)
             i_radio.setListenToAll (RX_context.doListenToAll);
         #endif
