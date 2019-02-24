@@ -1072,7 +1072,7 @@ void RFM69_handle_irq (
 
         // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
         #if (TRANS_ASYNCH_WRAPPED==1)
-            interruptAndParsingResult = _handleSPIInterrupt_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.some_rfm69_internals, RXTX_context.PACKET); // TODO ta bort _
+            interruptAndParsingResult = handleSPIInterrupt_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.some_rfm69_internals, RXTX_context.PACKET);
         #else
             RXTX_context.timing_transx.start_time_trans1 = handleSPIInterrupt_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio);
             // MUST be run now:
@@ -1824,7 +1824,9 @@ void RFM69_client (
 
         i_radio.uspi_setHighPower (RXTX_context.radio_init.isRFM69HW);
 
-        #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+        #if (I_RADIO_ANY==1) // TODO remove
+            encrypt16_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.radio_init.key);
+        #elif (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
             // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
             #if (TRANS_ASYNCH_WRAPPED==1)
                 encrypt16_iff_asynch (i_radio, RXTX_context.timing_transx, RXTX_context.radio_init.key);
