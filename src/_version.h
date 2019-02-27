@@ -13,8 +13,10 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.78"
-#define RFM69_CLIENT_VERSION_NUM     087
+#define RFM69_CLIENT_VERSION_STR "0.8.79"
+#define RFM69_CLIENT_VERSION_NUM    0879
+// 0879     27Feb2019           Was too hard to compare sending here with sending from the aquarium-sw on the startKIT, even if I shot some scope pictures.
+//                              Going back to reception
 // 0878     27Feb2019           Going on testing. SCREEN_WELCOME for TX is new. Generated some scope pictures, like SDS00050.png etc.
 // 0877     27Feb2019           Now all i_radio-calls include ..iff_asynch versions.
 //                                  WORKS/works(*)/FAILS              W    W   W   w   w   w

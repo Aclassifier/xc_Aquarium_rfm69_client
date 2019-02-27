@@ -1841,8 +1841,7 @@ void RFM69_client (
             display_context.buttons_state[iof_button].inhibit_released_once = false;
         }
 
-        Display_screen (display_context, RX_CONTEXT, TX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
-
+        Display_screen (display_context, RX_CONTEXT, TX_CONTEXT, RXTX_context, USE_THIS, i_i2c_internal_commands);
         display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc = true;
     }
 
@@ -2242,13 +2241,13 @@ void RFM69_client (
                                         debug_print ("NOW %s = address %u\n\n",
                                                 (display_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA",
                                                  display_context.senderid_displayed_now);
-                                        Display_screen (display_context, RX_context, TX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                        Display_screen (display_context, RX_context, null, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                     #endif
                                 } else if (display_context.display_screen_name == SCREEN_WELCOME) {
                                     #if (IS_MYTARGET_SLAVE == 1)
                                         RX_context.allow_10_sek_timeout = not RX_context.allow_10_sek_timeout;
                                         i_blink_and_watchdog.enable_watchdog (RX_context.allow_10_sek_timeout);
-                                        Display_screen (display_context, RX_context, TX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                        Display_screen (display_context, RX_context, null, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                     #endif
                                 } else {}
                             } else {}
