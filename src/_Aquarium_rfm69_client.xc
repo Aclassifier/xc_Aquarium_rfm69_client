@@ -263,7 +263,9 @@ bool // i2c_ok
     Display_screen (
         display_context_t                 &display_context,
                 RX_context_t              &?RX_context,  // #if (IS_MYTARGET_SLAVE == 1)
+                TX_context_t              &?TX_context,  // #if (IS_MYTARGET_SLAVE == 0)
                 RXTX_context_t            &RXTX_context,
+
         const   use_t                     use,
         client  i2c_internal_commands_if  i_i2c_internal_commands) {
 
@@ -727,26 +729,55 @@ bool // i2c_ok
                             RX_context.allow_10_sek_timeout ? "SEK"       : "");
 
                 #elif (IS_MYTARGET_SLAVE == 0) // MASTER
-                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
+                    // ..........----------.
+                    // 10 B:0.8.09 R:0.9.13
+                    // TX 4.SEK #123
+                    // TRANS  A-WRAP  ANY
+                    //   0      1      1
+
+                    bool trans          = false;
+                    bool asynch_wrapped = false;
+                    bool any            = false;
+
+                    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                        trans = true;
+                        #if (I_RADIO_ANY==1)
+                            any = true;
+                        #elif (TRANS_ASYNCH_WRAPPED==1)
+                            asynch_wrapped = true;
+                        #endif
+                    #endif
+
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s B:%s R:%s\nTX %u. SEK #%u\nTRANS  A-WRAP  ANY\n  %u      %u      %u",
+                            display_screen_name_str,
+                            RFM69_CLIENT_VERSION_STR,
+                            RFM69_DRIVER_VERSION_STR,
+                            SEND_PACKET_ON_NO_CHANGE_TIMOEUT_SECONDS,
+                            TX_context.TX_appSeqCnt,
+                            trans, asynch_wrapped, any);
                 #endif
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
             case SCREEN_HJELP: {
+                #if (IS_MYTARGET_SLAVE == 1)
+                    // ..........----------.
+                    // 11 H: AVSTILL P/10S   Høyre knapp:   Avstill feil-blinking (puls) eller nullstill statistikkdata (10 sekunder) eller neste verdi
+                    //    S: SKJERM ↑↓       Senterknapp:   Neste eller forrige skjermbilde
+                    //    V: SKJERM AV/PÅ    Venstre knapp: Skjerm av eller på
+                    //  S+V: SNU ↑↓          Hold inne senterknapp og trykk venstre knapp inn og ut toggler til neste eller forrige skjermbilde
 
-                // ..........----------.
-                // 11 H: AVSTILL P/10S   Høyre knapp:   Avstill feil-blinking (puls) eller nullstill statistikkdata (10 sekunder) eller neste verdi
-                //    S: SKJERM ↑↓       Senterknapp:   Neste eller forrige skjermbilde
-                //    V: SKJERM AV/PÅ    Venstre knapp: Skjerm av eller på
-                //  S+V: SNU ↑↓          Hold inne senterknapp og trykk venstre knapp inn og ut toggler til neste eller forrige skjermbilde
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
+                            "%s H: AVSTILL P/10S\n   S: SKJERM %s%s\n   V: SKJERM AV/P%s\n S+V: SNU %s%s",
+                            display_screen_name_str,
+                            char_up_arrow_str, char_down_arrow_str,
+                            char_aa_str,
+                            char_up_arrow_str, char_down_arrow_str);
 
-                display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                        "%s H: AVSTILL P/10S\n   S: SKJERM %s%s\n   V: SKJERM AV/P%s\n S+V: SNU %s%s",
-                        display_screen_name_str,
-                        char_up_arrow_str, char_down_arrow_str,
-                        char_aa_str,
-                        char_up_arrow_str, char_down_arrow_str);
-
+                #elif (IS_MYTARGET_SLAVE == 0) // MASTER
+                    display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars, "%s", display_screen_name_str);
+                #endif
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
@@ -1193,7 +1224,7 @@ void RFM69_handle_irq (
 
                         DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_2_NOW_MAX_MIN, debug_print_context, RX_context, RXTX_context);
 
-                        Display_screen (display_context, RX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
+                        Display_screen (display_context, RX_context, TX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
 
                         DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_1_SEQCNT_ETC, debug_print_context, RX_context, RXTX_context);
                         DEBUG_PRINT_VALUES (DEBUG_PRINT_RX_2_TEMPS_ETC, debug_print_context, RX_context, RXTX_context);
@@ -1232,7 +1263,7 @@ void RFM69_handle_irq (
                     } else {
                         display_context.senderid_not_displayed_cnt++;
                         if (display_context.display_screen_name == SCREEN_RX_DISPLAY_OVERSIKT) {
-                            Display_screen (display_context, RX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
+                            Display_screen (display_context, RX_context, TX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
                         } else {}
                     }
 
@@ -1444,28 +1475,28 @@ void RFM69_handle_timeout (
                 #endif
             } else {} // No code
 
-            if (TX_context.TX_appSeqCnt == 10) {
-                #if (TEST_CAR_KEY == 1)
-                    // No code, keep full power always
-                #else
-                    TX_context.TX_appPowerLevel_dBm = APPPOWERLEVEL_MIN_DBM;
-                    #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
-                        // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
-                        #if (TRANS_ASYNCH_WRAPPED==1)
-                            setPowerLevel_dBm_iff_asynch (i_radio, RXTX_context.timing_transx, TX_context.TX_appPowerLevel_dBm);
-                        #else
-                            RXTX_context.timing_transx.start_time_trans1 = setPowerLevel_dBm_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, TX_context.TX_appPowerLevel_dBm);
-                            // MUST be run now:
-                            do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
-                        #endif
-                        RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
-                    #else
-                        i_radio.uspi_setPowerLevel_dBm (TX_context.TX_appPowerLevel_dBm); // Should stop the sound in my speakers!
-                    #endif
-                #endif
-            } else {}
-
             #if ((TEST_01_FOLLOW_ADDRESS==1) or (TEST_01_LISTENTOALL==1))
+                if (TX_context.TX_appSeqCnt == 10) {
+                    #if (TEST_CAR_KEY == 1)
+                        // No code, keep full power always
+                    #else
+                        TX_context.TX_appPowerLevel_dBm = APPPOWERLEVEL_MIN_DBM;
+                        #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
+                            // ASYNCH CALL AND BACKGROUND ACTION WITH TIMEOUT
+                            #if (TRANS_ASYNCH_WRAPPED==1)
+                                setPowerLevel_dBm_iff_asynch (i_radio, RXTX_context.timing_transx, TX_context.TX_appPowerLevel_dBm);
+                            #else
+                                RXTX_context.timing_transx.start_time_trans1 = setPowerLevel_dBm_iff_trans1 (RXTX_context.timing_transx.timed_out_trans1to2, i_radio, TX_context.TX_appPowerLevel_dBm);
+                                // MUST be run now:
+                                do_sessions_trans2to3 (i_radio, RXTX_context.timing_transx, RXTX_context.return_trans3);
+                            #endif
+                            RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
+                        #else
+                            i_radio.uspi_setPowerLevel_dBm (TX_context.TX_appPowerLevel_dBm); // Should stop the sound in my speakers!
+                        #endif
+                    #endif
+                } else {}
+
                 if (TX_context.TX_appSeqCnt == 10) {
                     debug_print ("\nKEY2\n", TX_context.TX_gatewayid);
                     debug_print ("%s", char_leading_space_str);
@@ -1541,9 +1572,9 @@ void RFM69_handle_timeout (
                     TX_context.waitForIRQInterruptCause = RXTX_context.return_trans3.u_out.waitForIRQInterruptCause;
                 #endif
                 RXTX_context.radio_log_value = RXTX_context.timing_transx.radio_log_value;
-             #else
+            #else
                  TX_context.waitForIRQInterruptCause = i_radio.uspi_send (TX_context.TX_gatewayid, RXTX_context.PACKET); // element CommHeaderRFM69 is not taken from here, so don't fill it in
-             #endif
+            #endif
 
             #if (CLIENT_ALLOW_SESSION_TYPE_TRANS==1)
                 // CALL IFF, BUT IN ANY CASE NO SPI (so no _trans1)
@@ -1565,6 +1596,9 @@ void RFM69_handle_timeout (
                 TX_context.sendPacket_seconds_cntdown = 0;
             }
         }
+
+        i_blink_and_watchdog.feed_watchdog();
+        Display_screen (display_context, null, TX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
 
         {
             time32_t endTime_tics;
@@ -1807,7 +1841,7 @@ void RFM69_client (
             display_context.buttons_state[iof_button].inhibit_released_once = false;
         }
 
-        Display_screen (display_context, RX_CONTEXT, RXTX_context, USE_THIS, i_i2c_internal_commands);
+        Display_screen (display_context, RX_CONTEXT, TX_context, RXTX_context, USE_THIS, i_i2c_internal_commands);
 
         display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc = true;
     }
@@ -2109,14 +2143,14 @@ void RFM69_client (
                             if (display_context.state == is_on) { // now switch off
                                 display_context.display_screen_name_last_on = display_context.display_screen_name; // PUSH it
                                 display_context.display_screen_name         = SCREEN_DARK;
-                                Display_screen (display_context, RX_CONTEXT, RXTX_context, USE_PREV, i_i2c_internal_commands); // First this so that SCREEN_DARK runs..
+                                Display_screen (display_context, RX_CONTEXT, TX_CONTEXT, RXTX_context, USE_PREV, i_i2c_internal_commands); // First this so that SCREEN_DARK runs..
                                 display_context.state                       = is_off;                                          // ..then is_off
 
                                 display_screen_store_RX_context_values (display_context, RX_CONTEXT);
                             } else { // is_off: now switch on
                                 display_context.display_screen_name         = display_context.display_screen_name_last_on;     // PULL it
                                 display_context.state                       = is_on;                                           // First is_on..
-                                Display_screen (display_context, RX_CONTEXT, RXTX_context, USE_PREV, i_i2c_internal_commands); // ..then this so that screen goes on
+                                Display_screen (display_context, RX_CONTEXT, TX_CONTEXT, RXTX_context, USE_PREV, i_i2c_internal_commands); // ..then this so that screen goes on
                             }
                         } else if (button_action == BUTTON_ACTION_PRESSED) {
                             if (display_context.buttons_state[IOF_BUTTON_CENTER].pressed_now) {
@@ -2144,7 +2178,7 @@ void RFM69_client (
                                 }
 
                                 debug_print ("SCREEN NAME %u\n", display_context.display_screen_name);
-                                Display_screen (display_context, RX_CONTEXT, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                Display_screen (display_context, RX_CONTEXT, TX_CONTEXT, RXTX_context, USE_PREV, i_i2c_internal_commands);
 
                                 display_screen_store_RX_context_values (display_context, RX_CONTEXT);
                             } else {}
@@ -2190,11 +2224,11 @@ void RFM69_client (
 
                                                 RXTX_context.error_bits_history or_eq RXTX_context.some_rfm69_internals.error_bits;
 
-                                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                                Display_screen (display_context, RX_context, TX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                                 display_context.debug_r_button = false;
                                             } else {
                                                 display_context.display_screen_name == SCREEN_HJELP;
-                                                Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                                Display_screen (display_context, RX_context, TX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                             }
                                         #endif
                                     } else
@@ -2208,13 +2242,13 @@ void RFM69_client (
                                         debug_print ("NOW %s = address %u\n\n",
                                                 (display_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA",
                                                  display_context.senderid_displayed_now);
-                                        Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                        Display_screen (display_context, RX_context, TX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                     #endif
                                 } else if (display_context.display_screen_name == SCREEN_WELCOME) {
                                     #if (IS_MYTARGET_SLAVE == 1)
                                         RX_context.allow_10_sek_timeout = not RX_context.allow_10_sek_timeout;
                                         i_blink_and_watchdog.enable_watchdog (RX_context.allow_10_sek_timeout);
-                                        Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                        Display_screen (display_context, RX_context, TX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                     #endif
                                 } else {}
                             } else {}
@@ -2224,16 +2258,16 @@ void RFM69_client (
                                 display_screen_name_t display_screen_name_copy = display_context.display_screen_name;
                                 display_context.display_screen_name = SCREEN_DARK;
                                 #if (IS_MYTARGET_SLAVE == 1)
-                                    Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                    Display_screen (display_context, RX_context, null, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                 #else
-                                    Display_screen (display_context, null, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                    Display_screen (display_context, null, TX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                 #endif
                                 delay_milliseconds(100); // It blinks also without this
                                 display_context.display_screen_name = display_screen_name_copy;
                                 #if (IS_MYTARGET_SLAVE == 1)
-                                    Display_screen (display_context, RX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                    Display_screen (display_context, RX_context, null, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                 #else
-                                    Display_screen (display_context, null, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                    Display_screen (display_context, null, TX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                 #endif
                             }
                         }
