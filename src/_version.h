@@ -13,9 +13,15 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.76"
-#define RFM69_CLIENT_VERSION_NUM    0876
-// 0876     24Feb2019           Using working encrypt16_iff_asynch
+#define RFM69_CLIENT_VERSION_STR "0.8.77"
+#define RFM69_CLIENT_VERSION_NUM    0877
+// 0877     27Feb2019           Now all i_radio-calls include ..iff_asynch versions.
+//                                  WORKS/works-tx-not-tested/FAILS   W    W   W   w   w   w
+//                                  CLIENT_ALLOW_SESSION_TYPE_TRANS   0    1   1   1   1   0
+//                                  TRANS_ASYNCH_WRAPPED              0    0   1   1   0   0
+//                                  I_RADIO_ANY none:                 0    0   0   0   0   0
+//                                  SLAVE/MASTER                      ---SLAVE--   --MASTER-
+// 0876     24Feb2019           Using working encrypt16_iff_asynch.
 // 0875     22Feb2019           Also compiling for IS_MYTARGET_MASTER (not tested)
 // 0874     22Feb2019           Now g_radio_log_value works on eXplorerKIT. Almost finished TRANS=1 and TRANS ASYNCH_WRAPPED=1 with both zero kept
 // 0873     21Feb2019           Lots of changes with no TRANS=1 and TRANS ASYNCH_WRAPPED=1 with both zero kept. Sync with RFM69_DRIVER_VERSION_STR "0.9.20"
