@@ -43,10 +43,10 @@ typedef interface i2c_internal_commands_if {
             const unsigned char     data[],
             const unsigned          nbytes);
 
-    // Only those needed for setting and clearing pins as output (as in example toggle.mde)
-    bool mcp23008_begin_ok        (const i2c_dev_address_t dev_addr);
-    bool mcp23008_pinMode_ok      (const uint8_t iof_bit, mcp23008_direction_e direction);
-    bool mcp23008_digitalWrite_ok (const uint8_t iof_bit, mcp23008_value_e     value);
+    bool write (
+            const i2c_dev_address_t dev_addr,
+            const unsigned char     reg_data[],    // reg_addr followed by data
+            const static unsigned   len_reg_data); // must include space for LEN_I2C_REG
 
 } i2c_internal_commands_if;
 

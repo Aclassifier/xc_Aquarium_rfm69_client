@@ -1630,6 +1630,7 @@ void RFM69_client (
           out port                         p_display_notReset)
 {
     timer tmr;
+    unsigned seconds_cnt = 0;
 
     // All declared, used or not, since nullable references not allowed for structs
 
@@ -1772,6 +1773,19 @@ void RFM69_client (
 
         Display_screen (display_context, RX_CONTEXT, TX_CONTEXT, RXTX_context, USE_THIS, i_i2c_internal_commands);
         display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc = true;
+    }
+
+    {
+        bool i2c_ok = false;
+        const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_IODIR, MCP23008_IODIR_ALL_PINS_DIR_OUTPUT};
+        i2c_ok = i_i2c_internal_commands.write (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
+        debug_print ("23008.1 %u\n",i2c_ok);
+    }
+    {
+        bool i2c_ok = false;
+        const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, 0x00};
+        i2c_ok = i_i2c_internal_commands.write (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
+        debug_print ("23008.2 %u\n",i2c_ok);
     }
 
     // Radio matters
@@ -1938,6 +1952,29 @@ void RFM69_client (
 
             case tmr when timerafter (divTime.time_ticks) :> time32_t startTime_ticks: {
                 seconds_since_last_call++; // Since ONE_SECOND_TICKS used below
+                seconds_cnt++;
+
+                {
+                    bool i2c_ok = false;
+                    uint8_t port_pins = 0;
+                    if ((seconds_cnt % 2) == 0) {
+                        port_pins or_eq        MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK;
+                    } else {
+                        port_pins and_eq compl MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK;
+                    }
+                    unsigned seconds_cnt_128 = seconds_cnt bitand (128-1);
+                    if (seconds_cnt_128 < 64) {
+                        port_pins or_eq        MY_MCP23008_OUT_RELAY1_ON_MASK;
+                        port_pins and_eq compl MY_MCP23008_OUT_RELAY2_ON_MASK;
+                    } else {
+                        port_pins and_eq compl MY_MCP23008_OUT_RELAY1_ON_MASK;
+                        port_pins or_eq        MY_MCP23008_OUT_RELAY2_ON_MASK;
+                    }
+
+                    unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, port_pins};
+                    i2c_ok = i_i2c_internal_commands.write (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
+                    debug_print ("23008.3 %u\n",i2c_ok);
+                }
 
                 #if (IS_MYTARGET_SLAVE == 1)
                     RX_context.seconds_since_last_received += seconds_since_last_call; // about, anyhow, since we don't reset divTime.time_ticks in pin_rising

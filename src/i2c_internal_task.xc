@@ -24,7 +24,6 @@
 #include "i2c.h"
 
 #include "defines_adafruit.h"
-#include "ioexpanderchip_mcp23008.h"
 #include "i2c_internal_task.h"
 #include "display_ssd1306.h"
 #include "core_graphics_adafruit_gfx.h"
@@ -57,8 +56,7 @@ void I2C_Internal_Task (
                     const unsigned char     data[], // SSD1306_WRITE_CHUNK_SIZE always is n:
                     const unsigned          nbytes) -> bool ok: {
 
-                #define REG_SIZE 1 // register address is one bytes. It's sent after dev_addr
-                #define SSD1306_WRITE_ARR_SIZE (REG_SIZE + SSD1306_WRITE_CHUNK_SIZE)
+                #define SSD1306_WRITE_ARR_SIZE (LEN_I2C_REG + SSD1306_WRITE_CHUNK_SIZE)
 
                 unsigned char write_data[SSD1306_WRITE_ARR_SIZE];
 
@@ -67,12 +65,12 @@ void I2C_Internal_Task (
                 i2c_result_t i2c_result;
 
                 if (nbytes <= SSD1306_WRITE_CHUNK_SIZE) {
-                    unsigned  write_nbytes = nbytes + REG_SIZE; // Now including reg_addr as first byte
+                    unsigned  write_nbytes = nbytes + LEN_I2C_REG; // Now including reg_addr as first byte
 
                     debug_print ("i2c-i dev:%02x reg:%02x r-len:%d:", (int)dev_addr, reg_addr, (int)write_nbytes);
 
-                    for (uint8_t x=REG_SIZE; x<write_nbytes; x++) {
-                        write_data[x] = data[x-REG_SIZE];
+                    for (uint8_t x=LEN_I2C_REG; x<write_nbytes; x++) {
+                        write_data[x] = data[x-LEN_I2C_REG];
 
                         #ifdef DEBUG_PRINT_DISPLAY // Keep it
                             if (x==(write_nbytes-1)) {
@@ -123,10 +121,32 @@ void I2C_Internal_Task (
                 ok = (i2c_result == I2C_OK); // 1 = (1==1), all OK when 1
             } break;
 
-            case i_i2c_internal_commands[int index_of_client].mcp23008_begin_ok        (const i2c_dev_address_t dev_addr)                      -> bool ok: {} break;
-            case i_i2c_internal_commands[int index_of_client].mcp23008_pinMode_ok      (const uint8_t iof_bit, mcp23008_direction_e direction) -> bool ok: {} break;
-            case i_i2c_internal_commands[int index_of_client].mcp23008_digitalWrite_ok (const uint8_t iof_bit, mcp23008_value_e     value)     -> bool ok: {} break;
+            case i_i2c_internal_commands[int index_of_client].write (
+                    const i2c_dev_address_t dev_addr,
+                    const unsigned char     reg_data[], // reg_addr followed by data
+                    const static unsigned   len_reg_data
+                ) -> bool ok: {
 
+                unsigned char write_data[len_reg_data];
+
+                for (unsigned ix=0; ix<len_reg_data; ix++) {
+                    write_data[ix] = reg_data[ix];
+                }
+
+                // lib_i2c:
+                size_t    num_bytes_sent;
+                int       send_stop_bit = 1;
+                i2c_res_t i2c_res;
+
+                i2c_res= i_i2c.write ((uint8_t)dev_addr, write_data, (size_t) len_reg_data, num_bytes_sent, send_stop_bit);
+
+                if ((i2c_res == I2C_NACK) or (num_bytes_sent != len_reg_data)) {
+                    ok = false;
+                } else {
+                    // ==I2C_ACK
+                    ok = true;
+                }
+            } break;
         }
     }
 }

@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.80"
-#define RFM69_CLIENT_VERSION_NUM    0880
+#define RFM69_CLIENT_VERSION_STR "0.8.81"
+#define RFM69_CLIENT_VERSION_NUM    0881
+// 0881     03May2019           mcp23008 works initial rudimentary test
 // 0880     03May2019           CLIENT_ALLOW_SESSION_TYPE_TRANS==1 removed, now only 0 and 2 allowed in lib_rfm69_xc
 //                              Some mcp23008 i2c chip code added (skeletons)
 // 0879     27Feb2019           Was too hard to compare sending here with sending from the aquarium-sw on the startKIT, even if I shot some scope pictures.
