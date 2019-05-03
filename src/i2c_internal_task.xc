@@ -24,6 +24,7 @@
 #include "i2c.h"
 
 #include "defines_adafruit.h"
+#include "ioexpanderchip_mcp23008.h"
 #include "i2c_internal_task.h"
 #include "display_ssd1306.h"
 #include "core_graphics_adafruit_gfx.h"
@@ -121,6 +122,11 @@ void I2C_Internal_Task (
                 }
                 ok = (i2c_result == I2C_OK); // 1 = (1==1), all OK when 1
             } break;
+
+            case i_i2c_internal_commands[int index_of_client].mcp23008_begin_ok        (const i2c_dev_address_t dev_addr)                      -> bool ok: {} break;
+            case i_i2c_internal_commands[int index_of_client].mcp23008_pinMode_ok      (const uint8_t iof_bit, mcp23008_direction_e direction) -> bool ok: {} break;
+            case i_i2c_internal_commands[int index_of_client].mcp23008_digitalWrite_ok (const uint8_t iof_bit, mcp23008_value_e     value)     -> bool ok: {} break;
+
         }
     }
 }

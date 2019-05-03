@@ -41,7 +41,7 @@ typedef struct {
 [[combinable]]
 void Button_Task (
         const unsigned   button_n,
-        port             p_button,
+        in port          p_button,
         client button_if i_button_out);
 
 #else

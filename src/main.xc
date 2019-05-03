@@ -25,6 +25,7 @@
 
 #include "param.h"
 #include "defines_adafruit.h"
+#include "ioexpanderchip_mcp23008.h"
 #include "i2c_internal_task.h"
 #include "display_ssd1306.h"
 #include "core_graphics_adafruit_gfx.h"

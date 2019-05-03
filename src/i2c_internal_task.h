@@ -14,20 +14,22 @@
         I2C_ADDRESS_OF_ACCELEROMETER_AND_MAGNETOMETER = 0x1E, // FXOS8700CQ BMG160 3-axis gyroscope sensor
                                                               // NOT modifiable plus hardwired on XMOS XCORE-200 EXPLORERKIT
         I2C_ADDRESS_OF_DISPLAY                        = 0x3C, // UG-2832HSWEG02 with chip SSD1306 from Univision Technology Inc.
-        I2C_ADDRESS_OF_GYROSCOPE_BMG160               = 0x68  // BMG160  FXOS8700CQ Digital Sensor - 3D Accelerometer (±2g/±4g/±8g) + 3D Magnetometer
+        I2C_ADDRESS_OF_GYROSCOPE_BMG160               = 0x68, // BMG160  FXOS8700CQ Digital Sensor - 3D Accelerometer (±2g/±4g/±8g) + 3D Magnetometer
                                                               // NOT modifiable plus hardwired on XMOS XCORE-200 EXPLORERKIT
                                                               // Observe that CHRONODOT has same address 0x68, also hard wired! So cannot coexist on same I2C bus
+        I2C_ADDRESS_OF_PORT_EXPANDER                  = 0x20  // 0x20 Lines: 0  0  0 [0x20:000]->[0x27:111] MCP23008
     } i2c_dev_address_internal_t; // i2c_dev_address_t
 
 #elif (IS_MYTARGET==IS_MYTARGET_STARTKIT)
     typedef enum i2c_dev_address_internal_t {
-                                         // NO SOLDERING NEEDED ON ANY OF THESE BOARDS
-        I2C_ADDRESS_OF_DISPLAY   = 0x3C, // UG-2832HSWEG02 with chip SSD1306 from Univision Technology Inc.
-                                         // ALL BELOW AS USED IN AQUARIUM BOX:
-        I2C_ADDRESS_OF_FRAM      = 0x50, //     Fujitsu MB85RC256V (MB85RC)
-        I2C_ADDRESS_OF_FRAM_F8   = 0xF8, //     Fujitsu MB85RC256V Device ID first address
-        I2C_ADDRESS_OF_FRAM_F9   = 0xF9, //     Fujitsu MB85RC256V Device ID second address
-        I2C_ADDRESS_OF_CHRONODOT = 0x68  //     DS3231 Extremely Accurate I2C-Integrated RTC/TCXO/Crystal by Maxim. NOT modifiable!
+                                             // NO SOLDERING NEEDED ON ANY OF THESE BOARDS
+        I2C_ADDRESS_OF_DISPLAY       = 0x3C, // UG-2832HSWEG02 with chip SSD1306 from Univision Technology Inc.
+                                             // ALL BELOW AS USED IN AQUARIUM BOX:
+        I2C_ADDRESS_OF_FRAM          = 0x50, //     Fujitsu MB85RC256V (MB85RC)
+        I2C_ADDRESS_OF_FRAM_F8       = 0xF8, //     Fujitsu MB85RC256V Device ID first address
+        I2C_ADDRESS_OF_FRAM_F9       = 0xF9, //     Fujitsu MB85RC256V Device ID second address
+        I2C_ADDRESS_OF_CHRONODOT     = 0x68, //     DS3231 Extremely Accurate I2C-Integrated RTC/TCXO/Crystal by Maxim. NOT modifiable!
+        I2C_ADDRESS_OF_PORT_EXPANDER = 0x20  //     0x20 Lines: 0  0  0 [0x20:000]->[0x27:111] MCP23008
     } i2c_dev_address_internal_t; // i2c_dev_address_t
 #else
     #error TARGET NOT DEFINED
@@ -40,6 +42,11 @@ typedef interface i2c_internal_commands_if {
             const i2c_reg_address_t reg_addr,
             const unsigned char     data[],
             const unsigned          nbytes);
+
+    // Only those needed for setting and clearing pins as output (as in example toggle.mde)
+    bool mcp23008_begin_ok        (const i2c_dev_address_t dev_addr);
+    bool mcp23008_pinMode_ok      (const uint8_t iof_bit, mcp23008_direction_e direction);
+    bool mcp23008_digitalWrite_ok (const uint8_t iof_bit, mcp23008_value_e     value);
 
 } i2c_internal_commands_if;
 
