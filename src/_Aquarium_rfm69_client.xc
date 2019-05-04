@@ -1959,8 +1959,12 @@ void RFM69_client (
                     uint8_t port_pins = 0;
                     if ((seconds_cnt % 2) == 0) {
                         port_pins or_eq        MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK;
+                        port_pins or_eq        MY_MCP23008_OUT_RED_LED_OFF_MASK;
+                        port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK;
                     } else {
                         port_pins and_eq compl MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK;
+                        port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK;
+                        port_pins or_eq        MY_MCP23008_OUT_GREEN_LED_OFF_MASK;
                     }
                     unsigned seconds_cnt_128 = seconds_cnt bitand (128-1);
                     if (seconds_cnt_128 < 64) {
