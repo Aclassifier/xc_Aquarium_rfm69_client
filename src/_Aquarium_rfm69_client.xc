@@ -217,10 +217,10 @@ typedef enum display_screen_name_t {
     SCREEN_WATT_ETC,                                    //  4 display_screen_name_str "5 "
     SCREEN_LIGHT,                                       //  5 display_screen_name_str "6 "
     SCREEN_TX_SEQ_CNT,                                  //  6 display_screen_name_str "7 "
-    SCREEN_AQUARIUM_BOX_INTERNALS,                          //  7 display_screen_name_str "8 "
+    SCREEN_AQUARIUM_BOX_INTERNALS,                      //  7 display_screen_name_str "8 "
     SCREEN_AQUARIUM_ERROR_BITS,                         //  8 display_screen_name_str "9 "
     SCREEN_WELCOME,                                     //  9 display_screen_name_str "10"
-    SCREEN_HJELP,                                       // 10 display_screen_name_str "11"
+    SCREEN_HELP,                                        // 10 display_screen_name_str "11"
     SCREEN_RX_DISPLAY_OVERSIKT,                         // 11 display_screen_name_str "12"
     SCREEN_RADIO_DEBUG_TRANS,                           // 12 display_screen_name_str "13"
     #if (GET_RADIO_DEBUG_REGS==1)
@@ -756,7 +756,7 @@ bool // i2c_ok
                 display_print (display_context.display_ts1_chars, display_context.sprintf_numchars); // num chars not including NUL
             } break;
 
-            case SCREEN_HJELP: {
+            case SCREEN_HELP: {
                 #if (IS_MYTARGET_SLAVE == 1)
                     // ..........----------.
                     // 11 H: AVSTILL P/10S   Høyre knapp:   Avstill feil-blinking (puls) eller nullstill statistikkdata (10 sekunder) eller neste verdi
@@ -1640,6 +1640,12 @@ void RFM69_client (
     divTime_t             divTime;
     unsigned              seconds_since_last_call = 0;
 
+    bool                   relay_button_pressed = false;
+    bool                   relay_button_pressed_prev = false;
+    relay_button_ustate_t  relay_button_ustate;
+
+    relay_button_ustate.u.state = RELAYBUTT_0;
+
     debug_print_context.debug_print_rx_2_done = false;
 
     RXTX_context.interruptCnt         = 0;
@@ -1777,14 +1783,17 @@ void RFM69_client (
 
     {
         bool i2c_ok = false;
-        const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_IODIR, MCP23008_IODIR_ALL_PINS_DIR_OUTPUT};
-        i2c_ok = i_i2c_internal_commands.write (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
+        const uint8_t iodir = MCP23008_IODIR_ALL_PINS_DIR_OUTPUT bitor MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK;
+        // bitor above since MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK has bit high as MCP23008_PIN_DIR_INPUT
+
+        const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_IODIR, iodir};
+        i2c_ok = i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
         debug_print ("23008.1 %u\n",i2c_ok);
     }
     {
         bool i2c_ok = false;
         const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, 0x00};
-        i2c_ok = i_i2c_internal_commands.write (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
+        i2c_ok = i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
         debug_print ("23008.2 %u\n",i2c_ok);
     }
 
@@ -1955,17 +1964,47 @@ void RFM69_client (
                 seconds_cnt++;
 
                 {
+                    {
+                        uint8_t the_register;
+                        bool i2c_ok;
+
+                        i2c_ok = i_i2c_internal_commands.read_reg_ok (I2C_ADDRESS_OF_PORT_EXPANDER, MCP23008_GPIO, the_register);
+                        relay_button_pressed_prev = relay_button_pressed;
+                        relay_button_pressed      = ((the_register bitand MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK) == 0);
+
+                        debug_print ("23008.4 %u=%02X %s\n", i2c_ok, the_register, relay_button_pressed ? "PRESSED_LOW" : "HIGH");
+
+                        if ((relay_button_pressed != relay_button_pressed_prev) and relay_button_pressed) { // Next state
+                            relay_button_ustate.u.cnt++;
+                            if (relay_button_ustate.u.state == RELAYBUTT_ROOF) relay_button_ustate.u.state = RELAYBUTT_0;
+                        } else {}
+                    }
+
                     bool i2c_ok = false;
                     uint8_t port_pins = 0;
+
+                    if (relay_button_ustate.u.state == RELAYBUTT_0) { // SWAP LEDS
+                        if ((seconds_cnt % 2) == 0) {
+                            port_pins or_eq        MY_MCP23008_OUT_RED_LED_OFF_MASK;
+                            port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK;
+                        } else {
+                            port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK;
+                            port_pins or_eq        MY_MCP23008_OUT_GREEN_LED_OFF_MASK;
+                        }
+                    } else if (relay_button_ustate.u.state == RELAYBUTT_1) { // BOTH LEDS ON
+                        port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK;
+                        port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK;
+                    } else if (relay_button_ustate.u.state == RELAYBUTT_2) { // BOTH LEDS OFF
+                        port_pins or_eq MY_MCP23008_OUT_GREEN_LED_OFF_MASK;
+                        port_pins or_eq MY_MCP23008_OUT_RED_LED_OFF_MASK;
+                    } else {}
+
                     if ((seconds_cnt % 2) == 0) {
                         port_pins or_eq        MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK;
-                        port_pins or_eq        MY_MCP23008_OUT_RED_LED_OFF_MASK;
-                        port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK;
                     } else {
                         port_pins and_eq compl MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK;
-                        port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK;
-                        port_pins or_eq        MY_MCP23008_OUT_GREEN_LED_OFF_MASK;
                     }
+
                     unsigned seconds_cnt_128 = seconds_cnt bitand (128-1);
                     if (seconds_cnt_128 < 64) {
                         port_pins or_eq        MY_MCP23008_OUT_RELAY1_ON_MASK;
@@ -1976,7 +2015,7 @@ void RFM69_client (
                     }
 
                     unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, port_pins};
-                    i2c_ok = i_i2c_internal_commands.write (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
+                    i2c_ok = i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
                     debug_print ("23008.3 %u\n",i2c_ok);
                 }
 
@@ -2120,13 +2159,19 @@ void RFM69_client (
                                                 Display_screen (display_context, RX_context, TX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                                 display_context.debug_r_button = false;
                                             } else {
-                                                display_context.display_screen_name == SCREEN_HJELP;
+                                                display_context.display_screen_name == SCREEN_HELP;
                                                 Display_screen (display_context, RX_context, TX_context, RXTX_context, USE_PREV, i_i2c_internal_commands);
                                             }
                                         #endif
                                     } else
                                 #endif
-                                    if (display_context.display_screen_name == SCREEN_RX_DISPLAY_OVERSIKT) {
+
+                                if (RX_context.is_watchdog_blinking) { // RFM69=012, priority above SCREEN_RX_DISPLAY_OVERSIKT
+                                    #if (IS_MYTARGET_SLAVE == 1)
+                                        display_context.display_screen_name = SCREEN_WELCOME;
+                                        Display_screen (display_context, RX_context, null, RXTX_context, USE_PREV, i_i2c_internal_commands);
+                                    #endif
+                                } else if (display_context.display_screen_name == SCREEN_RX_DISPLAY_OVERSIKT) {
                                     #if (IS_MYTARGET_SLAVE == 1)
                                         debug_print ("\nRADIO RX WAS %s ",
                                                 (display_context.senderid_displayed_now == MASTER_ID_BLACK_BOARD) ? "KORT" : "AKVA");

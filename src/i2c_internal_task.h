@@ -43,10 +43,15 @@ typedef interface i2c_internal_commands_if {
             const unsigned char     data[],
             const unsigned          nbytes);
 
-    bool write (
+    bool write_ok (
             const i2c_dev_address_t dev_addr,
             const unsigned char     reg_data[],    // reg_addr followed by data
             const static unsigned   len_reg_data); // must include space for LEN_I2C_REG
+
+    bool read_reg_ok (
+            const i2c_dev_address_t dev_addr,
+            const unsigned char     reg_addr,
+                  uint8_t           &the_register);
 
 } i2c_internal_commands_if;
 

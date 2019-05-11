@@ -38,7 +38,7 @@
 [[combinable]]
 void I2C_Internal_Task (
         server i2c_internal_commands_if i_i2c_internal_commands[I2C_INTERNAL_NUM_CLIENTS],
-        client  i2c_master_if           i_i2c) { // synchronous
+        client i2c_master_if            i_i2c) { // synchronous
 
     #ifdef DEBUG_PRINT_DISPLAY
         unsigned long int num_chars = 0;
@@ -121,7 +121,7 @@ void I2C_Internal_Task (
                 ok = (i2c_result == I2C_OK); // 1 = (1==1), all OK when 1
             } break;
 
-            case i_i2c_internal_commands[int index_of_client].write (
+            case i_i2c_internal_commands[int index_of_client].write_ok (
                     const i2c_dev_address_t dev_addr,
                     const unsigned char     reg_data[], // reg_addr followed by data
                     const static unsigned   len_reg_data
@@ -146,6 +146,19 @@ void I2C_Internal_Task (
                     // ==I2C_ACK
                     ok = true;
                 }
+            } break;
+
+            case i_i2c_internal_commands[int index_of_client].read_reg_ok (
+                    const i2c_dev_address_t dev_addr,
+                    const unsigned char     reg_addr,
+                          uint8_t           &the_register
+                ) -> bool ok: {
+
+                // lib_i2c:
+                i2c_regop_res_t result;
+                the_register = i_i2c.read_reg (dev_addr, reg_addr, result); // First par is not i_i2c since "extends"
+                ok = (result == I2C_REGOP_SUCCESS);
+
             } break;
         }
     }
