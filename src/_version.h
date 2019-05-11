@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.84"
-#define RFM69_CLIENT_VERSION_NUM    0884
+#define RFM69_CLIENT_VERSION_STR "0.8.85"
+#define RFM69_CLIENT_VERSION_NUM    0885
+// 0885     11May2019           relay_button_state_e expanded with more states for buttons on WATCHDOG_RELAY_BOX
 // 0884     11May2019 RFM69=012 If 10 seconds timout timed out and cleared with right button then enter SCREEN_WELCOME
 // 0883     11May2019           Button on WATCHDOG_RELAY_BOX handled
 // 0882     04May2019           WATCHDOG_RELAY_BOX: Blinking with mcp23008 red and green LEDS every second
