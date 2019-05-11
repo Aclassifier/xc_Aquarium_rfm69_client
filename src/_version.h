@@ -13,8 +13,9 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.85"
-#define RFM69_CLIENT_VERSION_NUM    0885
+#define RFM69_CLIENT_VERSION_STR "0.8.86"
+#define RFM69_CLIENT_VERSION_NUM    0886
+// 0886     11May2019           relay_button_state_e different sequence
 // 0885     11May2019           relay_button_state_e expanded with more states for buttons on WATCHDOG_RELAY_BOX
 // 0884     11May2019 RFM69=012 If 10 seconds timout timed out and cleared with right button then enter SCREEN_WELCOME
 // 0883     11May2019           Button on WATCHDOG_RELAY_BOX handled

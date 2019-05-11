@@ -1985,7 +1985,34 @@ void RFM69_client (
 
                     switch (relay_button_ustate.u.state) {
                         case RELAYBUTT_0: {
-                            // SWAP LEDS:
+                            // BLINK GREEN LED:
+                            if ((seconds_cnt % 2) == 0) {
+                                port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
+                            } break;
+                             // BOTH RELAYS OFF:no code
+                        } break;
+                        case RELAYBUTT_1: {
+                            // GREEN LED ON:
+                            port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
+                            // RELAY1 ON:
+                            port_pins or_eq MY_MCP23008_OUT_RELAY1_ON_MASK; // RELAY1 ON
+                        } break;
+                        case RELAYBUTT_2: {
+                            // RED LED ON:
+                            port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK; // RED LED ON
+                            // RELAY2 ON:
+                            port_pins or_eq MY_MCP23008_OUT_RELAY2_ON_MASK; // RELAY2 ON
+                        } break;
+                        case RELAYBUTT_3: {
+                            // BOTH LEDS ON:
+                            port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
+                            port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK;   // RED   LED ON
+                            // BOTH RELAYS ON:
+                            port_pins or_eq MY_MCP23008_OUT_RELAY1_ON_MASK; // RELAY1 ON
+                            port_pins or_eq MY_MCP23008_OUT_RELAY2_ON_MASK; // RELAY2 ON
+                        } break;
+                        case RELAYBUTT_4: {
+                            // SWAP AND BLINK LEDS:
                             if ((seconds_cnt % 2) == 0) {
                                 port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
                             } else {
@@ -1999,30 +2026,7 @@ void RFM69_client (
                                 port_pins or_eq MY_MCP23008_OUT_RELAY2_ON_MASK; // RELAY2 ON
                             }
                         } break;
-                        case RELAYBUTT_1: {
-                            // BOTH LEDS ON:
-                            port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
-                            port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK;   // RED   LED ON
-                            // BOTH RELAYS ON:
-                            port_pins or_eq MY_MCP23008_OUT_RELAY1_ON_MASK; // RELAY1 ON
-                            port_pins or_eq MY_MCP23008_OUT_RELAY2_ON_MASK; // RELAY2 ON
-                        } break;
-                        case RELAYBUTT_2: {
-                            // BOTH LEDS OFF:   no code
-                            // BOTH RELAYS OFF: no code
-                        } break;
-                        case RELAYBUTT_3: {
-                            // GREEN LED ON:
-                            port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
-                            // RELAY2 ON:
-                            port_pins or_eq MY_MCP23008_OUT_RELAY1_ON_MASK; // RELAY1 ON
-                        } break;
-                        case RELAYBUTT_4: {
-                            // RED LED ON:
-                            port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK; // RED   LED ON
-                            // RELAY2 ON:
-                            port_pins or_eq MY_MCP23008_OUT_RELAY2_ON_MASK; // RELAY2 ON
-                        } break;
+                        default: {} break; // Should not happen
                     }
 
                     if ((seconds_cnt % 2) == 0) {
