@@ -83,7 +83,7 @@ typedef char now_regulating_at_char_t [REGULATING_AT_NUMS][REGULATING_AT_STRINGS
 #define MY_MCP23008_OUT_RED_LED_OFF_BIT             1 // ON=0 OFF=1
 #define MY_MCP23008_OUT_GREEN_LED_OFF_BIT           0 // ON=0 OFF=1
 //                                                                #
-#define MY_MCP23008_ALL_OFF                      0x03 //          # 0.0...11
+#define MY_MCP23008_ALL_OFF                      0x03 //          # 0.0...11 as 00000011
 
 #define MY_MCP23008_OUT_RELAY2_ON_MASK               (1<<MY_MCP23008_OUT_RELAY2_ON_BIT)
 #define MY_MCP23008_OUT_RELAY1_ON_MASK               (1<<MY_MCP23008_OUT_RELAY1_ON_BIT)

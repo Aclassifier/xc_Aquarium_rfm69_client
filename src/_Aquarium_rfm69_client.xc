@@ -1980,7 +1980,6 @@ void RFM69_client (
                         } else {}
                     }
 
-                    bool i2c_ok = false;
                     uint8_t port_pins = MY_MCP23008_ALL_OFF; // So we need to build all ACTIVE ON bits anew:
 
                     switch (relay_button_ustate.u.state) {
@@ -1988,8 +1987,8 @@ void RFM69_client (
                             // BLINK GREEN LED:
                             if ((seconds_cnt % 2) == 0) {
                                 port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
-                            } break;
-                             // BOTH RELAYS OFF:no code
+                            } else {}; // GREEN LED OFF: no code (done)
+                             // BOTH RELAYS OFF: no code (done)
                         } break;
                         case RELAYBUTT_1: {
                             // GREEN LED ON:
@@ -2020,7 +2019,7 @@ void RFM69_client (
                             }
                             // SWAP RELAYS:
                             unsigned seconds_cnt_128 = seconds_cnt bitand (128-1);
-                            if (seconds_cnt_128 < 64) { // RELAY1 ON
+                            if (seconds_cnt_128 < 64) {
                                 port_pins or_eq MY_MCP23008_OUT_RELAY1_ON_MASK; // RELAY1 ON
                             } else {
                                 port_pins or_eq MY_MCP23008_OUT_RELAY2_ON_MASK; // RELAY2 ON
@@ -2030,12 +2029,12 @@ void RFM69_client (
                     }
 
                     if ((seconds_cnt % 2) == 0) {
-                        port_pins or_eq        MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK; // TO HIGH: resets watchdog
-                    } else {
-                        port_pins and_eq compl MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK; // TO LOW
-                    }
+                        port_pins or_eq MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK; // TO HIGH: resets watchdog
+                    } else {} // TO LOW: no code (done)
 
                     unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, port_pins};
+                    bool i2c_ok = false;
+
                     i2c_ok = i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
                     debug_print ("23008.3 %u\n",i2c_ok);
                 }
