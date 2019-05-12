@@ -1622,6 +1622,54 @@ void reset_values (
     RXTX_context.error_bits_history = 0;
 }
 
+void mcp23008_init (
+          client   i2c_internal_commands_if i_i2c_internal_commands,
+          unsigned                          &mcp23008_err_cnt)
+{
+
+    const uint8_t iodir = MCP23008_IODIR_ALL_PINS_DIR_OUTPUT bitor MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK;
+    // bitor above since MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK has bit high as MCP23008_PIN_DIR_INPUT
+    const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_IODIR, iodir};
+
+    mcp23008_err_cnt = 0; // Counting from init
+
+    if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
+        mcp23008_err_cnt++;
+    } else {
+        const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, MY_MCP23008_ALL_OFF};
+
+        if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
+            mcp23008_err_cnt++;
+        }
+    }
+}
+
+bool // relay_button_pressed
+mcp23008_poll_button (
+        client   i2c_internal_commands_if i_i2c_internal_commands,
+        unsigned                          &mcp23008_err_cnt,
+        const bool                        relay_button_pressed_prev,
+        relay_button_ustate_t             &relay_button_ustate)
+{
+    uint8_t the_register;
+    bool    relay_button_pressed;
+
+    if  (not i_i2c_internal_commands.read_reg_ok (I2C_ADDRESS_OF_PORT_EXPANDER, MCP23008_GPIO, the_register)) {
+        mcp23008_err_cnt++;
+        relay_button_pressed = false;
+    } else {
+        relay_button_pressed = ((the_register bitand MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK) == 0);
+        if ((relay_button_pressed != relay_button_pressed_prev) and relay_button_pressed) { // Next state
+            relay_button_ustate.u.cnt++;
+            if (relay_button_ustate.u.state == RELAYBUTT_ROOF) {
+                relay_button_ustate.u.state = RELAYBUTT_0;
+            } else {}
+        } else {}
+
+    }
+    return relay_button_pressed;
+}
+
 void RFM69_client (
                   chanend                  c_irq_update,
           client  radio_if_t               i_radio,
@@ -1641,9 +1689,8 @@ void RFM69_client (
     divTime_t             divTime;
     unsigned              seconds_since_last_call = 0;
 
-    bool                   relay_button_pressed = false;
-    bool                   relay_button_pressed_prev = false;
-    relay_button_ustate_t  relay_button_ustate;
+    bool                  relay_button_pressed = false;
+    relay_button_ustate_t relay_button_ustate;
 
     relay_button_ustate.u.state = RELAYBUTT_0;
 
@@ -1782,23 +1829,9 @@ void RFM69_client (
         display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc = true;
     }
 
-    {
-        const uint8_t iodir = MCP23008_IODIR_ALL_PINS_DIR_OUTPUT bitor MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK;
-        // bitor above since MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK has bit high as MCP23008_PIN_DIR_INPUT
-        const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_IODIR, iodir};
+    mcp23008_init (i_i2c_internal_commands, RXTX_context.mcp23008_err_cnt);
 
-        RXTX_context.mcp23008_err_cnt = 0;
-        if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
-            RXTX_context.mcp23008_err_cnt++;
-        } else {
-            const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, MY_MCP23008_ALL_OFF};
-
-            if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
-                RXTX_context.mcp23008_err_cnt++;
-            }
-        }
-        debug_print ("23008.1 %u\n",RXTX_context.mcp23008_err_cnt);
-    }
+    debug_print ("23008.1 %u\n",RXTX_context.mcp23008_err_cnt);
 
     // Radio matters
 
@@ -1967,46 +2000,18 @@ void RFM69_client (
                 seconds_cnt++;
 
                 {
-                    if (RXTX_context.mcp23008_err_cnt != 0) {
+                    if (RXTX_context.mcp23008_err_cnt != 0) { // Init MPC23008 again
 
                         debug_print ("23008.X %u\n",RXTX_context.mcp23008_err_cnt);
 
-                        const uint8_t iodir = MCP23008_IODIR_ALL_PINS_DIR_OUTPUT bitor MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK;
-                        // bitor above since MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK has bit high as MCP23008_PIN_DIR_INPUT
-                        const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_IODIR, iodir};
+                        mcp23008_init (i_i2c_internal_commands, RXTX_context.mcp23008_err_cnt);
 
-                        RXTX_context.mcp23008_err_cnt = 0;
-                        if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
-                            RXTX_context.mcp23008_err_cnt++;
-                        } else {
-                            const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, MY_MCP23008_ALL_OFF};
-
-                            if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
-                                RXTX_context.mcp23008_err_cnt++;
-                            }
-                        }
                         debug_print ("23008.2 %u\n",RXTX_context.mcp23008_err_cnt);
                     } else {}
 
-                    {
-                        uint8_t the_register;
+                    relay_button_pressed = mcp23008_poll_button (i_i2c_internal_commands, RXTX_context.mcp23008_err_cnt, relay_button_pressed, relay_button_ustate);
 
-                        if  (not i_i2c_internal_commands.read_reg_ok (I2C_ADDRESS_OF_PORT_EXPANDER, MCP23008_GPIO, the_register)) {
-                            RXTX_context.mcp23008_err_cnt++;
-                            relay_button_pressed_prev = false;
-                            relay_button_pressed      = false;
-                        } else {
-                            relay_button_pressed_prev = relay_button_pressed;
-                            relay_button_pressed = ((the_register bitand MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK) == 0);
-                            if ((relay_button_pressed != relay_button_pressed_prev) and relay_button_pressed) { // Next state
-                                relay_button_ustate.u.cnt++;
-                                if (relay_button_ustate.u.state == RELAYBUTT_ROOF) {
-                                    relay_button_ustate.u.state = RELAYBUTT_0;
-                                } else {}
-                            } else {}
-                            debug_print ("23008.3 %u=%02X %s\n", RXTX_context.mcp23008_err_cnt, the_register, relay_button_pressed ? "PRESSED_LOW" : "HIGH");
-                        }
-                    }
+                    debug_print ("23008.3 %u %s\n", RXTX_context.mcp23008_err_cnt, relay_button_pressed ? "PRESSED_LOW" : "HIGH");
 
                     if (RXTX_context.mcp23008_err_cnt == 0) {
 
