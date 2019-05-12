@@ -164,6 +164,7 @@ typedef struct {
         return_trans3_t    return_trans3;
         unsigned           radio_log_value;
     #endif
+    unsigned               mcp23008_err_cnt;
 } RXTX_context_t;
 
 typedef struct {
@@ -1782,19 +1783,21 @@ void RFM69_client (
     }
 
     {
-        bool i2c_ok = false;
         const uint8_t iodir = MCP23008_IODIR_ALL_PINS_DIR_OUTPUT bitor MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK;
         // bitor above since MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK has bit high as MCP23008_PIN_DIR_INPUT
-
         const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_IODIR, iodir};
-        i2c_ok = i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
-        debug_print ("23008.1 %u\n",i2c_ok);
-    }
-    {
-        bool i2c_ok = false;
-        const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, MY_MCP23008_ALL_OFF};
-        i2c_ok = i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
-        debug_print ("23008.2 %u\n",i2c_ok);
+
+        RXTX_context.mcp23008_err_cnt = 0;
+        if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
+            RXTX_context.mcp23008_err_cnt++;
+        } else {
+            const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, MY_MCP23008_ALL_OFF};
+
+            if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
+                RXTX_context.mcp23008_err_cnt++;
+            }
+        }
+        debug_print ("23008.1 %u\n",RXTX_context.mcp23008_err_cnt);
     }
 
     // Radio matters
@@ -1964,79 +1967,108 @@ void RFM69_client (
                 seconds_cnt++;
 
                 {
+                    if (RXTX_context.mcp23008_err_cnt != 0) {
+
+                        debug_print ("23008.X %u\n",RXTX_context.mcp23008_err_cnt);
+
+                        const uint8_t iodir = MCP23008_IODIR_ALL_PINS_DIR_OUTPUT bitor MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK;
+                        // bitor above since MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK has bit high as MCP23008_PIN_DIR_INPUT
+                        const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_IODIR, iodir};
+
+                        RXTX_context.mcp23008_err_cnt = 0;
+                        if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
+                            RXTX_context.mcp23008_err_cnt++;
+                        } else {
+                            const unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, MY_MCP23008_ALL_OFF};
+
+                            if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
+                                RXTX_context.mcp23008_err_cnt++;
+                            }
+                        }
+                        debug_print ("23008.2 %u\n",RXTX_context.mcp23008_err_cnt);
+                    } else {}
+
                     {
                         uint8_t the_register;
-                        bool i2c_ok;
 
-                        i2c_ok = i_i2c_internal_commands.read_reg_ok (I2C_ADDRESS_OF_PORT_EXPANDER, MCP23008_GPIO, the_register);
-                        relay_button_pressed_prev = relay_button_pressed;
-                        relay_button_pressed      = ((the_register bitand MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK) == 0);
-
-                        debug_print ("23008.4 %u=%02X %s\n", i2c_ok, the_register, relay_button_pressed ? "PRESSED_LOW" : "HIGH");
-
-                        if ((relay_button_pressed != relay_button_pressed_prev) and relay_button_pressed) { // Next state
-                            relay_button_ustate.u.cnt++;
-                            if (relay_button_ustate.u.state == RELAYBUTT_ROOF) relay_button_ustate.u.state = RELAYBUTT_0;
-                        } else {}
+                        if  (not i_i2c_internal_commands.read_reg_ok (I2C_ADDRESS_OF_PORT_EXPANDER, MCP23008_GPIO, the_register)) {
+                            RXTX_context.mcp23008_err_cnt++;
+                            relay_button_pressed_prev = false;
+                            relay_button_pressed      = false;
+                        } else {
+                            relay_button_pressed_prev = relay_button_pressed;
+                            relay_button_pressed = ((the_register bitand MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK) == 0);
+                            if ((relay_button_pressed != relay_button_pressed_prev) and relay_button_pressed) { // Next state
+                                relay_button_ustate.u.cnt++;
+                                if (relay_button_ustate.u.state == RELAYBUTT_ROOF) {
+                                    relay_button_ustate.u.state = RELAYBUTT_0;
+                                } else {}
+                            } else {}
+                            debug_print ("23008.3 %u=%02X %s\n", RXTX_context.mcp23008_err_cnt, the_register, relay_button_pressed ? "PRESSED_LOW" : "HIGH");
+                        }
                     }
 
-                    uint8_t port_pins = MY_MCP23008_ALL_OFF; // So we need to build all ACTIVE ON bits anew:
+                    if (RXTX_context.mcp23008_err_cnt == 0) {
 
-                    switch (relay_button_ustate.u.state) {
-                        case RELAYBUTT_0: {
-                            // BLINK GREEN LED:
-                            if ((seconds_cnt % 2) == 0) {
+                        uint8_t port_pins = MY_MCP23008_ALL_OFF; // So we need to build all ACTIVE ON bits anew:
+
+                        switch (relay_button_ustate.u.state) {
+                            case RELAYBUTT_0: {
+                                // BLINK GREEN LED:
+                                if ((seconds_cnt % 2) == 0) {
+                                    port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
+                                } else {}; // GREEN LED OFF: no code (done)
+                                 // BOTH RELAYS OFF: no code (done)
+                            } break;
+                            case RELAYBUTT_1: {
+                                // GREEN LED ON:
                                 port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
-                            } else {}; // GREEN LED OFF: no code (done)
-                             // BOTH RELAYS OFF: no code (done)
-                        } break;
-                        case RELAYBUTT_1: {
-                            // GREEN LED ON:
-                            port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
-                            // RELAY1 ON:
-                            port_pins or_eq MY_MCP23008_OUT_RELAY1_ON_MASK; // RELAY1 ON
-                        } break;
-                        case RELAYBUTT_2: {
-                            // RED LED ON:
-                            port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK; // RED LED ON
-                            // RELAY2 ON:
-                            port_pins or_eq MY_MCP23008_OUT_RELAY2_ON_MASK; // RELAY2 ON
-                        } break;
-                        case RELAYBUTT_3: {
-                            // BOTH LEDS ON:
-                            port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
-                            port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK;   // RED   LED ON
-                            // BOTH RELAYS ON:
-                            port_pins or_eq MY_MCP23008_OUT_RELAY1_ON_MASK; // RELAY1 ON
-                            port_pins or_eq MY_MCP23008_OUT_RELAY2_ON_MASK; // RELAY2 ON
-                        } break;
-                        case RELAYBUTT_4: {
-                            // SWAP AND BLINK LEDS:
-                            if ((seconds_cnt % 2) == 0) {
-                                port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
-                            } else {
-                                port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK;   // RED   LED ON
-                            }
-                            // SWAP RELAYS:
-                            unsigned seconds_cnt_128 = seconds_cnt bitand (128-1);
-                            if (seconds_cnt_128 < 64) {
+                                // RELAY1 ON:
                                 port_pins or_eq MY_MCP23008_OUT_RELAY1_ON_MASK; // RELAY1 ON
-                            } else {
+                            } break;
+                            case RELAYBUTT_2: {
+                                // RED LED ON:
+                                port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK; // RED LED ON
+                                // RELAY2 ON:
                                 port_pins or_eq MY_MCP23008_OUT_RELAY2_ON_MASK; // RELAY2 ON
-                            }
-                        } break;
-                        default: {} break; // Should not happen
-                    }
+                            } break;
+                            case RELAYBUTT_3: {
+                                // BOTH LEDS ON:
+                                port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
+                                port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK;   // RED   LED ON
+                                // BOTH RELAYS ON:
+                                port_pins or_eq MY_MCP23008_OUT_RELAY1_ON_MASK; // RELAY1 ON
+                                port_pins or_eq MY_MCP23008_OUT_RELAY2_ON_MASK; // RELAY2 ON
+                            } break;
+                            case RELAYBUTT_4: {
+                                // SWAP AND BLINK LEDS:
+                                if ((seconds_cnt % 2) == 0) {
+                                    port_pins and_eq compl MY_MCP23008_OUT_GREEN_LED_OFF_MASK; // GREEN LED ON
+                                } else {
+                                    port_pins and_eq compl MY_MCP23008_OUT_RED_LED_OFF_MASK;   // RED   LED ON
+                                }
+                                // SWAP RELAYS:
+                                unsigned seconds_cnt_128 = seconds_cnt bitand (128-1);
+                                if (seconds_cnt_128 < 64) {
+                                    port_pins or_eq MY_MCP23008_OUT_RELAY1_ON_MASK; // RELAY1 ON
+                                } else {
+                                    port_pins or_eq MY_MCP23008_OUT_RELAY2_ON_MASK; // RELAY2 ON
+                                }
+                            } break;
+                            default: {} break; // Should not happen
+                        }
 
-                    if ((seconds_cnt % 2) == 0) {
-                        port_pins or_eq MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK; // TO HIGH: resets watchdog
-                    } else {} // TO LOW: no code (done)
+                        if ((seconds_cnt % 2) == 0) {
+                            port_pins or_eq MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK; // TO HIGH: resets watchdog
+                        } else {} // TO LOW: no code (done)
 
-                    unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, port_pins};
-                    bool i2c_ok = false;
+                        unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, port_pins};
 
-                    i2c_ok = i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data);
-                    debug_print ("23008.3 %u\n",i2c_ok);
+                        if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
+                            RXTX_context.mcp23008_err_cnt++;
+                        }
+                        debug_print ("23008.4 %u\n", RXTX_context.mcp23008_err_cnt);
+                    } else {}
                 }
 
                 #if (IS_MYTARGET_SLAVE == 1)
