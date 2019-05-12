@@ -73,41 +73,6 @@ typedef char now_regulating_at_char_t [REGULATING_AT_NUMS][REGULATING_AT_STRINGS
 // ? HEAT_CABLE_ERROR
 #define NOW_REGULATING_AT_CHAR_TEXTS {"#", "2", "1", "=", "H", "-", "0", "?"}
 
-//                                                                #
-#define MY_MCP23008_OUT_RELAY2_ON_BIT               7 // ON=1 OFF=0
-//                                                  6 //    .     . not used
-#define MY_MCP23008_OUT_RELAY1_ON_BIT               5 // ON=1 OFF=0
-//                                                  4 //    .     . not used
-#define MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_BIT 3 //    .     . low-to-high on pin resets watchdog
-#define MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_BIT     2 //    .     . input, low when buttton pressed
-#define MY_MCP23008_OUT_RED_LED_OFF_BIT             1 // ON=0 OFF=1
-#define MY_MCP23008_OUT_GREEN_LED_OFF_BIT           0 // ON=0 OFF=1
-//                                                                #
-#define MY_MCP23008_ALL_OFF                      0x03 //          # 0.0...11 as 00000011
-
-#define MY_MCP23008_OUT_RELAY2_ON_MASK               (1<<MY_MCP23008_OUT_RELAY2_ON_BIT)
-#define MY_MCP23008_OUT_RELAY1_ON_MASK               (1<<MY_MCP23008_OUT_RELAY1_ON_BIT)
-#define MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_MASK (1<<MY_MCP23008_OUT_WATCHDOG_LOWTOHIGH_EDGE_BIT)
-#define MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_MASK     (1<<MY_MPC23008_IN_BUTTON_PRESS_WHENLOW_BIT) // Bit high as MCP23008_PIN_DIR_INPUT
-#define MY_MCP23008_OUT_RED_LED_OFF_MASK             (1<<MY_MCP23008_OUT_RED_LED_OFF_BIT)
-#define MY_MCP23008_OUT_GREEN_LED_OFF_MASK           (1<<MY_MCP23008_OUT_GREEN_LED_OFF_BIT)
-
-typedef enum {
-    RELAYBUTT_0,
-    RELAYBUTT_1,
-    RELAYBUTT_2,
-    RELAYBUTT_3,
-    RELAYBUTT_4,
-    RELAYBUTT_ROOF // Not used
-} relay_button_state_e;
-
-typedef struct relay_button_ustate_t {
-    union {
-        relay_button_state_e state;
-        unsigned             cnt;
-    } u;
-} relay_button_ustate_t;
-
 #else
     #error Nested include TEXTS_AND_CONSTANTS_H_
 #endif

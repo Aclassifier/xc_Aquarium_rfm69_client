@@ -13,15 +13,16 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.88"
-#define RFM69_CLIENT_VERSION_NUM    0888
-// 0888     12May2019           Functions instead of inline: mcp23008_init and mcp23008_poll_button
-// 0887     12May2019           WATCHDOG_RELAY_BOX error handing and recovery
+#define RFM69_CLIENT_VERSION_STR "0.8.89"
+#define RFM69_CLIENT_VERSION_NUM    0889
+// 0889     12May2019           Even more functions
+// 0888     12May2019           Functions instead of inline: internal_i2c_mcp23008_init and internal_i2c_mcp23008_poll_button
+// 0887     12May2019           USB_WATCHDOG_RELAY_BOX error handing and recovery
 // 0886     11May2019           relay_button_state_e different sequence
-// 0885     11May2019           relay_button_state_e expanded with more states for buttons on WATCHDOG_RELAY_BOX
+// 0885     11May2019           relay_button_state_e expanded with more states for buttons on USB_WATCHDOG_RELAY_BOX
 // 0884     11May2019 RFM69=012 If 10 seconds timout timed out and cleared with right button then enter SCREEN_WELCOME
-// 0883     11May2019           Button on WATCHDOG_RELAY_BOX handled
-// 0882     04May2019           WATCHDOG_RELAY_BOX: Blinking with mcp23008 red and green LEDS every second
+// 0883     11May2019           Button on USB_WATCHDOG_RELAY_BOX handled
+// 0882     04May2019           USB_WATCHDOG_RELAY_BOX: Blinking with mcp23008 red and green LEDS every second
 // 0881     03May2019           mcp23008 works initial rudimentary test
 // 0880     03May2019           CLIENT_ALLOW_SESSION_TYPE_TRANS==1 removed, now only 0 and 2 allowed in lib_rfm69_xc
 //                              Some mcp23008 i2c chip code added (skeletons)
