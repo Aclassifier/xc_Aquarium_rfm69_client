@@ -14,6 +14,7 @@ void RFM69_client (
         client  blink_and_watchdog_if_t  i_beep_blink,
         server  button_if                i_button_in[BUTTONS_NUM_CLIENTS],
         client  i2c_internal_commands_if i_i2c_internal_commands,
+        client  i2c_general_commands_if  i_i2c_general_commands,
         out port                         p_display_notReset);
 
 #endif /* AQUARIUM_RFM69_CLIENT_H_ */

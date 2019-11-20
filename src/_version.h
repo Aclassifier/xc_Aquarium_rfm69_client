@@ -13,16 +13,24 @@
 //
 #define XTIMECOMPOSER_VERSION_STR "14.3.3"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.89"
-#define RFM69_CLIENT_VERSION_NUM    0889
+#define RFM69_CLIENT_VERSION_STR "0.8.92"
+#define RFM69_CLIENT_VERSION_NUM    0892
+// 0892     20Nov2019           No code change, just testing a green Exibel USB cable (Ok her, but not with IceCore)
+// 0891     12Sep2019           SCREEN_RX_DISPLAY_OVERSIKT and SCREEN_WELCOME now also have a ±
+// 0890     13May2019           i2c_internal_commands_if broken up into itself plus i2c_internal_commands_if
+//                              THIS COST ONE chanend:            ## -> so not interesting for
+//                              Constraints[0]: C:8/7 T:10/7 C:32/14 M:58844 S:5516 C:45940 D:7388
+//                              Constraints[1]: C:8/1 T:10/1 C:32/0  M:2952  S:348  C:2112  D:492
 // 0889     12May2019           Even more functions
-// 0888     12May2019           Functions instead of inline: internal_i2c_mcp23008_init and internal_i2c_mcp23008_poll_button
-// 0887     12May2019           USB_WATCHDOG_RELAY_BOX error handing and recovery
+//                              Constraints[0]: C:8/7 T:10/7 C:32/13 M:58532 S:5500 C:45652 D:7380
+//                              Constraints[1]: C:8/1 T:10/1 C:32/0  M:2952  S:348  C:2112  D:492
+// 0888     12May2019           Functions instead of inline: i2c_internal_mcp23008_init and i2c_internal_mcp23008_poll_button
+// 0887     12May2019           USB_WATCHDOG_AND_RELAY_BOX error handing and recovery
 // 0886     11May2019           relay_button_state_e different sequence
-// 0885     11May2019           relay_button_state_e expanded with more states for buttons on USB_WATCHDOG_RELAY_BOX
+// 0885     11May2019           relay_button_state_e expanded with more states for buttons on USB_WATCHDOG_AND_RELAY_BOX
 // 0884     11May2019 RFM69=012 If 10 seconds timout timed out and cleared with right button then enter SCREEN_WELCOME
-// 0883     11May2019           Button on USB_WATCHDOG_RELAY_BOX handled
-// 0882     04May2019           USB_WATCHDOG_RELAY_BOX: Blinking with mcp23008 red and green LEDS every second
+// 0883     11May2019           Button on USB_WATCHDOG_AND_RELAY_BOX handled
+// 0882     04May2019           USB_WATCHDOG_AND_RELAY_BOX: Blinking with mcp23008 red and green LEDS every second
 // 0881     03May2019           mcp23008 works initial rudimentary test
 // 0880     03May2019           CLIENT_ALLOW_SESSION_TYPE_TRANS==1 removed, now only 0 and 2 allowed in lib_rfm69_xc
 //                              Some mcp23008 i2c chip code added (skeletons)

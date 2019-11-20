@@ -22,7 +22,7 @@ typedef int light_sensor_range_t; // [0..99] = [00..INNER_MAX_LUX]
 #define TEMP_ONETENTHDEGC_XX_Y_TEST_FLASHED_INIT ( 0) // Like 25.0 DegC
 //efine TEMP_ONETENTHDEGC_XX_Y_TEST_FLASHED_INIT (-5) // Like 24.5 DegC Test init with this
 
-#if (FLASH_BLACK_BOARD==1) // SPECIAL
+#if (FLASH_BLACK_BOARD>=1) // SPECIAL
 
     #define TEMP_ONETENTHDEGC_40_0_MAX_OF_HEATER_FAST_HEATING 400                                                 // 40.0 degC Why not 45 or 50 or 54? Would probably not have been any problem.
                                                                                                                   //           But observe thermal Cut-off melting fuse NTE8081 at 84 degC that has a constant

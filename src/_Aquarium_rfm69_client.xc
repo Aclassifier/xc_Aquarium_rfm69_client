@@ -53,8 +53,8 @@
 
 #include "param.h"
 #include "defines_adafruit.h"
+#include "iochip_mcp23008.h"
 #include "i2c_internal_task.h"
-#include "ioexpanderchip_mcp23008.h"
 #include "display_ssd1306.h"
 #include "core_graphics_adafruit_gfx.h"
 #include "core_graphics_font5x8.h"
@@ -164,7 +164,7 @@ typedef struct {
         return_trans3_t    return_trans3;
         unsigned           radio_log_value;
     #endif
-    unsigned               mcp23008_err_cnt;
+    unsigned               iochip_err_cnt;
 } RXTX_context_t;
 
 typedef struct {
@@ -704,10 +704,11 @@ bool // i2c_ok
             } break;
 
             case SCREEN_WELCOME: {
+                const char char_takes_press_for_10_seconds_right_button_str[] = CHAR_PLUS_MINUS_STR; // ±
                 #if (IS_MYTARGET_SLAVE == 1)
 
                     // ..........----------.
-                    // 10 B:0.8.09 R:0.9.13
+                    // 10± B:0.8.09 R:0.9.13
                     // RX AKVA               eller "RX KORT"
                     // HVERT 4. SEKUND (*)
                     // MED TIMEOUT 10 SEK    eller "UTEN TIMEOUT" or "TIMET UT 10 SEK" or "TIMET UT" a short period
@@ -718,8 +719,9 @@ bool // i2c_ok
                     const bool is_aquarium = (display_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s B:%s R:%s\nRX %s\nHVERT %u. SEKUND (%s)\n%s %s %s",
+                            "%s%s B:%s R:%sRX %s\nHVERT %u. SEKUND (%s)\n%s %s %s", // Dropping \n at the end of the first line since it's already full
                             display_screen_name_str,
+                            char_takes_press_for_10_seconds_right_button_str,
                             RFM69_CLIENT_VERSION_STR,
                             RFM69_DRIVER_VERSION_STR,
                             (is_aquarium) ? "AKVA" : "KORT", // Displayed now
@@ -746,8 +748,9 @@ bool // i2c_ok
                     #endif
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s B:%s R:%s\nTX %u. SEK #%u\nTRANS  A-WRAP\n  %u      %u",
+                            "%s%s B:%s R:%sTX %u. SEK #%u\nTRANS  A-WRAP\n  %u      %u", // Dropping \n at the end of the first line since it's already full
                             display_screen_name_str,
+                            char_takes_press_for_10_seconds_right_button_str,
                             RFM69_CLIENT_VERSION_STR,
                             RFM69_DRIVER_VERSION_STR,
                             SEND_PACKET_ON_NO_CHANGE_TIMOEUT_SECONDS,
@@ -781,16 +784,18 @@ bool // i2c_ok
             case SCREEN_RX_DISPLAY_OVERSIKT: {
                 #if (IS_MYTARGET_SLAVE == 1)
                     // ..........----------.
-                    // 12 * DISPLAY: AKVA   12 * DISPLAY: KORT
+                    // 12± * DISPLAY: AKVA   12± * DISPLAY: KORT
                     // VISES ADR 98         VISES ADR 99
                     // IKKE  ADR 99→        IKKE  ADR 98→
                     //       #RX 1234             #RX 1234
 
                     const bool is_aquarium = (display_context.senderid_displayed_now == MASTER_ID_AQUARIUM); // Opposte is MASTER_ID_BLACK_BOARD
+                    const char char_takes_press_for_10_seconds_right_button_str[] = CHAR_PLUS_MINUS_STR;  // ±
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s DISPLAY: %s\nVISES ADR %u\nIKKE  ADR %u%s\n      #RX %u",
+                            "%s%s %s DISPLAY: %s\nVISES ADR %u\nIKKE  ADR %u%s\n      #RX %u",
                             display_screen_name_str,
+                            char_takes_press_for_10_seconds_right_button_str,
                             alive ? "*" : "+",
                             (is_aquarium) ? "AKVA" : "KORT", // Displayed now
                             display_context.senderid_displayed_now,
@@ -1622,11 +1627,11 @@ void reset_values (
     RXTX_context.error_bits_history = 0;
 }
 
-void internal_i2c_mcp23008_handle_button_and_watchdog_trigger (
-          client   i2c_internal_commands_if i_i2c_internal_commands,
-          unsigned                          &mcp23008_err_cnt,
-          relay_button_ustate_t             &relay_button_ustate,
-          const unsigned                    &seconds_cnt)
+void i2c_general_mcp23008_handle_button_and_watchdog_trigger (
+          client   i2c_general_commands_if i_i2c_general_commands,
+          unsigned                         &iochip_err_cnt,
+          relay_button_ustate_t            &relay_button_ustate,
+          const unsigned                   &seconds_cnt)
 {
     uint8_t port_pins = MY_MCP23008_ALL_OFF; // So we need to build all ACTIVE ON bits anew:
 
@@ -1682,8 +1687,8 @@ void internal_i2c_mcp23008_handle_button_and_watchdog_trigger (
 
     unsigned char reg_data [LEN_I2C_REG+1] = {MCP23008_GPIO, port_pins};
 
-    if (not i_i2c_internal_commands.write_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
-        mcp23008_err_cnt++;
+    if (not i_i2c_general_commands.write_reg_ok (I2C_ADDRESS_OF_PORT_EXPANDER, reg_data, sizeof reg_data)) {
+        iochip_err_cnt++;
     }
 }
 
@@ -1693,6 +1698,7 @@ void RFM69_client (
           client  blink_and_watchdog_if_t  i_blink_and_watchdog,
           server  button_if                i_button_in[BUTTONS_NUM_CLIENTS],
           client  i2c_internal_commands_if i_i2c_internal_commands,
+          client  i2c_general_commands_if  i_i2c_general_commands,
           out port                         p_display_notReset)
 {
     timer tmr;
@@ -1846,9 +1852,11 @@ void RFM69_client (
         display_context.allow_auto_switch_to_screen_rx_main_time_temp_etc = true;
     }
 
-    internal_i2c_mcp23008_init (i_i2c_internal_commands, RXTX_context.mcp23008_err_cnt);
+    i2c_general_mcp23008_init (
+            i_i2c_general_commands,
+            RXTX_context.iochip_err_cnt);
 
-    debug_print ("23008.1 %u\n",RXTX_context.mcp23008_err_cnt);
+    debug_print ("23008.1 %u\n",RXTX_context.iochip_err_cnt);
 
     // Radio matters
 
@@ -2018,16 +2026,26 @@ void RFM69_client (
 
                 // HANDLE MCP23008 BUTTON AND WATCHDOG TRIGGER
 
-                if (RXTX_context.mcp23008_err_cnt != 0) { // Init MPC23008 again
-                    internal_i2c_mcp23008_init (i_i2c_internal_commands, RXTX_context.mcp23008_err_cnt);
-                } else {}
+                if (RXTX_context.iochip_err_cnt != 0) { // Init MPC23008 again
+                    i2c_general_mcp23008_init (
+                            i_i2c_general_commands,
+                            RXTX_context.iochip_err_cnt); // ==0 is become present
+                } else {} // Unit present, go on:
 
-                if (RXTX_context.mcp23008_err_cnt == 0) {
-                    relay_button_pressed = internal_i2c_mcp23008_poll_button (i_i2c_internal_commands, RXTX_context.mcp23008_err_cnt, relay_button_pressed, relay_button_ustate);
-                    if (RXTX_context.mcp23008_err_cnt == 0) {
-                        internal_i2c_mcp23008_handle_button_and_watchdog_trigger (i_i2c_internal_commands, RXTX_context.mcp23008_err_cnt, relay_button_ustate, seconds_cnt);
+                if (RXTX_context.iochip_err_cnt == 0) { // Unit present or become present
+                    relay_button_pressed = i2c_general_mcp23008_poll_button (
+                            i_i2c_general_commands,
+                            RXTX_context.iochip_err_cnt,
+                            relay_button_pressed,
+                            relay_button_ustate);
+                    if (RXTX_context.iochip_err_cnt == 0) {
+                        i2c_general_mcp23008_handle_button_and_watchdog_trigger (
+                                i_i2c_general_commands,
+                                RXTX_context.iochip_err_cnt,
+                                relay_button_ustate,
+                                seconds_cnt);
                     } else {}
-                } else {} // RXTX_context.mcp23008_err_cnt has value, cable out or no USB_WATCHDOG_RELAY_BOX present
+                } else {} // RXTX_context.iochip_err_cnt has value, cable out or no USB_WATCHDOG_AND_RELAY_BOX present
 
                 // HANDLE "THE REST"
 

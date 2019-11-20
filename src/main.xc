@@ -25,6 +25,7 @@
 
 #include "param.h"
 #include "defines_adafruit.h"
+#include "iochip_mcp23008.h"
 #include "i2c_internal_task.h"
 #include "display_ssd1306.h"
 #include "core_graphics_adafruit_gfx.h"
@@ -219,8 +220,9 @@ int main() {
     spi_master_if            i_spi[SPI_NUM_CLIENTS];
     radio_if_t               i_radio;
     chan                     c_irq_update;
-    blink_and_watchdog_if_t  i_blink_and_watchdog[BEEP_BLINK_TASK_NUM_CLIENTS];
+    blink_and_watchdog_if_t  i_blink_and_watchdog    [BEEP_BLINK_TASK_NUM_CLIENTS];
     i2c_internal_commands_if i_i2c_internal_commands [I2C_INTERNAL_NUM_CLIENTS];
+    i2c_general_commands_if  i_i2c_general_commands  [I2C_GENERAL_NUM_CLIENTS];
     i2c_master_if            i_i2c[I2C_MASTER_NUM_CLIENTS];
 
     // Observe http://www.teigfam.net/oyvind/home/technology/098-my-xmos-notes/#xtag-3_debug_log_hanging!
@@ -231,7 +233,7 @@ int main() {
 
         on tile[0].core[0]: spi_master_2            (i_spi, SPI_NUM_CLIENTS, p_sclk, p_mosi, p_miso, SPI_CLOCK, p_spi_cs_en, maskof_spi_and_probe_pins, NUM_SPI_CS_SETS); // Is [[distributable]]
         on tile[0].core[1]: RFM69_driver            (i_radio, p_spi_aux, i_spi[SPI_CLIENT_0], SPI_CLIENT_0); // Is [[combinable]]
-        on tile[0]:         RFM69_client            (c_irq_update, i_radio, i_blink_and_watchdog[0], i_buttons, i_i2c_internal_commands[0], p_display_notReset); // occam task since nested select
+        on tile[0]:         RFM69_client            (c_irq_update, i_radio, i_blink_and_watchdog[0], i_buttons, i_i2c_internal_commands[0], i_i2c_general_commands[0], p_display_notReset); // occam task since nested select
         on tile[0].core[3]: blink_and_watchdog_task (i_blink_and_watchdog, p_explorer_leds);
 
         #if (SEMANTICS_DO_RSSI_IN_IRQ_DETECT_TASK==1)
@@ -245,7 +247,7 @@ int main() {
         on tile[0].core[5]: Button_Task (IOF_BUTTON_CENTER, inP_button_center, i_buttons[IOF_BUTTON_CENTER]); // [[combinable]]
         on tile[0].core[5]: Button_Task (IOF_BUTTON_RIGHT,  inP_button_right,  i_buttons[IOF_BUTTON_RIGHT]);  // [[combinable]]
 
-        on tile[0].core[6]: I2C_Internal_Task (i_i2c_internal_commands, i_i2c[0]);
+        on tile[0].core[6]: I2C_Internal_Task (i_i2c_internal_commands, i_i2c_general_commands, i_i2c[0]);
         on tile[0].core[6]: i2c_master (i_i2c, I2C_MASTER_NUM_CLIENTS, p_scl, p_sda, I2C_MASTER_SPEED_KBPS); // Synchronous==distributable
     }
 

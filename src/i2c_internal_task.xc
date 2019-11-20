@@ -24,6 +24,7 @@
 #include "i2c.h"
 
 #include "defines_adafruit.h"
+#include "iochip_mcp23008.h"
 #include "i2c_internal_task.h"
 #include "display_ssd1306.h"
 #include "core_graphics_adafruit_gfx.h"
@@ -38,6 +39,7 @@
 [[combinable]]
 void I2C_Internal_Task (
         server i2c_internal_commands_if i_i2c_internal_commands[I2C_INTERNAL_NUM_CLIENTS],
+        server i2c_general_commands_if  i_i2c_general_commands [I2C_GENERAL_NUM_CLIENTS],
         client i2c_master_if            i_i2c) { // synchronous
 
     #ifdef DEBUG_PRINT_DISPLAY
@@ -121,7 +123,7 @@ void I2C_Internal_Task (
                 ok = (i2c_result == I2C_OK); // 1 = (1==1), all OK when 1
             } break;
 
-            case i_i2c_internal_commands[int index_of_client].write_ok (
+            case i_i2c_general_commands[int index_of_client].write_reg_ok (
                     const i2c_dev_address_t dev_addr,
                     const unsigned char     reg_data[], // reg_addr followed by data
                     const static unsigned   len_reg_data
@@ -148,7 +150,7 @@ void I2C_Internal_Task (
                 }
             } break;
 
-            case i_i2c_internal_commands[int index_of_client].read_reg_ok (
+            case i_i2c_general_commands[int index_of_client].read_reg_ok (
                     const i2c_dev_address_t dev_addr,
                     const unsigned char     reg_addr,
                           uint8_t           &the_register

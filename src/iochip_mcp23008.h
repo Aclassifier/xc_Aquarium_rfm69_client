@@ -1,5 +1,5 @@
 /*
- * ioexpanderchip_mcp23008.h
+ * iochip_mcp23008.h
  *
  *  Created on: 3. mai 2019
  *      Author: teig
@@ -67,16 +67,29 @@
         } u;
     } relay_button_ustate_t;
 
+    typedef interface i2c_general_commands_if {
 
-    void internal_i2c_mcp23008_init (
-              client   i2c_internal_commands_if i_i2c_internal_commands,
-              unsigned                          &mcp23008_err_cnt);
+        bool write_reg_ok (
+                const i2c_dev_address_t dev_addr,
+                const unsigned char     reg_data[],    // reg_addr followed by data
+                const static unsigned   len_reg_data); // must include space for LEN_I2C_REG
+
+        bool read_reg_ok (
+                const i2c_dev_address_t dev_addr,
+                const unsigned char     reg_addr,
+                      uint8_t           &the_register);
+
+    } i2c_general_commands_if;
+
+    void i2c_general_mcp23008_init (
+              client   i2c_general_commands_if i_i2c_general_commands,
+              unsigned                         &iochip_err_cnt);
 
     bool // relay_button_pressed
-    internal_i2c_mcp23008_poll_button (
-              client   i2c_internal_commands_if i_i2c_internal_commands,
-              unsigned                          &mcp23008_err_cnt,
-              const bool                        relay_button_pressed_prev,
-              relay_button_ustate_t             &relay_button_ustate);
+    i2c_general_mcp23008_poll_button (
+              client   i2c_general_commands_if i_i2c_general_commands,
+              unsigned                         &iochip_err_cnt,
+              const bool                       relay_button_pressed_prev,
+              relay_button_ustate_t            &relay_button_ustate);
 
 #endif /* IOEXPANDERCHIP_MCP23008_H_ */

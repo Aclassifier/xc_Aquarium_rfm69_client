@@ -43,23 +43,15 @@ typedef interface i2c_internal_commands_if {
             const unsigned char     data[],
             const unsigned          nbytes);
 
-    bool write_ok (
-            const i2c_dev_address_t dev_addr,
-            const unsigned char     reg_data[],    // reg_addr followed by data
-            const static unsigned   len_reg_data); // must include space for LEN_I2C_REG
-
-    bool read_reg_ok (
-            const i2c_dev_address_t dev_addr,
-            const unsigned char     reg_addr,
-                  uint8_t           &the_register);
-
 } i2c_internal_commands_if;
 
 #define I2C_INTERNAL_NUM_CLIENTS 1
+#define I2C_GENERAL_NUM_CLIENTS 1
 
 [[combinable]]
 void I2C_Internal_Task (
         server i2c_internal_commands_if i_i2c_internal_commands[I2C_INTERNAL_NUM_CLIENTS],
+        server i2c_general_commands_if  i_i2c_general_commands [I2C_GENERAL_NUM_CLIENTS],
         client  i2c_master_if           i_i2c); // synchronous
 
 #else
