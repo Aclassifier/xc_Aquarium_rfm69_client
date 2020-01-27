@@ -103,11 +103,7 @@
     #define DEBUG_SHARED_LOG_VALUE 0
 #endif
 
-#if (FLASH_EXPLORER_BOX == 1)
-    #define DEBUG_PRINT_GLOBAL_APP 0 // ALWAYS 0: all printf off
-#else
-    #define DEBUG_PRINT_GLOBAL_APP 1 // 0: all printf off
-                                     // 1: controlled locally in each xc file
-#endif
+#define DEBUG_PRINT_GLOBAL_APP 0 // 0: all printf off
+                                 // 1: controlled locally in each xc file
 
 #endif /* GLOBALS_H_ */

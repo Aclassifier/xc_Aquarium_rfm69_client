@@ -571,9 +571,16 @@ bool // i2c_ok
 
                     unsigned num_light_amount = 0;
                     unsigned den_light_amount = 0;
+                    unsigned random_light_change_cnt;
+
+                    if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload < VERSION_OF_APP_PAYLOAD_03) {
+                        random_light_change_cnt = 0; // Received 245(?)
+                    } else {
+                        random_light_change_cnt = (unsigned) RX_context.RX_radio_payload.u.payload_u0.random_light_change_cnt;
+                    }
 
                     // ..........----------.
-                    // 6  * LYS 1/2
+                    // 6  * LYS 1/2 #0
                     // LEDfmb   2/3 1/3 1/3
                     // NÅ.      DAG  = 10       '.' when awating data. Aquarium display also uses '='. Obs space after "DAG " but not "NATT" (in LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LA)
                     // TIMER    10t 10-20
@@ -591,7 +598,7 @@ bool // i2c_ok
                         num_light_amount = RX_context.RX_radio_payload.u.payload_u0.light_amount.u.with_offset_30 - NORMAL_LIGHT_THIRDS_OFFSET; // 32-30=2
                         den_light_amount = NORMAL_LIGHT_THIRDS_OFFSET/10; // 30/10=3
 
-                    } else if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_02) {
+                    } else if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload >= VERSION_OF_APP_PAYLOAD_02) {
                         if (RX_context.num_received == 0) {
                             RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles = 0x11; // "1/1"
                         } else {
@@ -604,10 +611,11 @@ bool // i2c_ok
                     } else {} // Should not happen
 
                     display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                            "%s %s LYS %u/%u\nLEDfmb   %u/3 %u/3 %u/3\nN%s%s      %s = %u\nTIMER    %ut %u-%u",
+                            "%s %s LYS %u/%u #%u\nLEDfmb   %u/3 %u/3 %u/3\nN%s%s      %s = %u\nTIMER    %ut %u-%u",
                             display_screen_name_str,
                             alive ? "*" : "+",
                             num_light_amount, den_light_amount,
+                            random_light_change_cnt,
                             RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_front,
                             RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_center,
                             RX_context.RX_radio_payload.u.payload_u0.light_intensity_thirds_back,
@@ -817,12 +825,13 @@ bool // i2c_ok
                         //   LOG 87654321
                         //
                         display_context.sprintf_numchars = sprintf (display_context.display_ts1_chars,
-                                "%s %s RADIO %s\nMAX %u us\nLOG %08X",
+                                "%s %s RADIO %s\nMAX %u us\nLOG %08X\nVER %u",
                                 display_screen_name_str,
                                 alive ? "*" : "+",
                                (RXTX_context.timing_transx.timed_out_trans1to2) ? "FEIL?" : "OK",
                                 RXTX_context.timing_transx.maxtime_used_us_trans1to2,
-                                RXTX_context.radio_log_value);
+                                RXTX_context.radio_log_value,
+                                RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload);
                     #else
                         // ..........----------.
                         // 13 * RADIO
@@ -982,7 +991,7 @@ bool // i2c_ok
                              RX_context.RX_radio_payload.u.payload_u0.light_daytime_hours,
                              RX_context.RX_radio_payload.u.payload_u0.day_start_light_hour,
                              RX_context.RX_radio_payload.u.payload_u0.night_start_dark_hour);
-                } else if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload == VERSION_OF_APP_PAYLOAD_02) {
+                } else if (RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload >= VERSION_OF_APP_PAYLOAD_02) {
                     const char light_control_scheme_strings [][LIGHT_CONTROL_SCHEME_CHAR_TEXTS_LENGTH] = LIGHT_CONTROL_SCHEME_CHAR_TEXTS;
                     const unsigned num_light_amount = GET_NUMERATOR   (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles ); // [1..9]
                     const unsigned den_light_amount = GET_DENOMINATOR (RX_context.RX_radio_payload.u.payload_u0.light_amount.u.fraction_2_nibbles ); // [1..9]
@@ -1494,7 +1503,7 @@ void RFM69_handle_timeout (
             }
 
             RXTX_context.PACKET.u.packet_u3.appHeading.numbytes_of_full_payload = PACKET_LEN08;
-            RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_02;
+            RXTX_context.PACKET.u.packet_u3.appHeading.version_of_full_payload  = VERSION_OF_APP_PAYLOAD_03;
             RXTX_context.PACKET.u.packet_u3.appHeading.num_of_this_app_payload  = NUM_OF_THIS_APP_PAYLOAD_01;
 
             RXTX_context.PACKET.u.packet_u3.appNODEID = NODEID; // Comes from MASTER_ID

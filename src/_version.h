@@ -11,11 +11,13 @@
 
 // SHOULD THE LENGTH OF THESE NEED TO CHANGE THEN THE STRING THEY ARE COPIED INTO MUST BE MODIFIED
 //
-#define XTIMECOMPOSER_VERSION_STR "14.3.3"
+#define XTIMECOMPOSER_VERSION_STR "14.4.1"
 
-#define RFM69_CLIENT_VERSION_STR "0.8.92"
-#define RFM69_CLIENT_VERSION_NUM    0892
-// 0892     20Nov2019           No code change, just testing a green Exibel USB cable (Ok her, but not with IceCore)
+#define RFM69_CLIENT_VERSION_STR "0.8.93"
+#define RFM69_CLIENT_VERSION_NUM    0893
+// 0893     27Jan2020           random_light_change_cnt is new, used in SCREEN_LIGHT
+//                              VERSION_OF_APP_PAYLOAD_03 also handled and printed in SCREEN_RADIO_DEBUG_TRANS
+// 0892     20Nov2019           No code change, just testing a green Exibel USB cable (Ok here, also with IceCore, I had not discovered 1441, 1431 1421 etc.)
 // 0891     12Sep2019           SCREEN_RX_DISPLAY_OVERSIKT and SCREEN_WELCOME now also have a ±
 // 0890     13May2019           i2c_internal_commands_if broken up into itself plus i2c_internal_commands_if
 //                              THIS COST ONE chanend:            ## -> so not interesting for
