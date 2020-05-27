@@ -49,6 +49,7 @@
 #define IS_MYTARGET_VOID               0
 #define IS_MYTARGET_STARTKIT           1
 #define IS_MYTARGET_XCORE_200_EXPLORER 2
+#define IS_MYTARGET_XCORE_XA_MODULE    3 // Not used here
 
 #if (MYTARGET==STARTKIT)
     #define IS_MYTARGET IS_MYTARGET_STARTKIT

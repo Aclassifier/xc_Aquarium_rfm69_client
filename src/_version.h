@@ -15,6 +15,7 @@
 
 #define RFM69_CLIENT_VERSION_STR "0.8.93"
 #define RFM69_CLIENT_VERSION_NUM    0893
+//          NEXT                change button ports to buffered
 // 0893     27Jan2020           random_light_change_cnt is new, used in SCREEN_LIGHT
 //                              VERSION_OF_APP_PAYLOAD_03 also handled and printed in SCREEN_RADIO_DEBUG_TRANS
 // 0892     20Nov2019           No code change, just testing a green Exibel USB cable (Ok here, also with IceCore, I had not discovered 1441, 1431 1421 etc.)
