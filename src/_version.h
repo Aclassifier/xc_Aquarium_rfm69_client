@@ -16,6 +16,9 @@
 #define RFM69_CLIENT_VERSION_STR "0.8.93"
 #define RFM69_CLIENT_VERSION_NUM    0893
 //          NEXT                change button ports to buffered
+//          NEXT                Check if "defines_adafruit.h" is needed
+//          NEXT                Consider button_states_t not button_state_t
+// 0893     10May2025           Making ready for exporting to GitHub. New .gitignore and README.md
 // 0893     27Jan2020           random_light_change_cnt is new, used in SCREEN_LIGHT
 //                              VERSION_OF_APP_PAYLOAD_03 also handled and printed in SCREEN_RADIO_DEBUG_TRANS
 // 0892     20Nov2019           No code change, just testing a green Exibel USB cable (Ok here, also with IceCore, I had not discovered 1441, 1431 1421 etc.)
@@ -155,6 +158,12 @@
 // "0.5.1"  28Feb2018           more advanced handling
 // "0.5.0"  26Feb2018           testing some changes that Maxim initiated
 //          RFM69=000           First testing with two boards
+//          28Jun2020 RFM69=000 To get xflash to work:
+//                              XCORE-200-EXPLORER.xn (xTIMEcomposer 14.4.1)
+//                              See https://www.teigfam.net/oyvind/home/technology/098-my-xmos-notes/#ticket_xflash_1441_of_xcore-200_explorer_board_warnings
+//                                  <Device NodeId="0" Tile="0" Class="SQIFlash" Name="bootFlash" Type="S25LQ016B" PageSize="256" SectorSize="4096" NumPages="8192">
+//                                  replaced with
+//                                  <Device NodeId="0" Tile="0" Class="SQIFlash" Name="bootFlash" Type="S25LQ016B">
 
 #endif /* VERSION_H_ */
 

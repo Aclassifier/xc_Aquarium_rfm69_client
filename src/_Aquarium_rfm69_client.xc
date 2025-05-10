@@ -263,10 +263,10 @@ typedef struct {
 // MUST NOT MODIFY ANY STATE VALUES!
 bool // i2c_ok
     Display_screen (
-        display_context_t                 &display_context,
-                RX_context_t              &?RX_context,  // #if (IS_MYTARGET_SLAVE == 1)
-                TX_context_t              &?TX_context,  // #if (IS_MYTARGET_SLAVE == 0)
-                RXTX_context_t            &RXTX_context,
+        display_context_t  &display_context,
+        RX_context_t       &?RX_context,  // #if (IS_MYTARGET_SLAVE == 1)
+        TX_context_t       &?TX_context,  // #if (IS_MYTARGET_SLAVE == 0)
+        RXTX_context_t     &RXTX_context,
 
         const   use_t                     use,
         client  i2c_internal_commands_if  i_i2c_internal_commands) {

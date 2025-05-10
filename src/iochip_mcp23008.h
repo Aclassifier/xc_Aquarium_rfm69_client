@@ -8,18 +8,18 @@
 #ifndef IOEXPANDERCHIP_MCP23008_H_
 #define IOEXPANDERCHIP_MCP23008_H_
 
-    typedef enum i2c_reg_addr_port_expander_mcp23008_t {
-        MCP23008_IODIR     = 0x00,
-        MCP23008_IPOL      = 0x01,
-        MCP23008_GPINTEN   = 0x02,
-        MCP23008_DEFVAL    = 0x03,
-        MCP23008_INTCON    = 0x04,
-        MCP23008_IOCON     = 0x05,
-        MCP23008_GPPU      = 0x06,
-        MCP23008_INTF      = 0x07,
-        MCP23008_INTCAP_RO = 0x08, // Read only
-        MCP23008_GPIO      = 0x09,
-        MCP23008_OLAT      = 0x0A
+    typedef enum i2c_reg_addr_port_expander_mcp23008_e {
+        MCP23008_IODIR     =  0,
+        MCP23008_IPOL      =  1,
+        MCP23008_GPINTEN   =  2,
+        MCP23008_DEFVAL    =  3,
+        MCP23008_INTCON    =  4,
+        MCP23008_IOCON     =  5,
+        MCP23008_GPPU      =  6,
+        MCP23008_INTF      =  7,
+        MCP23008_INTCAP_RO =  8, // Read only
+        MCP23008_GPIO      =  9,
+        MCP23008_OLAT      = 10
     } i2c_reg_addr_port_expander_mcp23008_e;
 
     // 1.6.1 I/O DIRECTION (IODIR) REGISTER

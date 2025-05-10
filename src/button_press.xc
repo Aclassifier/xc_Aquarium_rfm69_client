@@ -25,16 +25,17 @@
 
 
 #define DEBOUNCE_TIMEOUT_50_MS 50
+#define BUTTON_PRESSED          0 // If pullup resistor
+#define BUTTON_RELEASED         1 // If pullup resistor
 
 [[combinable]]
 void Button_Task (
         const unsigned   button_n,
         in port          p_button,
-        client button_if i_button_out // See http://www.teigfam.net/oyvind/home/technology/141-xc-is-c-plus-x/#the_combined_code_6_to_zero_channels
-        )
+        client button_if i_button_out) // See http://www.teigfam.net/oyvind/home/technology/141-xc-is-c-plus-x/#the_combined_code_6_to_zero_channels
 {
     // From XMOS-Programming-Guide.
-    int      current_val = 0;
+    int      current_val = BUTTON_PRESSED;
     bool     is_stable   = true;
     timer    tmr;
     time32_t timeout;
@@ -50,9 +51,9 @@ void Button_Task (
         select {
             // If the button is "stable", react when the I/O pin changes value
             case is_stable => p_button when pinsneq(current_val) :> current_val: {
-                if (current_val == 0) {
+                if (current_val == BUTTON_PRESSED) {
                     debug_print(": Button %u pressed\n", button_n);
-                } else {
+                } else { // BUTTON_RELEASED
                     debug_print(": Button %u released\n", button_n);
                 }
 
@@ -69,7 +70,7 @@ void Button_Task (
 
             case (pressed_but_not_released or (is_stable == false)) => tmr when timerafter(timeout) :> void: {
                 if (is_stable == false) {
-                    if (current_val == 0) {
+                    if (current_val == BUTTON_PRESSED) {
                         initial_released_stopped = true; // Not if BUTTON_ACTION_PRESSED was sent first
                         pressed_but_not_released = true; // ONLY PLACE IT'S SET
 
@@ -77,8 +78,7 @@ void Button_Task (
                         debug_print(" BUTTON_ACTION_PRESSED %u sent\n", button_n);
                         tmr :> current_time;
                         timeout = current_time + (DEBOUNCE_TIMEOUT_10000_MS * XS1_TIMER_KHZ);
-                    }
-                    else {
+                    } else { // BUTTON_RELEASED
                         if (initial_released_stopped == false) { // Also after BUTTON_ACTION_PRESSED_FOR_10_SECONDS
                             initial_released_stopped = true;
                             debug_print(" Button %u filtered away\n", button_n);

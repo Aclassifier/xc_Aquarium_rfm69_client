@@ -5,7 +5,10 @@
 #TARGET = STARTKIT
 TARGET = XCORE-200-EXPLORER
 #         See http://www.xcore.com/viewtopic.php?f=26&t=6610 Passing TARGET to XC
-# -------
+
+# =================================================================================================
+# Comments are on separate lines in make! This avoids "Invalid configuration.  Stop." See blog 141
+# =================================================================================================
 
 # The APP_NAME variable determines the name of the final .xe file. It should
 # not include the .xe postfix. If left blank the name will default to

@@ -1,0 +1,16 @@
+model RLC  "Simple RLC circuit"
+        Real V_s = 24   "Source Voltage";
+        Real R   = 100  "Resistance";
+        Real L   = 1    "Inductance";
+        Real C   = 1e-3 "Capacitance";
+        
+        Real V    "Voltage over C and R";
+        Real I_L  "Current through L";
+        Real I_R  "Current through R";
+        Real I_C  "Current through C";
+    equation
+        V = I_R * R;
+        0 = I_L - I_R - I_C;
+        I_C = C * der(V);
+        V_s - V = L * der(I_L);
+end RLC;

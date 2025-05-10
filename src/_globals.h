@@ -55,6 +55,7 @@
     #define IS_MYTARGET IS_MYTARGET_STARTKIT
 #elif (MYTARGET==XCORE-200-EXPLORER)
     #define IS_MYTARGET IS_MYTARGET_XCORE_200_EXPLORER
+    // Observe RFM69=000 to get xflash to work
 #else
     #error NO TARGET DEFINED
 #endif

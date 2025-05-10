@@ -49,6 +49,9 @@
                                                                                         // Filling "/n" in the string works, but it fills up one char position that's not visible. Rather use this:
 #define SSD1306_TS1_DISPLAY_ALL_CHAR_LEN (SSD1306_TS1_DISPLAY_VISIBLE_CHAR_LEN + SSD1306_TS1_NEWLINE_CHARS_NUMS) // Spave for three "/n"
 
+#define SSD1306_TS1_LINE_CHAR_NUM_TS2  10 // TextSize 2: "01234567890123456789" fills both lines
+#define SSD1306_TS1_LINE_NUMS_TS2       2 // TextSize 2 has space for two lines
+
 #define INNER_MAX_LUX         99 // Used for both "err" and max light (if max light then "ok==false" is not returned)
 #define INNER_MIN_LUX         0
 #define INNER_LUX_TEXT_LEN    3   // "12" with space for NUL

@@ -11,8 +11,7 @@
 typedef enum {
     BUTTON_ACTION_PRESSED,
     BUTTON_ACTION_PRESSED_FOR_10_SECONDS,
-    BUTTON_ACTION_RELEASED // Also must be sent after BUTTON_ACTION_PRESSED_FOR_10_SECONDS since we need to
-                           // know state pressed_now. So we can't filter it in Button_Task
+    BUTTON_ACTION_RELEASED // Not after BUTTON_ACTION_PRESSED_FOR_10_SECONDS
 } button_action_t;
 
 typedef interface button_if {
@@ -24,7 +23,7 @@ typedef interface button_if {
 
 } button_if;
 
-#define DEBOUNCE_TIMEOUT_10000_MS 10000 // 10 seconds
+#define DEBOUNCE_TIMEOUT_10000_MS 10000 // 10 seconds. Max 2exp31 = 2147483648 = 21.47483648 seconds (not one less)
 
 #define IOF_BUTTON_LEFT   0
 #define IOF_BUTTON_CENTER 1
